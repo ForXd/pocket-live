@@ -97,11 +97,14 @@ import kotlinx.coroutines.delay
         if(full || pip) playerView?.hideController()
     }
     BackHandler { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) full=false else model.stopPlayback() }
-    DisposableEffect(full, pip) {
+    val darkTheme=LocalPocketDark.current
+    DisposableEffect(full, pip,darkTheme) {
         val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
+        bars.isAppearanceLightStatusBars=!(full || pip || darkTheme)
+        bars.isAppearanceLightNavigationBars=!(full || pip || darkTheme)
         if(full && !pip) { bars.systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE; bars.hide(WindowInsetsCompat.Type.systemBars()) }
         else bars.show(WindowInsetsCompat.Type.systemBars())
-        onDispose { bars.show(WindowInsetsCompat.Type.systemBars()) }
+        onDispose { bars.show(WindowInsetsCompat.Type.systemBars());bars.isAppearanceLightStatusBars=!darkTheme;bars.isAppearanceLightNavigationBars=!darkTheme }
     }
     DisposableEffect(controller,lifecycle) {
         val observer=LifecycleEventObserver { _,event -> when(event) {
@@ -132,6 +135,7 @@ import kotlinx.coroutines.delay
         FilledTonalButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) { Text("选集") }
         PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
     }
+    MaterialTheme(colorScheme=if(full || pip) NightColors else MaterialTheme.colorScheme) {
     if(optionsOpen && !pip) {
         Dialog(onDismissRequest={optionsOpen=false}) {
             BackHandler { optionsOpen=false }
@@ -219,7 +223,7 @@ import kotlinx.coroutines.delay
             }
         }
     }
-    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+    CompositionLocalProvider(LocalContentColor provides if(full || pip) Color.White else MaterialTheme.colorScheme.onSurface) {
     Box(Modifier.fillMaxSize().background(if(full || pip) Color.Black else MaterialTheme.colorScheme.surface).testTag("playbackSurface")) {
         Column(Modifier.fillMaxSize().then(if(full || pip) Modifier else Modifier.safeDrawingPadding())) {
             if(!full && !pip) {
@@ -321,6 +325,7 @@ import kotlinx.coroutines.delay
         }
     }
     }
+}
 }
 
 @Composable private fun PlayerIconAction(icon:Int,label:String,enabled:Boolean=true,modifier:Modifier=Modifier,onClick:()->Unit) {

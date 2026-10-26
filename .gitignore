@@ -15,3 +15,5 @@ artifacts/
 *.hprof
 *.log
 store-password
+
+*.apk.idsig

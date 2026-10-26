@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
     var clearing by remember { mutableStateOf(false) }
     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("historyGroups")) {
         item {
-            Text("继续观看",style=MaterialTheme.typography.titleLarge)
+            Text("继续观看",style=MaterialTheme.typography.headlineSmall)
             Text("同名剧目合并来源 · 保留各集观看进度",style=MaterialTheme.typography.bodySmall)
         }
         if(groups.isEmpty()) item { EmptyPanel("继续上次的精彩","每部剧独立保存断点，展开可查看各集记录。",R.drawable.ic_history) }
@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
                         Text("上次观看 · ${latest.playback.episode.name}",style=MaterialTheme.typography.bodyMedium)
                         Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall)
                         QualityBadge(latest.playback.episode.quality)
-                        Button(onClick={resume(latest)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("continue:$id")) {
+                        Button(shape=MaterialTheme.shapes.medium,onClick={resume(latest)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("continue:$id")) {
                             Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
                         }
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {

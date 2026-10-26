@@ -33,6 +33,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     val state = _state.asStateFlow()
     private val lock = Mutex()
     val network = Network({ _state.value.saved.allowHttp }, dns=dns, cache = responseCache)
+    val updater=ApkUpdater(application,network.client,viewModelScope)
     private var updateJob:Job?=null
     private var updateAttemptAt:Long?=null
     fun checkUpdates(force:Boolean=false) {

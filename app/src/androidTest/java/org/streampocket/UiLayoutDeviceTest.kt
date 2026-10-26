@@ -22,6 +22,7 @@ class UiLayoutDeviceTest {
         val source=Source("示例来源","$base/api")
         val video=Video(source,"1","星河漫游", "更新至第12集")
         val history=History(Playback(video,Episode("第3集","$base/video.mp4"),72000),1)
+        ui.runOnUiThread { ui.activity.viewModelStore.clear() }
         runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history),allowHttp=true)) }
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse = if(request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5"},{"id":"2","title":"山海之间","rate":"8.2"}]}""")
@@ -36,6 +37,7 @@ class UiLayoutDeviceTest {
                     return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
                 }
             })[AppModel::class.java]
+            ThemePreference.write(ui.activity,if(InstrumentationRegistry.getArguments().getString("appearance")=="dark") ThemeMode.DARK else ThemeMode.LIGHT)
             ui.activity.setContent { PocketTheme { Pocket(model) } }
         }
         val instrument=InstrumentationRegistry.getInstrumentation()
@@ -44,7 +46,7 @@ class UiLayoutDeviceTest {
             android.os.SystemClock.sleep(450) // Let platform IME/inset and navigation animations settle before pixels.
             ui.waitForIdle()
             instrument.waitForIdleSync()
-            val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"ui-v060-${InstrumentationRegistry.getArguments().getString("size","normal")}").apply { mkdirs() }
+            val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"ui-v080-${InstrumentationRegistry.getArguments().getString("appearance","light")}").apply { mkdirs() }
             instrument.uiAutomation.takeScreenshot()?.let { b -> try { java.io.File(dir,"$name.png").outputStream().use { b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { b.recycle() } }
         }
         try {

@@ -7,6 +7,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Alignment
@@ -42,7 +44,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); enableEdgeToEdge(
             statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = androidx.activity.SystemBarStyle.dark(0xff101918.toInt()))
+            navigationBarStyle = androidx.activity.SystemBarStyle.auto(android.graphics.Color.TRANSPARENT,android.graphics.Color.TRANSPARENT))
         androidx.media3.common.util.Log.setLogLevel(androidx.media3.common.util.Log.LOG_LEVEL_OFF)
         setContent {
             PocketTheme {
@@ -76,10 +78,12 @@ class MainActivity : ComponentActivity() {
         onDispose { lifecycle.removeObserver(observer) }
     }
     var updatesOpen by rememberSaveable { mutableStateOf(false) }
+    var appearanceOpen by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
     // Do not put token-bearing input into saved-instance-state or screen titles.
     var url by remember { mutableStateOf("") }
+    var addingSubscription by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf<Subscription?>(null) }
     var expandedSubscription by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(s.loading,s.saved.subscriptions.map { it.id }) {
@@ -89,20 +93,28 @@ class MainActivity : ComponentActivity() {
     var ruleText by remember { mutableStateOf("") }
     LaunchedEffect(tab,s.saved,s.playback?.sessionId) { if((tab == 1 || tab == 2) && s.playback == null) model.refreshStorage() }
     LaunchedEffect(s.saved.subscriptions) {
-        if(url.isNotBlank() && s.saved.subscriptions.any { it.url == validUrl(url, true) }) url = ""
+        if(url.isNotBlank() && s.saved.subscriptions.any { it.url == validUrl(url, true) }) { url = "";addingSubscription=false }
     }
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(s.message) { s.message?.let { snack.showSnackbar(it); model.message(null) } }
     val playback = s.playback
     if(playback != null) { PlaybackScreen(playback, model); return }
+    if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
     if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
     BackHandler(s.detail != null || s.detailLoading) { model.closeDetail() }
     Scaffold(
-        topBar = { TopAppBar(colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title = { Text(if(s.detail != null) "详情与选集" else "Pocket Live") }, actions = {
+        topBar = { TopAppBar(colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title = {
+            if(s.detail!=null) Text("详情与选集",style=MaterialTheme.typography.titleMedium)
+            else Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Image(painterResource(R.drawable.pocket_logo),null,Modifier.size(40.dp))
+                Text("Pocket Live",style=MaterialTheme.typography.titleMedium)
+            }
+        }, actions = {
+            IconButton(onClick={appearanceOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Settings,"外观设置") }
             TextButton(onClick={updatesOpen=true;model.checkUpdates()}) { Text(if(s.appRelease!=null) "有新版" else "更新") }
             if(s.detail != null || s.detailLoading) TextButton(onClick = model::closeDetail) { Text("返回") }
         }) },
-        bottomBar = { NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainer) {
+        bottomBar = { NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainer,tonalElevation=0.dp) {
             listOf("搜索","订阅","历史","发现").forEachIndexed { i, title ->
                 NavigationBarItem(selected = tab == i, onClick = { tab = i; model.closeDetail() }, icon = { if(i==3) Icon(Icons.Default.Star,contentDescription=null) else Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history)[i]),contentDescription=null) }, label = { Text(title) })
             }
@@ -138,13 +150,13 @@ class MainActivity : ComponentActivity() {
             } else when(tab) {
                 0 -> Column(Modifier.fillMaxSize().padding(horizontal=16.dp)) {
                     if(!compact) {
-                        Text("搜你想看的", style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=12.dp))
-                        Text("聚合你的片源，找到更清晰的版本",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
+                        Text("搜你想看的", style=MaterialTheme.typography.headlineLarge,modifier=Modifier.padding(top=24.dp))
+                        Text("从你的订阅，发现下一部好片",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
                     }
                     Spacer(Modifier.height(if(compact) 8.dp else 16.dp))
                     OutlinedTextField(query,{query=it.take(100)},modifier=Modifier.fillMaxWidth().testTag("searchInput"),singleLine=true,keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={focusManager.clearFocus();keyboard?.hide();model.search(query)}),label={Text("影片或频道名称")},shape=MaterialTheme.shapes.large,leadingIcon={Icon(painterResource(R.drawable.ic_search),null)})
                     Row(Modifier.padding(top=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Button(modifier=Modifier.weight(1f).heightIn(min=48.dp),onClick={focusManager.clearFocus(); keyboard?.hide(); model.search(query)},enabled=query.isNotBlank()) { Icon(Icons.Default.Search,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("开始搜索") }
+                        Button(shape=MaterialTheme.shapes.medium,modifier=Modifier.weight(1f).heightIn(min=52.dp),onClick={focusManager.clearFocus(); keyboard?.hide(); model.search(query)},enabled=query.isNotBlank()) { Icon(Icons.Default.Search,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("开始搜索") }
                         if(s.searching) OutlinedButton(onClick=model::cancelSearch) { Text("取消搜索") }
                     }
                     if(s.searching) LinearProgressIndicator(progress={if(s.total==0) 0f else s.completed.toFloat()/s.total},modifier=Modifier.fillMaxWidth().padding(vertical=8.dp))
@@ -153,8 +165,8 @@ class MainActivity : ComponentActivity() {
                         TextButton(onClick=model::sortByQuality) { Text("高清优先 ↓") }
                     }
                     if(s.total > 0) Text("已完成 ${s.completed}/${s.total} 个源 · ${s.failures} 个失败 · ${s.results.size} 条结果（最多 1000）",style=MaterialTheme.typography.bodySmall)
-                    if(s.results.isEmpty() && !compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total>0) "暂未找到结果" else "从你的片源开始",
-                        if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.failures>0) "部分片源未响应，可换个关键词或检查订阅。" else "添加合法订阅，搜索影片或直播频道。",R.drawable.ic_search)
+                    if(s.results.isEmpty() && !compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total>0) "暂未找到结果" else "你的片库，由你定义",
+                        if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.failures>0) "部分片源未响应，可换个关键词或检查订阅。" else "在订阅页添加来源，即可开始搜索。",R.drawable.ic_search)
                     LazyColumn(contentPadding=PaddingValues(top=12.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(10.dp),modifier=Modifier.pointerInput(model) {
                         awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
                     }) {
@@ -176,11 +188,17 @@ class MainActivity : ComponentActivity() {
                 }
                 3 -> DiscoverScreen(s,model,{tab=1}) { title -> query=title;tab=0;model.search(title) }
                 1 -> LazyColumn(modifier=Modifier.fillMaxSize().testTag("subscriptionsList"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    item { Text("管理订阅",style=MaterialTheme.typography.titleLarge); Text("添加来源，管理你的片库",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                    item { Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
+                    item { Row(verticalAlignment=Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                            Text("管理订阅",style=MaterialTheme.typography.headlineSmall)
+                            Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if(s.saved.subscriptions.isNotEmpty()) FilledTonalIconButton(onClick={addingSubscription=!addingSubscription},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Add,if(addingSubscription) "收起添加订阅" else "添加订阅") }
+                    } }
+                    if(s.saved.subscriptions.isEmpty() || addingSubscription || url.isNotEmpty()) item { Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
                         Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                             OutlinedTextField(url,{url=it.take(4096)},modifier=Modifier.fillMaxWidth().testTag("subscriptionInput"),label={Text("粘贴订阅链接")},singleLine=true,shape=MaterialTheme.shapes.medium,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri))
-                            Button(onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
+                            Button(shape=MaterialTheme.shapes.medium,onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
                                 Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("添加订阅")
                             }
                             if("new" in s.importing) TextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
@@ -227,17 +245,4 @@ class MainActivity : ComponentActivity() {
     ruleSource?.let { source -> AlertDialog(onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
         OutlinedTextField(ruleText,{ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={TextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={TextButton(onClick={ruleSource=null}) { Text("取消") }}) }
     delete?.let { sub -> AlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={TextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={TextButton(onClick={delete=null}){Text("取消")}}) }
-}
-
-@Composable fun PocketTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = darkColorScheme(
-        primary=Color(0xff8ce0c5),onPrimary=Color(0xff00382b),primaryContainer=Color(0xff1b493e),onPrimaryContainer=Color(0xffb0f4dc),
-        secondary=Color(0xffb4ccc2),onSecondary=Color(0xff20362e),secondaryContainer=Color(0xff344c43),onSecondaryContainer=Color(0xffd0e9dd),
-        tertiary=Color(0xffb4c5f5),onTertiary=Color(0xff20304f),tertiaryContainer=Color(0xff374767),onTertiaryContainer=Color(0xffdae2ff),
-        background=Color(0xff0d1513),onBackground=Color(0xffe0e5e0),surface=Color(0xff0d1513),onSurface=Color(0xffe0e5e0),
-        surfaceVariant=Color(0xff3f4944),onSurfaceVariant=Color(0xffbfc9c2),surfaceTint=Color(0xff8ce0c5),
-        surfaceContainerLowest=Color(0xff08100e),surfaceContainerLow=Color(0xff151d1a),surfaceContainer=Color(0xff19221f),
-        surfaceContainerHigh=Color(0xff242c29),surfaceContainerHighest=Color(0xff2e3733),surfaceDim=Color(0xff0d1513),surfaceBright=Color(0xff333c37),
-        outline=Color(0xff89938d),outlineVariant=Color(0xff3f4944)),
-        shapes=Shapes(extraSmall=RoundedCornerShape(4.dp),small=RoundedCornerShape(8.dp),medium=RoundedCornerShape(12.dp),large=RoundedCornerShape(16.dp),extraLarge=RoundedCornerShape(28.dp)),content=content)
 }

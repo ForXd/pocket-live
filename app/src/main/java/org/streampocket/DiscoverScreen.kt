@@ -92,7 +92,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {
-            Text("发现好故事",style=MaterialTheme.typography.titleLarge)
+            Text("发现好故事",style=MaterialTheme.typography.headlineSmall)
             Text("豆瓣公开推荐 · 点击封面搜索你的订阅来源",style=MaterialTheme.typography.bodySmall)
         }
         item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -116,7 +116,7 @@ import androidx.compose.ui.text.style.TextOverflow
             Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 row.forEach { video ->
                     Card(onClick={searchTitle(video.title)},modifier=Modifier.weight(1f),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
-                        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.padding(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f/3f))
                             Text(video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                             if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodySmall)

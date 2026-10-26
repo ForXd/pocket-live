@@ -33,22 +33,8 @@ class AppUpdateDeviceTest {
             ui.waitUntil(5000) { model.state.value.appRelease!=null }
             assertEquals(1,calls.get())
             ui.onNodeWithText("有新版").performClick()
-            ui.onNodeWithText("下载更新").assertExists()
+            ui.onNodeWithText("下载并安装").assertExists()
             assertEquals(1,calls.get())
-            val instrument=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
-            val download=java.util.concurrent.atomic.AtomicReference<String>()
-            val monitor=object:android.app.Instrumentation.ActivityMonitor() {
-                override fun onStartActivity(intent:android.content.Intent):android.app.Instrumentation.ActivityResult? {
-                    if(intent.action!=android.content.Intent.ACTION_VIEW) return null
-                    download.set(intent.dataString)
-                    return android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_OK,null)
-                }
-            }
-            instrument.addMonitor(monitor)
-            try {
-                ui.onNodeWithText("下载更新").performClick()
-                assertEquals("https://github.com/ForXd/pocket-live/releases/download/v9.0.0/pocket-live-9.0.0-release.apk",download.get())
-            } finally { instrument.removeMonitor(monitor) }
             ui.onNodeWithText("重新检查").performClick()
             ui.waitUntil(5000) { model.state.value.updateError!=null }
             assertFalse(model.state.value.updateChecking)

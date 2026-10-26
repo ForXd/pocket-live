@@ -18,7 +18,11 @@
 
 同名点播剧目会跨来源合并为一张历史卡片，继续观看默认使用最近一次来源和断点。展开后显示各来源的分集记录，删除整部剧会删除该组所有来源的历史。只统一空白、大小写和全半角，不去掉季数、年份等标题信息；直播仍按来源区分。标题相同但实际内容不同的资源可能归入同一组，可通过展开后的来源名称区分。
 
-正式版启动或回到前台时检查 `ForXd/pocket-live` 最新正式 GitHub Release，每次运行至多每 24 小时自动检查一次；右上角“更新 / 有新版”可查看结果和手动重试。仅接受本仓库、对应版本、已上传的正式 APK 地址。点击“下载更新”交给浏览器下载，下载后打开 APK，由 Android 确认安装和签名兼容性。应用不后台下载或静默安装，更新包不占应用内部 50 MB 缓存预算。升级请保留原应用，勿先卸载。
+正式版启动或回到前台时检查 `ForXd/pocket-live` 最新正式 GitHub Release，每次运行至多每 24 小时自动检查一次；右上角“更新 / 有新版”可查看结果和手动重试。点击“下载并安装”直接在应用内下载，显示进度，支持取消和重试，不打开浏览器。下载后核验 GitHub SHA-256、包名、版本与现有签名，再通过私有 FileProvider 交给 Android 确认安装。首次需要允许本应用安装未知应用；不会静默安装。请保留原应用，勿先卸载。
+
+更新使用流式下载，单个安装包最多 12 MB，下载前检查应用文件 50 MB 预算和可用磁盘。关闭更新弹窗后下载继续；进程被系统结束后，未完成的下载需要重试，已完成的安装包可恢复并在升级后自动清理。未实现断点续传或后台保活。
+
+右上角“外观设置”提供跟随系统、日间和夜间三种模式，即时生效并保存。横屏全屏播放器保持深色控制界面。新版图标采用口袋折面与播放三角的组合，界面统一使用青绿强调色、分层卡片和 Material 3 排版。参见 [v0.8.0 界面与验证记录](docs/ui-v0.8.0.md)。
 
 发现页海报请求随页面前台生命周期执行，进入后台时取消，回到前台重试失败图片；刷新推荐也可重试海报。推荐刷新失败保留同一分类的已有内容，并显示重试入口；空列表、失败或超过五分钟的推荐在重新进入前台时检查刷新。推荐请求总时限 22 秒，包含排队时间。
 
@@ -44,10 +48,16 @@
 需要 JDK 21、Android SDK Platform 37，以及 Android SDK Build Tools。设置 `JAVA_HOME` 和 `ANDROID_HOME` 后执行：
 
 ```sh
-./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest assembleRelease
+# 安装测试需要独立的高版本测试 APK；仅打包到 androidTest，不进入正式版。
+# 先构建 debug 以生成默认 debug.keystore（首次构建时需要）。
+./gradlew assembleDebug
+./scripts/build-update-fixture.sh
+./gradlew testDebugUnitTest assembleDebugAndroidTest assembleRelease
 ```
 
 Release 默认不配置签名，私钥由开发者在项目外保存，通过 `apksigner` 签署产物。不要提交私钥、口令或用户订阅。
+
+重复运行 `ApkUpdaterDeviceTest` 前，请在测试进程外执行 `adb shell appops set org.streampocket.devtest REQUEST_INSTALL_PACKAGES default`；Android 撤销安装权限会终止该应用进程。可加 instrumentation 参数 `-e actualInstaller true` 验证真实系统安装确认页（测试会取消，不安装夹具）。
 
 设备测试使用本地 MockWebServer 与测试媒体；真实豆瓣联网测试单独位于 `DiscoveryDeviceTest.liveDoubanAndCoverDecode`。测试 APK 的包名是 `org.streampocket.devtest`，正式包名为 `org.streampocket`。
 
