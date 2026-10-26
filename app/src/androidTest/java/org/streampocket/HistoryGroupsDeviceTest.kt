@@ -25,7 +25,7 @@ class HistoryGroupsDeviceTest {
         }
         val owner=object:ViewModelStoreOwner { override val viewModelStore=ViewModelStore() }
         val source=Source("源一","https://one.example/api")
-        fun entry(id:String,episode:Int,sourceValue:Source=source)=History(Playback(Video(sourceValue,id,"同名剧"),Episode("第${episode}集","https://media.example/$id/$episode.mp4"),episode*10000L),episode.toLong())
+        fun entry(id:String,episode:Int,sourceValue:Source=source)=History(Playback(Video(sourceValue,id,"剧目$id"),Episode("第${episode}集","https://media.example/$id/$episode.mp4"),episode*10000L),episode.toLong())
         val a=entry("a",1);val a2=entry("a",2);val b=entry("b",3);val other=entry("a",4,source.copy(url="https://two.example/api"))
         val initial=Saved(history=listOf(other,b,a2,a))
         val storage=Storage(app);storage.write(initial)
@@ -45,7 +45,7 @@ class HistoryGroupsDeviceTest {
                 override fun <T:ViewModel> create(modelClass:Class<T>):T { @Suppress("UNCHECKED_CAST") return AppModel(app) as T }
             })[AppModel::class.java] }
             await { !model.state.value.loading };assertFalse(model.state.value.loadFailed)
-            assertEquals(3,HistoryGroups.group(model.state.value.saved.history).size)
+            assertEquals(2,HistoryGroups.group(model.state.value.saved.history).size)
             lateinit var old:Playback
             main { model.resume(a2);old=model.state.value.playback!!;model.checkpoint(old,25000) }
             await { model.state.value.saved.history.any { it.playback.key==a2.playback.key && it.playback.position==25000L } }
@@ -53,8 +53,8 @@ class HistoryGroupsDeviceTest {
             await { model.state.value.saved.history.any { it.playback.key==b.playback.key && it.playback.position==35000L } }
             main { model.resume(model.state.value.saved.history.first { it.playback.key==a2.playback.key });assertEquals(25000L,model.state.value.playback!!.position);old=model.state.value.playback!!;model.removeHistoryGroup(HistoryGroups.key(a.playback.video));model.checkpoint(old,99999) }
             await { model.state.value.saved.history.none { HistoryGroups.key(it.playback.video)==HistoryGroups.key(a.playback.video) } }
-            assertEquals(2,Storage(app).read().history.size)
-            assertTrue(model.state.value.saved.history.any { it.playback.video.source.key==other.playback.video.source.key })
+            assertEquals(1,Storage(app).read().history.size)
+            assertFalse(model.state.value.saved.history.any { it.playback.video.source.key==other.playback.video.source.key })
             main { model.clearHistory();model.checkpoint(old,88888) }
             await { model.state.value.saved.history.isEmpty() };assertTrue(Storage(app).read().history.isEmpty())
             val live=entry("channel",1,source.copy(kind=SourceKind.LIVE))

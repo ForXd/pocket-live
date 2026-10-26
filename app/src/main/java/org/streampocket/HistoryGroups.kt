@@ -9,7 +9,13 @@ data class HistoryGroup(val key:HistoryGroupKey,val entries:List<History>) {
     val latest:History get()=entries.first()
 }
 object HistoryGroups {
-    fun key(video:Video)=HistoryGroupKey(video.source.key,video.id)
+    fun key(video:Video):HistoryGroupKey {
+        val title=java.text.Normalizer.normalize(video.title,java.text.Normalizer.Form.NFKC)
+            .filterNot { it.isWhitespace() || Character.isSpaceChar(it) }.lowercase(java.util.Locale.ROOT)
+        // Keep season/year/version text. IDs are local to each source, never cross-source identity.
+        return if(video.source.kind==SourceKind.VOD && title.isNotEmpty()) HistoryGroupKey("vod-title",title)
+            else HistoryGroupKey(video.source.key,video.id)
+    }
     fun group(history:List<History>):List<HistoryGroup> = history.sortedByDescending { it.updated }
         .groupBy { key(it.playback.video) }.map { (key,entries) -> HistoryGroup(key,entries) }
     fun remove(saved:Saved,groupKey:HistoryGroupKey)=saved.copy(history=saved.history.filterNot { key(it.playback.video)==groupKey })

@@ -14,6 +14,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import okhttp3.*
@@ -111,7 +115,15 @@ class PosterStore(private val directory: File) {
     }
 }
 @Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp)) {
-    val bitmap by produceState<Bitmap?>(null,video.poster,model) { value=null; value=model.posters.load(video.poster,model.network) }
+    val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=model.state.value.posterRefresh)
+    val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle) {
+        value=null // A changed URL must never reuse the previous poster bitmap.
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            // A stopped screen cancels its calls; foreground entry retries a failed image.
+            if(value==null) value=model.posters.load(video.poster,model.network)
+        }
+    }
     Surface(modifier,color=MaterialTheme.colorScheme.surfaceVariant) {
         bitmap?.let { Image(it.asImageBitmap(),"${video.title} 封面",contentScale=ContentScale.Crop) }
             ?: Icon(painterResource(R.drawable.ic_play),"暂无封面",Modifier.padding(20.dp))

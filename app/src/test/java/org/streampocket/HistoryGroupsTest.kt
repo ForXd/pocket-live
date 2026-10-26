@@ -5,13 +5,18 @@ import org.junit.Test
 
 class HistoryGroupsTest {
     private val source=Source("源一","https://one.example/api")
-    private fun h(id:String,episode:Int,time:Long,src:Source=source)=History(Playback(Video(src,id,"同名剧"),Episode("第${episode}集","https://media.example/$id/$episode.mp4"),episode*1000L),time)
-    @Test fun groupsUseSourceAndIdNotTitleAndRemainRecentFirst() {
-        val a1=h("a",1,10);val a2=h("a",2,40);val b=h("b",1,30);val other=h("a",1,20,source.copy(url="https://two.example/api"))
+    private fun h(id:String,episode:Int,time:Long,src:Source=source)=History(Playback(Video(src,id,"剧目$id"),Episode("第${episode}集","https://media.example/$id/$episode.mp4"),episode*1000L),time)
+    @Test fun sameTitleAcrossSourcesMergesAndKeepsEveryBreakpoint() {
+        val a1=h("a",1,10);val a2=h("a",2,40);val b=h("b",1,30)
+        val other=h("different-id",1,20,source.copy(url="https://two.example/api")).let {
+            it.copy(playback=it.playback.copy(video=it.playback.video.copy(title=" 剧目a ")))
+        }
         val groups=HistoryGroups.group(listOf(a1,b,other,a2))
-        assertEquals(3,groups.size);assertEquals(listOf(a2,a1),groups[0].entries)
-        assertEquals(b,groups[1].latest);assertEquals(other,groups[2].latest)
-        assertNotEquals(groups[0].key,groups[2].key)
+        assertEquals(2,groups.size);assertEquals(listOf(a2,other,a1),groups[0].entries)
+        assertEquals(b,groups[1].latest)
+        assertEquals(listOf(b),HistoryGroups.remove(Saved(history=listOf(a1,b,other,a2)),groups[0].key).history)
+        assertNotEquals(HistoryGroups.key(a1.playback.video),HistoryGroups.key(a1.playback.video.copy(title="剧目a 第二季")))
+        assertNotEquals(HistoryGroups.key(a1.playback.video),HistoryGroups.key(a1.playback.video.copy(source=source.copy(kind=SourceKind.LIVE))))
     }
     @Test fun resumeKeepsEachEpisodeBreakpointAndCreatesNewOwnership() {
         val a=h("a",2,20);val b=h("b",4,10)
@@ -26,10 +31,10 @@ class HistoryGroupsTest {
         assertEquals(0L,HistoryGroups.resume(live).position)
         assertEquals("直播 · 打开当前直播",HistoryGroups.progress(live))
     }
-    @Test fun removingOneGroupPreservesOtherSourceAndSeries() {
+    @Test fun removingOneGroupRemovesAllSourcesAndPreservesOtherSeries() {
         val a=h("a",1,1);val a2=h("a",2,2);val b=h("b",1,3);val other=h("a",1,4,source.copy(url="https://two.example/api"))
         val saved=Saved(history=listOf(a,a2,b,other))
-        assertEquals(listOf(b,other),HistoryGroups.remove(saved,HistoryGroups.key(a.playback.video)).history)
+        assertEquals(listOf(b),HistoryGroups.remove(saved,HistoryGroups.key(a.playback.video)).history)
         assertEquals(4,saved.history.size)
     }
     @Test fun evictionStillCountsEpisodesAndKeepsBoundedSingleHistory() {

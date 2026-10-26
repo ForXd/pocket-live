@@ -61,6 +61,15 @@ class MainActivity : ComponentActivity() {
         app.registerComponentCallbacks(callbacks)
         onDispose { app.unregisterComponentCallbacks(callbacks) }
     }
+    val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle,model) {
+        val observer=androidx.lifecycle.LifecycleEventObserver { _,event ->
+            if(event==androidx.lifecycle.Lifecycle.Event.ON_START && !BuildConfig.DEBUG) model.checkUpdates()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    var updatesOpen by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
     // Do not put token-bearing input into saved-instance-state or screen titles.
@@ -76,9 +85,11 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(s.message) { s.message?.let { snack.showSnackbar(it); model.message(null) } }
     val playback = s.playback
     if(playback != null) { PlaybackScreen(playback, model); return }
+    if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
     BackHandler(s.detail != null || s.detailLoading) { model.closeDetail() }
     Scaffold(
         topBar = { TopAppBar(title = { Text(if(s.detail != null) "详情与选集" else "Pocket Live") }, actions = {
+            TextButton(onClick={updatesOpen=true;model.checkUpdates()}) { Text(if(s.appRelease!=null) "有新版" else "更新") }
             if(s.detail != null || s.detailLoading) TextButton(onClick = model::closeDetail) { Text("返回") }
         }) },
         bottomBar = { NavigationBar {

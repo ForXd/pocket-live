@@ -19,11 +19,13 @@ data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false,
     val catalogCategory: String? = null, val catalogQuery: String = "", val catalogPage: Int = 0, val catalogMore: Boolean = false, val catalogLoading: Boolean = false, val catalogError: String? = null,
     val recommendations: List<Video> = emptyList(), val recommendType: String = "tv", val recommendTag: String = "热门",
     val recommendPage: Int = 0, val recommendLoading: Boolean = false, val recommendMore: Boolean = false, val recommendError: String? = null,
-    val alternativeSession: String? = null, val alternatives: List<PlaybackAlternative> = emptyList(),
+    val appRelease:AppRelease? = null, val updateChecking:Boolean = false, val updateChecked:Boolean = false, val updateError:String? = null,
+    val posterRefresh:Long = 0, val alternativeSession: String? = null, val alternatives: List<PlaybackAlternative> = emptyList(),
     val alternativesLoading: Boolean = false, val alternativesError: String? = null, val smoothPlayback: Boolean = false,
     val importing: Set<String> = emptySet(), val storageUsage: StorageUsage? = null, val message: String? = null)
 class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.Dns = PublicNetwork.dns,
-    private val recommendationUrl: (String,String,Int)->String = Recommendations::url) : AndroidViewModel(application) {
+    private val recommendationUrl: (String,String,Int)->String = Recommendations::url,
+    private val updateDocument:suspend (Network)->String = { it.text(AppUpdates.API) }) : AndroidViewModel(application) {
     private val responseCache = ResponseCache(java.io.File(application.cacheDir,"responses-v1"))
     val posters = PosterStore(java.io.File(application.cacheDir,"posters-v1"))
     private val store = Storage(application, purgeCache={ responseCache.clear(); posters.clear() })
@@ -31,6 +33,22 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     val state = _state.asStateFlow()
     private val lock = Mutex()
     val network = Network({ _state.value.saved.allowHttp }, dns=dns, cache = responseCache)
+    private var updateJob:Job?=null
+    private var updateAttemptAt:Long?=null
+    fun checkUpdates(force:Boolean=false) {
+        val now=android.os.SystemClock.elapsedRealtime()
+        if(updateJob?.isActive==true || (!force && updateAttemptAt?.let { now-it<86_400_000 }==true)) return
+        updateAttemptAt=now
+        _state.update { it.copy(updateChecking=true,updateError=null) }
+        updateJob=viewModelScope.launch {
+            try {
+                val release=withTimeout(22_000) { withContext(Dispatchers.Default) { AppUpdates.parse(updateDocument(network),BuildConfig.VERSION_NAME) } }
+                _state.update { it.copy(appRelease=release,updateChecking=false,updateChecked=true) }
+            } catch(e:TimeoutCancellationException) { _state.update { it.copy(updateChecking=false,updateError="请求超时，请稍后重试") } }
+            catch(e:CancellationException) { throw e }
+            catch(e:Exception) { _state.update { it.copy(updateChecking=false,updateError=safeError(e)) } }
+        }
+    }
     private var storageRefreshJob: Job?=null
     private var cacheClearJob: Job?=null
     private var memoryTrimJob: Job?=null
@@ -47,6 +65,11 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private var alternativesJob: Job? = null
     private var alternativesOwner=0L
     private var recommendJob: Job? = null
+    private var recommendSuccessAt=0L
+    fun discoveryForeground() {
+        val s=state.value
+        if(!s.recommendLoading && (s.recommendations.isEmpty() || s.recommendError!=null || android.os.SystemClock.elapsedRealtime()-recommendSuccessAt>300_000)) recommend()
+    }
     private var recommendOwner = 0L
     private var catalogJob: Job? = null
     private var catalogOwner=0L
@@ -221,14 +244,17 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         if(page > Recommendations.MAX_PAGES) return
         recommendJob?.cancel(); val owner = ++recommendOwner
         _state.update { it.copy(recommendType=type, recommendTag=tag, recommendLoading=true, recommendError=null,
-            recommendations=if(more) it.recommendations else emptyList()) }
+            recommendations=if(more || (type==before.recommendType && tag==before.recommendTag)) it.recommendations else emptyList(),
+            posterRefresh=it.posterRefresh+1) }
         recommendJob = viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.Default) { Recommendations.parse(network.text(recommendationUrl(type, tag, page), true), page) }
+                val result = withTimeout(22_000) { withContext(Dispatchers.Default) { Recommendations.parse(network.text(recommendationUrl(type, tag, page), false), page) } }
                 ensureActive()
-                if(owner == recommendOwner) _state.update { it.copy(recommendations=(it.recommendations+result.videos).distinctBy { v -> v.id },
+                if(owner == recommendOwner) recommendSuccessAt=android.os.SystemClock.elapsedRealtime()
+                if(owner == recommendOwner) _state.update { it.copy(recommendations=((if(more) it.recommendations else emptyList())+result.videos).distinctBy { v -> v.id },
                     recommendLoading=false, recommendPage=page, recommendMore=result.more) }
-            } catch(e: CancellationException) { throw e }
+            } catch(e: TimeoutCancellationException) { if(owner==recommendOwner) _state.update { it.copy(recommendLoading=false,recommendError="请求超时，请重试") } }
+            catch(e: CancellationException) { throw e }
             catch(e: Exception) { if(owner == recommendOwner) _state.update { it.copy(recommendLoading=false, recommendError=safeError(e)) } }
         }
     }

@@ -16,7 +16,14 @@ import androidx.compose.ui.text.style.TextOverflow
     val sources=s.saved.subscriptions.flatMap { it.sources }.distinctBy { it.key }
         .filter { it.kind==SourceKind.VOD && it.key !in s.saved.disabled }
     var recommendations by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) { if(s.recommendations.isEmpty() && !s.recommendLoading) model.recommend() }
+    val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle,model) {
+        val observer=androidx.lifecycle.LifecycleEventObserver { _,event ->
+            if(event==androidx.lifecycle.Lifecycle.Event.ON_START) model.discoveryForeground()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     var query by remember { mutableStateOf("") }
     LaunchedEffect(sources.map { it.key }) { if(sources.isNotEmpty() && s.catalogSource==null) model.browse(sources.first()) }
     Column(Modifier.fillMaxSize()) {
@@ -95,7 +102,7 @@ import androidx.compose.ui.text.style.TextOverflow
         if(s.recommendLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         s.recommendError?.let { error -> item {
             Text("推荐暂时无法加载：$error。可以重试，或切换到订阅分类。")
-            TextButton(onClick={model.recommend(more=s.recommendPage>0 && s.recommendations.isNotEmpty())}) { Text("重试推荐") }
+            TextButton(onClick={model.recommend()}) { Text("重试推荐") }
         } }
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item { Text("当前分类暂无推荐，请切换分类。") }
         items(s.recommendations.chunked(2), key={it.first().id}) { row ->

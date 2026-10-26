@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("historyGroups")) {
         item {
             Text("继续观看",style=MaterialTheme.typography.headlineMedium)
-            Text("按剧目整理 · 最多100条分集记录 / 1 MiB",style=MaterialTheme.typography.bodySmall)
+            Text("同名剧目合并来源 · 最多100条分集记录 / 1 MiB",style=MaterialTheme.typography.bodySmall)
         }
         if(groups.isEmpty()) item { EmptyPanel("继续上次的精彩","每部剧独立保存断点，展开可查看各集记录。",R.drawable.ic_history) }
         else item { TextButton(onClick={clearing=true}) { Text("清空历史") } }
@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
                 OutlinedCard(modifier=Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
                     Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         Text(latest.playback.video.title,style=MaterialTheme.typography.titleMedium)
-                        Text(latest.playback.video.source.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+                        Text("${group.entries.map { it.playback.video.source.key }.distinct().size} 个来源 · 最近：${latest.playback.video.source.name}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
                         Text("上次观看 · ${latest.playback.episode.name}",style=MaterialTheme.typography.bodyMedium)
                         Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall)
                         QualityBadge(latest.playback.episode.quality)
@@ -50,12 +50,13 @@ import androidx.compose.ui.unit.dp
                 OutlinedCard(onClick={resume(entry)},modifier=Modifier.fillMaxWidth().testTag("historyEpisode:${entry.playback.key}")) {
                     Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                         Text(entry.playback.episode.name,style=MaterialTheme.typography.titleSmall)
+                        Text(entry.playback.video.source.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
                         Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.bodySmall)
                     }
                 }
             }
         }
     }
-    deleting?.let { key -> AlertDialog(onDismissRequest={deleting=null},title={Text("删除这部剧的记录？")},text={Text("仅删除该来源下这部剧的各集断点，其他剧目保留。")},confirmButton={TextButton(onClick={remove(key);deleting=null}) { Text("删除") }},dismissButton={TextButton(onClick={deleting=null}) { Text("取消") }}) }
+    deleting?.let { key -> AlertDialog(onDismissRequest={deleting=null},title={Text("删除这部剧的记录？")},text={Text("删除这部剧在所有合并来源下的观看断点，其他剧目保留。")},confirmButton={TextButton(onClick={remove(key);deleting=null}) { Text("删除") }},dismissButton={TextButton(onClick={deleting=null}) { Text("取消") }}) }
     if(clearing) AlertDialog(onDismissRequest={clearing=false},title={Text("清空观看历史？")},text={Text("所有剧目的观看断点将被删除，订阅仍会保留。")},confirmButton={TextButton(onClick={clear();clearing=false}) { Text("清空") }},dismissButton={TextButton(onClick={clearing=false}) { Text("取消") }})
 }
