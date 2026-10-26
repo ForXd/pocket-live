@@ -18,30 +18,30 @@ import androidx.compose.ui.unit.dp
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<HistoryGroupKey?>(null) }
     var clearing by remember { mutableStateOf(false) }
-    LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("historyGroups")) {
+    LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("historyGroups")) {
         item {
-            Text("继续观看",style=MaterialTheme.typography.headlineMedium)
-            Text("同名剧目合并来源 · 最多100条分集记录 / 1 MiB",style=MaterialTheme.typography.bodySmall)
+            Text("继续观看",style=MaterialTheme.typography.titleLarge)
+            Text("同名剧目合并来源 · 保留各集观看进度",style=MaterialTheme.typography.bodySmall)
         }
         if(groups.isEmpty()) item { EmptyPanel("继续上次的精彩","每部剧独立保存断点，展开可查看各集记录。",R.drawable.ic_history) }
-        else item { TextButton(onClick={clearing=true}) { Text("清空历史") } }
+        else item { TextButton(onClick={clearing=true},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("清空历史") } }
         groups.forEach { group ->
             val latest=group.latest
             val id=group.key.stableKey
             item(key="group:$id") {
-                OutlinedCard(modifier=Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
+                Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer),modifier=Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
                     Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         Text(latest.playback.video.title,style=MaterialTheme.typography.titleMedium)
                         Text("${group.entries.map { it.playback.video.source.key }.distinct().size} 个来源 · 最近：${latest.playback.video.source.name}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
                         Text("上次观看 · ${latest.playback.episode.name}",style=MaterialTheme.typography.bodyMedium)
                         Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall)
                         QualityBadge(latest.playback.episode.quality)
-                        Button(onClick={resume(latest)},modifier=Modifier.fillMaxWidth().testTag("continue:$id")) {
+                        Button(onClick={resume(latest)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("continue:$id")) {
                             Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
                         }
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                            TextButton(onClick={expanded=if(expanded==id) null else id}) { Text(if(expanded==id) "收起分集" else "查看分集（${group.entries.size}）") }
-                            TextButton(onClick={deleting=group.key}) { Text("删除记录") }
+                            TextButton(onClick={expanded=if(expanded==id) null else id},modifier=Modifier.weight(1f)) { Text(if(expanded==id) "收起分集" else "查看分集（${group.entries.size}）") }
+                            TextButton(onClick={deleting=group.key},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除记录") }
                         }
                     }
                 }

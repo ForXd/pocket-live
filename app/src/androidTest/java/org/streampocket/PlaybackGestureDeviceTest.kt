@@ -335,7 +335,7 @@ class PlaybackGestureDeviceTest {
             waitFor { playerView().isControllerFullyVisible }
             ui.onNodeWithText("上一集").assertIsEnabled();ui.onNodeWithText("选集").performClick()
             ui.onNodeWithText("正在播放 · 第2集").assertExists();stage("episode-2-highlight-and-fullscreen-passed")
-            ui.onNode(hasScrollAction()).performScrollToIndex(499)
+            ui.onNode(hasScrollToIndexAction()).performScrollToIndex(499)
             ui.onNodeWithText("第500集").performClick()
             waitFor { model.state.value.playback?.episode?.name=="第500集" && readyFor(model.state.value.playback) }
             instrument.runOnMainSync { playerView().player!!.pause();playerView().controllerShowTimeoutMs=0;playerView().showController() }

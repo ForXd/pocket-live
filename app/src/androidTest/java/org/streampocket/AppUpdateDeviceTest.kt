@@ -21,7 +21,7 @@ class AppUpdateDeviceTest {
                     return AppModel(ui.activity.application,updateDocument={
                         val call=calls.incrementAndGet();kotlinx.coroutines.delay(100)
                         if(call==2) throw java.io.IOException("fixture offline")
-                        """{"draft":false,"prerelease":false,"tag_name":"v0.6.0","html_url":"https://github.com/ForXd/pocket-live/releases/tag/v0.6.0","assets":[{"name":"pocket-live-0.6.0-release.apk","state":"uploaded","size":1234,"browser_download_url":"https://github.com/ForXd/pocket-live/releases/download/v0.6.0/pocket-live-0.6.0-release.apk"}]}"""
+                        """{"draft":false,"prerelease":false,"tag_name":"v9.0.0","html_url":"https://github.com/ForXd/pocket-live/releases/tag/v9.0.0","assets":[{"name":"pocket-live-9.0.0-release.apk","state":"uploaded","size":1234,"browser_download_url":"https://github.com/ForXd/pocket-live/releases/download/v9.0.0/pocket-live-9.0.0-release.apk"}]}"""
                     }) as T
                 }
             })[AppModel::class.java]
@@ -47,7 +47,7 @@ class AppUpdateDeviceTest {
             instrument.addMonitor(monitor)
             try {
                 ui.onNodeWithText("下载更新").performClick()
-                assertEquals("https://github.com/ForXd/pocket-live/releases/download/v0.6.0/pocket-live-0.6.0-release.apk",download.get())
+                assertEquals("https://github.com/ForXd/pocket-live/releases/download/v9.0.0/pocket-live-9.0.0-release.apk",download.get())
             } finally { instrument.removeMonitor(monitor) }
             ui.onNodeWithText("重新检查").performClick()
             ui.waitUntil(5000) { model.state.value.updateError!=null }

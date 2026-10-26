@@ -6,12 +6,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit) {
     val sources=s.saved.subscriptions.flatMap { it.sources }.distinctBy { it.key }
         .filter { it.kind==SourceKind.VOD && it.key !in s.saved.disabled }
@@ -27,14 +30,14 @@ import androidx.compose.ui.text.style.TextOverflow
     var query by remember { mutableStateOf("") }
     LaunchedEffect(sources.map { it.key }) { if(sources.isNotEmpty() && s.catalogSource==null) model.browse(sources.first()) }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.padding(horizontal=20.dp), horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            FilterChip(selected=recommendations,onClick={recommendations=true},label={Text("剧集推荐")})
-            FilterChip(selected=!recommendations,onClick={recommendations=false},label={Text("订阅分类")})
+        PrimaryTabRow(selectedTabIndex=if(recommendations) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
+            Tab(selected=recommendations,onClick={recommendations=true},text={Text("剧集推荐")})
+            Tab(selected=!recommendations,onClick={recommendations=false},text={Text("订阅分类")})
         }
         if(recommendations) { RecommendationList(s,model,searchTitle); return@Column }
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {
-            Text("发现与你的分类",style=MaterialTheme.typography.headlineMedium)
+            Text("发现与你的分类",style=MaterialTheme.typography.titleLarge)
             Text("内容来自你启用的订阅 · 按来源返回顺序展示",style=MaterialTheme.typography.bodySmall)
         }
         if(sources.isEmpty()) item {
@@ -65,7 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
             } }
             if(!s.catalogLoading && s.catalogVideos.isEmpty() && s.catalogError==null) item { Text("该来源未返回内容或不支持此分类接口。仍可使用全源搜索。") }
             items(s.catalogVideos,key={it.source.key+":"+it.id}) { video ->
-                Card(onClick={model.open(video)},modifier=Modifier.fillMaxWidth()) {
+                Card(onClick={model.open(video)},modifier=Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
                     Row(Modifier.padding(12.dp),horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.CenterVertically) {
                         Poster(video,model)
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -85,16 +88,20 @@ import androidx.compose.ui.text.style.TextOverflow
 
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit) {
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {
-            Text("发现好故事",style=MaterialTheme.typography.headlineMedium)
+            Text("发现好故事",style=MaterialTheme.typography.titleLarge)
             Text("豆瓣公开推荐 · 点击封面搜索你的订阅来源",style=MaterialTheme.typography.bodySmall)
         }
-        item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            FilterChip(selected=s.recommendType=="tv",onClick={model.recommend("tv")},label={Text("剧集")})
-            FilterChip(selected=s.recommendType=="movie",onClick={model.recommend("movie")},label={Text("电影")})
-            TextButton(onClick={model.recommend()}) { Text("刷新推荐") }
+        item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+            SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
+                listOf("tv" to "剧集","movie" to "电影").forEachIndexed { index,(type,label) ->
+                    SegmentedButton(selected=s.recommendType==type,onClick={model.recommend(type)},shape=SegmentedButtonDefaults.itemShape(index,2)) { Text(label) }
+                }
+            }
+            IconButton(onClick={model.recommend()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
         } }
         item { LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             items(Recommendations.tags(s.recommendType)) { tag -> FilterChip(selected=s.recommendTag==tag,onClick={model.recommend(tag=tag)},label={Text(tag)}) }
@@ -108,9 +115,9 @@ import androidx.compose.ui.text.style.TextOverflow
         items(s.recommendations.chunked(2), key={it.first().id}) { row ->
             Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 row.forEach { video ->
-                    Card(onClick={searchTitle(video.title)},modifier=Modifier.weight(1f)) {
+                    Card(onClick={searchTitle(video.title)},modifier=Modifier.weight(1f),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
                         Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(0.7f))
+                            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f/3f))
                             Text(video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                             if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodySmall)
                         }

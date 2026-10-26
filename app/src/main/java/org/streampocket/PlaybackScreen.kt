@@ -8,6 +8,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -35,6 +38,7 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
+@OptIn(ExperimentalLayoutApi::class)
 @Composable fun PlaybackScreen(playback: Playback, model: AppModel) {
     val context = LocalContext.current
     val activity = context as androidx.activity.ComponentActivity
@@ -106,18 +110,18 @@ import kotlinx.coroutines.delay
     val matchingDetail=state.detail?.takeIf { it.video.source.key==playback.video.source.key && it.video.id==playback.video.id }
     val hasEpisodes=matchingDetail?.lines?.any { line -> line.episodes.any { it.url==playback.episode.url } }==true
     val controls: @Composable () -> Unit = {
-        Column {
-        Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceEvenly) {
+        Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp * 0.55f).dp).verticalScroll(rememberScrollState())) {
+        FlowRow(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             val previous=adjacentEpisode(state.detail,playback,-1)
             val next=adjacentEpisode(state.detail,playback,1)
             TextButton(enabled=previous!=null,onClick={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) } }) { Text("上一集") }
             TextButton(enabled=next!=null,onClick={ playerView?.cancelGestures();next?.let { model.play(playback.video,it) } }) { Text("下一集") }
-            TextButton(enabled=hasEpisodes,onClick={playerView?.cancelGestures();episodesOpen=true}) { Text("选集") }
-            if(playback.video.source.kind==SourceKind.VOD) TextButton(onClick=::showAlternatives) { Text("快速换源") }
+            FilledTonalButton(modifier=Modifier.heightIn(min=48.dp),enabled=hasEpisodes,onClick={playerView?.cancelGestures();episodesOpen=true}) { Text("选集") }
+            if(playback.video.source.kind==SourceKind.VOD) OutlinedButton(modifier=Modifier.heightIn(min=48.dp),onClick=::showAlternatives) { Text("快速换源") }
         }
-        Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+        FlowRow(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             FilterChip(selected=state.smoothPlayback,onClick={model.smoothPlayback(!state.smoothPlayback)},label={Text("流畅优先")})
-            Text(if(health.buffering) "正在缓冲 · 已缓冲 ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒",style=MaterialTheme.typography.bodySmall)
+            Text(if(health.buffering) "正在缓冲 · 已缓冲 ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒",modifier=Modifier.padding(vertical=16.dp),style=MaterialTheme.typography.bodySmall)
         }
         if(state.smoothPlayback) Text("多清晰度视频优先 720p；单清晰度可换源改善",Modifier.padding(horizontal=16.dp),style=MaterialTheme.typography.bodySmall)
         if(state.saved.adFilter) Text(filterSummary+" · 可在订阅页关闭",Modifier.padding(horizontal=16.dp),style=MaterialTheme.typography.bodySmall)
@@ -126,7 +130,7 @@ import kotlinx.coroutines.delay
             Text(if(state.detailError!=null) "选集暂不可用：${state.detailError}" else "当前集不在可用线路中，选集暂不可用",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
             TextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceBetween) {
+        FlowRow(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             TextButton(onClick={playerView?.cancelGestures();model.stopPlayback()}) { Text("返回选集") }
             TextButton(onClick={
                 playerView?.cancelGestures()
@@ -147,25 +151,25 @@ import kotlinx.coroutines.delay
                         Text("切换同集来源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                         TextButton(onClick=model::closeAlternatives) { Text("关闭") }
                     }
-                    Text("${playback.video.title} · ${playback.episode.name}",style=MaterialTheme.typography.bodySmall)
-                    Row(verticalAlignment=Alignment.CenterVertically) {
-                        Checkbox(checked=keepPosition,onCheckedChange={keepPosition=it})
-                        Text("保留当前进度（不同片源可能有偏差）",style=MaterialTheme.typography.bodySmall)
-                    }
-                    if(state.alternativesLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    state.alternativesError?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
-                    if(!state.alternativesLoading && state.alternatives.isEmpty()) Text("未找到同名同集的备用地址。可添加其他订阅来源后再试。")
-                    LazyColumn(Modifier.weight(1f,false)) {
+                    LazyColumn(Modifier.weight(1f,false),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        item { Text("${playback.video.title} · ${playback.episode.name}",style=MaterialTheme.typography.bodySmall) }
+                        item { Row(verticalAlignment=Alignment.CenterVertically) {
+                            Checkbox(checked=keepPosition,onCheckedChange={keepPosition=it})
+                            Text("保留当前进度（不同片源可能有偏差）",style=MaterialTheme.typography.bodySmall)
+                        } }
+                        if(state.alternativesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                        state.alternativesError?.let { item { Text(it,style=MaterialTheme.typography.bodySmall) } }
+                        if(!state.alternativesLoading && state.alternatives.isEmpty()) item { Text("未找到同名同集的备用地址。可添加其他订阅来源后再试。") }
                         itemsIndexed(state.alternatives,key={_,it->it.episode.url}) { _,option ->
-                            TextButton(onClick={controller.checkpointNow();model.chooseAlternative(option,keepPosition)},modifier=Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick={controller.checkpointNow();model.chooseAlternative(option,keepPosition)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) {
                                 Column(Modifier.fillMaxWidth()) {
                                     Text("${option.line} · ${option.episode.name}")
                                     Text(option.video.source.name,style=MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
+                        if(!state.alternativesLoading) item { TextButton(onClick=::showAlternatives) { Text("重新查找") } }
                     }
-                    if(!state.alternativesLoading) TextButton(onClick=::showAlternatives) { Text("重新查找") }
                 }
             }
         }
@@ -198,7 +202,7 @@ import kotlinx.coroutines.delay
     Box(Modifier.fillMaxSize().background(Color.Black).testTag("playbackSurface")) {
         Column(Modifier.fillMaxSize().then(if(full || pip) Modifier else Modifier.safeDrawingPadding())) {
             if(!full && !pip) {
-                Text(playback.video.title,style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(16.dp))
+                Text(playback.video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.padding(16.dp))
                 Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) { Text(playback.episode.name,Modifier.weight(1f));QualityBadge(playback.episode.quality) }
             }
             AndroidView(
@@ -244,7 +248,7 @@ import kotlinx.coroutines.delay
             (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let {
                 Column(Modifier.align(Alignment.BottomCenter).background(Color.Black.copy(alpha=0.8f)).padding(12.dp).testTag("playbackError")) {
                     Text(it)
-                    Row {
+                    FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick={error=null; controller.retry()}) { Text("重试播放") }
                         if(playback.video.source.kind==SourceKind.VOD) TextButton(onClick=::showAlternatives) { Text("快速换源") }
                         TextButton(onClick={playerView?.cancelGestures();model.stopPlayback()}) { Text("返回选集") }

@@ -2,6 +2,8 @@
 package org.streampocket
 
 import androidx.compose.material3.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -45,7 +47,7 @@ object AppUpdates {
         try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,android.net.Uri.parse(url))) }
         catch(_:android.content.ActivityNotFoundException) { model.message("没有可用浏览器，请安装浏览器后重试") }
     }
-    AlertDialog(onDismissRequest=close,title={Text("应用更新")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+    AlertDialog(onDismissRequest=close,title={Text("应用更新")},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         Text("当前版本 ${BuildConfig.VERSION_NAME}")
         if(state.updateChecking) { LinearProgressIndicator(Modifier.fillMaxWidth());Text("正在检查 GitHub Release…") }
         state.updateError?.let { Text("检查失败：$it") }

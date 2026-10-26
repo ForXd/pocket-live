@@ -53,7 +53,7 @@ class DiscoveryRecoveryTest {
             ui.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
             ui.waitUntil(7000) { ui.onAllNodesWithContentDescription("恢复测试 封面").fetchSemanticsNodes().isNotEmpty() }
             recommendationFailure.set(true)
-            ui.onNodeWithText("刷新推荐").performClick()
+            ui.onNodeWithContentDescription("刷新推荐").performClick()
             ui.waitUntil(7000) { model.state.value.recommendError!=null }
             ui.onNodeWithText("恢复测试").assertExists() // transient failure cannot blank existing content
             ui.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
@@ -63,7 +63,7 @@ class DiscoveryRecoveryTest {
             org.junit.Assert.assertEquals(1,model.state.value.recommendations.size)
             val previousCovers=coverRequests.get()
             coverVersion.incrementAndGet()
-            ui.onNodeWithText("刷新推荐").performClick()
+            ui.onNodeWithContentDescription("刷新推荐").performClick()
             ui.waitUntil(7000) { coverRequests.get()>previousCovers }
             ui.waitUntil(7000) { ui.onAllNodesWithContentDescription("恢复测试 封面").fetchSemanticsNodes().isNotEmpty() }
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }

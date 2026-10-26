@@ -3,6 +3,12 @@ package org.streampocket
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalConfiguration
@@ -45,10 +51,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun Pocket(model: AppModel) {
     val s by model.state.collectAsStateWithLifecycle()
-    val compact=LocalConfiguration.current.screenHeightDp<500
+    val compact=LocalConfiguration.current.screenHeightDp<500 || WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext
@@ -88,13 +94,13 @@ class MainActivity : ComponentActivity() {
     if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
     BackHandler(s.detail != null || s.detailLoading) { model.closeDetail() }
     Scaffold(
-        topBar = { TopAppBar(title = { Text(if(s.detail != null) "详情与选集" else "Pocket Live") }, actions = {
+        topBar = { TopAppBar(colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title = { Text(if(s.detail != null) "详情与选集" else "Pocket Live") }, actions = {
             TextButton(onClick={updatesOpen=true;model.checkUpdates()}) { Text(if(s.appRelease!=null) "有新版" else "更新") }
             if(s.detail != null || s.detailLoading) TextButton(onClick = model::closeDetail) { Text("返回") }
         }) },
-        bottomBar = { NavigationBar {
+        bottomBar = { NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainer) {
             listOf("搜索","订阅","历史","发现").forEachIndexed { i, title ->
-                NavigationBarItem(selected = tab == i, onClick = { tab = i; model.closeDetail() }, icon = { Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_library)[i]),contentDescription=null) }, label = { Text(title) })
+                NavigationBarItem(selected = tab == i, onClick = { tab = i; model.closeDetail() }, icon = { if(i==3) Icon(Icons.Default.Star,contentDescription=null) else Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history)[i]),contentDescription=null) }, label = { Text(title) })
             }
         } }, snackbarHost = { SnackbarHost(snack) }
     ) { padding ->
@@ -104,10 +110,10 @@ class MainActivity : ComponentActivity() {
             if(s.detailLoading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); TextButton(onClick=model::closeDetail) { Text("取消详情请求") } }; return@Box }
             val detail = s.detail
             if(detail != null) {
-                LazyColumn(Modifier.fillMaxSize(),contentPadding = PaddingValues(20.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyColumn(Modifier.fillMaxSize(),contentPadding = PaddingValues(16.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item { Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
                         Text(detail.video.source.name,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-                        Text(detail.video.title,style=MaterialTheme.typography.headlineSmall)
+                        Text(detail.video.title,style=MaterialTheme.typography.titleLarge)
                         Poster(detail.video,model)
                         QualityBadge(detail.video.quality,lastPlayback=true)
                         if(detail.description.isNotBlank()) Text(detail.description,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -126,15 +132,15 @@ class MainActivity : ComponentActivity() {
                     item { Text("网页解析、脚本源和 DRM 解锁不受支持。", style=MaterialTheme.typography.bodySmall) }
                 }
             } else when(tab) {
-                0 -> Column(Modifier.fillMaxSize().padding(horizontal=20.dp)) {
+                0 -> Column(Modifier.fillMaxSize().padding(horizontal=16.dp)) {
                     if(!compact) {
-                        Text("搜你想看的", style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(top=12.dp))
-                        Text("聚合你的片源，找到更清晰的版本",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=6.dp))
+                        Text("搜你想看的", style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=12.dp))
+                        Text("聚合你的片源，找到更清晰的版本",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
                     }
                     Spacer(Modifier.height(if(compact) 8.dp else 16.dp))
-                    OutlinedTextField(query,{query=it.take(100)},modifier=Modifier.fillMaxWidth().testTag("searchInput"),singleLine=true,label={Text("影片或频道名称")},shape=RoundedCornerShape(18.dp),leadingIcon={Icon(painterResource(R.drawable.ic_search),null)})
-                    Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        Button(onClick={focusManager.clearFocus(); keyboard?.hide(); model.search(query)},enabled=query.isNotBlank()) { Text("开始搜索") }
+                    OutlinedTextField(query,{query=it.take(100)},modifier=Modifier.fillMaxWidth().testTag("searchInput"),singleLine=true,keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={focusManager.clearFocus();keyboard?.hide();model.search(query)}),label={Text("影片或频道名称")},shape=MaterialTheme.shapes.large,leadingIcon={Icon(painterResource(R.drawable.ic_search),null)})
+                    Row(Modifier.padding(top=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Button(modifier=Modifier.weight(1f).heightIn(min=48.dp),onClick={focusManager.clearFocus(); keyboard?.hide(); model.search(query)},enabled=query.isNotBlank()) { Icon(Icons.Default.Search,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("开始搜索") }
                         if(s.searching) OutlinedButton(onClick=model::cancelSearch) { Text("取消搜索") }
                     }
                     if(s.searching) LinearProgressIndicator(progress={if(s.total==0) 0f else s.completed.toFloat()/s.total},modifier=Modifier.fillMaxWidth().padding(vertical=8.dp))
@@ -143,13 +149,13 @@ class MainActivity : ComponentActivity() {
                         TextButton(onClick=model::sortByQuality) { Text("高清优先 ↓") }
                     }
                     if(s.total > 0) Text("已完成 ${s.completed}/${s.total} 个源 · ${s.failures} 个失败 · ${s.results.size} 条结果（最多 1000）",style=MaterialTheme.typography.bodySmall)
-                    if(s.results.isEmpty()) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total>0) "暂未找到结果" else "从你的片源开始",
+                    if(s.results.isEmpty() && !compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total>0) "暂未找到结果" else "从你的片源开始",
                         if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.failures>0) "部分片源未响应，可换个关键词或检查订阅。" else "添加合法订阅，搜索影片或直播频道。",R.drawable.ic_search)
                     LazyColumn(contentPadding=PaddingValues(top=12.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(10.dp),modifier=Modifier.pointerInput(model) {
                         awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
                     }) {
                         items(s.results,key={it.source.key+":"+it.id}) { v ->
-                            Card(onClick={model.open(v)},shape=RoundedCornerShape(20.dp),modifier=Modifier.fillMaxWidth().animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
+                            Card(onClick={model.open(v)},colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer),shape=MaterialTheme.shapes.large,modifier=Modifier.fillMaxWidth().animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
                                 Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                                         Poster(v,model)
@@ -165,27 +171,26 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 3 -> DiscoverScreen(s,model,{tab=1}) { title -> query=title;tab=0;model.search(title) }
-                1 -> LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    item { Text("管理订阅",style=MaterialTheme.typography.headlineMedium); Text("支持 LibreTV JSON、接口目录和 TVBOX 直连源。链接仅存本机。") }
-                    item { OutlinedTextField(url,{url=it.take(4096)},modifier=Modifier.fillMaxWidth().testTag("subscriptionInput"),label={Text("粘贴订阅链接")},singleLine=true,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri)) }
-                    item { Row {
-                        Button(onClick={model.importSubscription(url)},enabled=url.isNotBlank() && "new" !in s.importing) { Text("添加订阅") }
-                        if("new" in s.importing) TextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
+                1 -> LazyColumn(modifier=Modifier.fillMaxSize().testTag("subscriptionsList"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    item { Text("管理订阅",style=MaterialTheme.typography.titleLarge); Text("添加来源，管理你的片库",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                    item { Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
+                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(url,{url=it.take(4096)},modifier=Modifier.fillMaxWidth().testTag("subscriptionInput"),label={Text("粘贴订阅链接")},singleLine=true,shape=MaterialTheme.shapes.medium,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri))
+                            Button(onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
+                                Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("添加订阅")
+                            }
+                            if("new" in s.importing) TextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
+                            Text("支持 LibreTV JSON、接口目录和 TVBOX 直连源。链接仅存本机。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     } }
-                    item { Row { Switch(checked=s.saved.allowHttp,onCheckedChange=model::allowHttp); Text("允许未加密 HTTP\n可能被监听或篡改，仅用于可信源",Modifier.padding(start=12.dp),style=MaterialTheme.typography.bodySmall) } }
-                    item { Text("当前仅访问公网地址；局域网、脚本、XML 与多仓配置不受支持。订阅 2 MiB / 20 个，总源数 300。",style=MaterialTheme.typography.bodySmall) }
-                    if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","粘贴订阅链接，点播和直播资源将在这里统一管理。",R.drawable.ic_library) }
-                    item { Row(verticalAlignment=Alignment.CenterVertically) {
-                        Switch(checked=s.saved.adFilter,onCheckedChange=model::filterAds)
-                        Text("自动 HLS 广告过滤（默认关闭）\n识别广告路径、片头及短中插段；可能误判，可随时关闭。复杂流保持原样，下次播放生效",Modifier.padding(start=12.dp),style=MaterialTheme.typography.bodySmall)
-                    } }
+                    if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在搜索或发现页浏览内容。",R.drawable.ic_library) }
                     s.saved.subscriptions.forEach { sub ->
-                        item(key=sub.id) { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
+                        item(key=sub.id) { Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) { Column(Modifier.padding(16.dp)) {
                             Text(sub.name,style=MaterialTheme.typography.titleMedium)
-                            Text("${sub.sources.size} 个源 · 更新于 ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(sub.updated))}",style=MaterialTheme.typography.bodySmall)
+                            Text("${sub.sources.size} 个源 · 更新于 ${java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT,java.text.DateFormat.SHORT).format(java.util.Date(sub.updated))}",style=MaterialTheme.typography.bodySmall)
                             Row {
                                 TextButton(onClick={model.importSubscription(sub.url,sub)},enabled=sub.id !in s.importing) { Text("更新") }
-                                TextButton(onClick={delete=sub}) { Text("删除") }
+                                TextButton(onClick={delete=sub},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除") }
                                 if(sub.id in s.importing) TextButton(onClick={model.cancelImport(sub.id)}) { Text("取消") }
                             }
                         } } }
@@ -197,20 +202,25 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
-                        Text("存储与缓存",style=MaterialTheme.typography.titleMedium)
+                    item(key="networkSettings") { SettingsGroup("播放与网络","HTTP 访问 · 广告过滤") {
+                        SettingSwitch("允许未加密 HTTP","可能被监听或篡改，仅用于可信源",s.saved.allowHttp,model::allowHttp)
+                        HorizontalDivider()
+                        SettingSwitch("自动 HLS 广告过滤","默认关闭。可能误判；复杂流保持原样，下次播放生效。",s.saved.adFilter,model::filterAds)
+                        Text("当前仅访问公网地址；局域网、脚本、XML 与多仓配置不受支持。订阅 2 MiB / 20 个，总源数 300。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    } }
+                    item(key="storageSettings") { SettingsGroup("存储与缓存","50 MB 应用文件预算 · 保留配置清理缓存") {
                         s.storageUsage?.let { u ->
-                            Text("用户数据（含原子写文件）：${u.userDataBytes/1024} KiB / 4 MiB 正式文件")
-                            Text("响应磁盘：${u.responseBytes/1024} KiB / 8 MiB · ${u.entries}/64 条")
-                            Text("封面磁盘：${u.posterBytes/1024} KiB / 20 MB")
-                            Text("响应内存计量：${u.memoryBytes/1024} KiB / 2 MiB")
+                            Text("用户数据：${u.userDataBytes/1024} KiB",style=MaterialTheme.typography.bodyMedium)
+                            Text("响应缓存：${u.responseBytes/1024} KiB / 8 MiB · ${u.entries}/64 条",style=MaterialTheme.typography.bodyMedium)
+                            Text("封面缓存：${u.posterBytes/1024} KiB / 20 MB",style=MaterialTheme.typography.bodyMedium)
+                            Text("响应内存：${u.memoryBytes/1024} KiB / 2 MiB",style=MaterialTheme.typography.bodyMedium)
                         }
-                        Text("应用自写文件总预算50,000,000字节，含临时文件与余量。响应60秒、封面24小时过期；视频不落盘。APK、系统编译缓存另计。封面内存6MB、单图解码12.8万像素、下载1MB，并发2。",style=MaterialTheme.typography.bodySmall)
-                        Row {
-                            TextButton(onClick=model::refreshStorage) { Text("刷新用量") }
-                            TextButton(onClick={model.clearCache()}) { Text("清缓存（保留配置）") }
+                        Text("总预算含临时文件与余量。响应60秒、封面24小时过期；视频不落盘。APK和系统缓存另计。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
+                            TextButton(onClick=model::refreshStorage,modifier=Modifier.heightIn(min=48.dp)) { Text("刷新用量") }
                         }
-                    } } }
+                    } }
                     item { Text("Pocket Live · AGPL-3.0-or-later\n参考 LibreTV deb72fa01f；完整源码和许可证随项目提供。\nEPG 字段保留，当前不提供节目表界面。",style=MaterialTheme.typography.bodySmall) }
                 }
                 2 -> HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory)
@@ -223,7 +233,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable fun PocketTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xff8ce0c5),onPrimary=Color(0xff00382b),primaryContainer=Color(0xff1b493e),
-                secondary=Color(0xffb4c5f5),background = Color(0xff0d141b),surface = Color(0xff141e28),
-                surfaceVariant=Color(0xff23313e),onSurface=Color(0xffe5edf4),onSurfaceVariant=Color(0xffadbdca),outline=Color(0xff40505e))) { content() }
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary=Color(0xff8ce0c5),onPrimary=Color(0xff00382b),primaryContainer=Color(0xff1b493e),onPrimaryContainer=Color(0xffb0f4dc),
+        secondary=Color(0xffb4ccc2),onSecondary=Color(0xff20362e),secondaryContainer=Color(0xff344c43),onSecondaryContainer=Color(0xffd0e9dd),
+        tertiary=Color(0xffb4c5f5),onTertiary=Color(0xff20304f),tertiaryContainer=Color(0xff374767),onTertiaryContainer=Color(0xffdae2ff),
+        background=Color(0xff0d1513),onBackground=Color(0xffe0e5e0),surface=Color(0xff0d1513),onSurface=Color(0xffe0e5e0),
+        surfaceVariant=Color(0xff3f4944),onSurfaceVariant=Color(0xffbfc9c2),surfaceTint=Color(0xff8ce0c5),
+        surfaceContainerLowest=Color(0xff08100e),surfaceContainerLow=Color(0xff151d1a),surfaceContainer=Color(0xff19221f),
+        surfaceContainerHigh=Color(0xff242c29),surfaceContainerHighest=Color(0xff2e3733),surfaceDim=Color(0xff0d1513),surfaceBright=Color(0xff333c37),
+        outline=Color(0xff89938d),outlineVariant=Color(0xff3f4944)),
+        shapes=Shapes(extraSmall=RoundedCornerShape(4.dp),small=RoundedCornerShape(8.dp),medium=RoundedCornerShape(12.dp),large=RoundedCornerShape(16.dp),extraLarge=RoundedCornerShape(28.dp)),content=content)
 }
