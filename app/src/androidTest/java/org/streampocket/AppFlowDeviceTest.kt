@@ -119,6 +119,7 @@ class AppFlowDeviceTest {
                 val supportsPip=ui.activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
                 instrument.sendStatus(0,android.os.Bundle().apply { putBoolean("pip_supported",supportsPip) })
                 if(supportsPip && includePip) {
+                    ui.onNodeWithContentDescription("更多播放选项").performClick()
                     ui.onNodeWithText("画中画").performClick()
                     ui.waitUntil(60000) { ui.activity.isInPictureInPictureMode }
                     assertEquals(1L,PlaybackMetrics.created-PlaybackMetrics.released)
@@ -324,7 +325,7 @@ class AppFlowDeviceTest {
             portraitWidth=v.width;portraitHeight=v.height
         }
         capture("portrait")
-        ui.onNodeWithText("横屏全屏").performClick()
+        ui.onNodeWithContentDescription("横屏全屏").performClick()
         ui.waitUntil(90000) { ui.activity.window.decorView.width>ui.activity.window.decorView.height }
         ui.waitUntil(90000) {
             var hidden=false
@@ -351,6 +352,7 @@ class AppFlowDeviceTest {
         if(testPip) {
             // Fullscreen code6 starts hidden; explicitly reveal the normal control layer.
             ui.runOnIdle { findPlayerView(ui.activity.window.decorView)!!.performClick() }
+            ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.onNodeWithText("画中画").performClick()
             ui.waitUntil(90000) { ui.activity.isInPictureInPictureMode }
             capture("pip")
@@ -364,7 +366,7 @@ class AppFlowDeviceTest {
             ui.activity.onBackPressedDispatcher.onBackPressed()
         }
         ui.waitUntil(90000) { ui.activity.window.decorView.width<ui.activity.window.decorView.height }
-        ui.onNodeWithText("横屏全屏").assertIsDisplayed()
+        ui.onNodeWithContentDescription("横屏全屏").assertIsDisplayed()
         ui.runOnIdle { assertSame(original,findPlayer(ui.activity.window.decorView));assertFalse(original.playWhenReady) }
         capture("restored")
         java.io.File(dir,"assertions.json").writeText(org.json.JSONObject()

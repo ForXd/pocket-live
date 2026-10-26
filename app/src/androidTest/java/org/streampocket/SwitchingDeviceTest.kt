@@ -15,6 +15,7 @@ import java.net.InetAddress
 
 class SwitchingDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
+    @Before fun resetSaved() { kotlinx.coroutines.runBlocking { Storage(ui.activity.application).write(Saved()) } }
     @Test fun failureShowsQuickSwitchAndPlaysAlternate() {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
@@ -94,7 +95,9 @@ class SwitchingDeviceTest {
             ui.waitUntil(10000) { model.state.value.saved.allowHttp }
             ui.runOnIdle { model.play(Video(Source("慢速来源","$base/api"),"slow","缓冲测试"),Episode("第1集","$base/slow.mp4")) }
             ui.waitUntil(15000) { ui.onAllNodes(hasText("缓冲较慢",substring=true)).fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.onNodeWithText("流畅优先").assertExists()
+            ui.onNodeWithText("关闭").performClick()
             ui.onNodeWithText("快速换源").assertExists()
             ui.runOnIdle { model.stopPlayback() }
             ui.waitUntil(5000) { PlaybackMetrics.created==PlaybackMetrics.released && PlaybackMetrics.samplers==0 }

@@ -81,6 +81,10 @@ class MainActivity : ComponentActivity() {
     // Do not put token-bearing input into saved-instance-state or screen titles.
     var url by remember { mutableStateOf("") }
     var delete by remember { mutableStateOf<Subscription?>(null) }
+    var expandedSubscription by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(s.loading,s.saved.subscriptions.map { it.id }) {
+        if(!s.loading && s.saved.subscriptions.none { it.id==expandedSubscription }) expandedSubscription=null
+    }
     var ruleSource by remember { mutableStateOf<Source?>(null) }
     var ruleText by remember { mutableStateOf("") }
     LaunchedEffect(tab,s.saved,s.playback?.sessionId) { if((tab == 1 || tab == 2) && s.playback == null) model.refreshStorage() }
@@ -185,21 +189,14 @@ class MainActivity : ComponentActivity() {
                     } }
                     if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在搜索或发现页浏览内容。",R.drawable.ic_library) }
                     s.saved.subscriptions.forEach { sub ->
-                        item(key=sub.id) { Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) { Column(Modifier.padding(16.dp)) {
-                            Text(sub.name,style=MaterialTheme.typography.titleMedium)
-                            Text("${sub.sources.size} 个源 · 更新于 ${java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT,java.text.DateFormat.SHORT).format(java.util.Date(sub.updated))}",style=MaterialTheme.typography.bodySmall)
-                            Row {
-                                TextButton(onClick={model.importSubscription(sub.url,sub)},enabled=sub.id !in s.importing) { Text("更新") }
-                                TextButton(onClick={delete=sub},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除") }
-                                if(sub.id in s.importing) TextButton(onClick={model.cancelImport(sub.id)}) { Text("取消") }
-                            }
-                        } } }
-                        items(sub.sources,key={sub.id+it.key}) { source ->
-                            Row(Modifier.fillMaxWidth().padding(start=12.dp)) {
-                                Column(Modifier.weight(1f)) { Text(source.name); Text(if(source.kind==SourceKind.LIVE) "直播 M3U" else "点播 API",style=MaterialTheme.typography.bodySmall)
-                                    if(source.kind==SourceKind.VOD) TextButton(onClick={ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n")}) { Text("广告精确路径规则") } }
-                                Switch(modifier=Modifier.semantics { contentDescription="启用或停用 ${source.name}" },checked=source.key !in s.saved.disabled,onCheckedChange={model.toggle(source)})
-                            }
+                        item(key="subscription:${sub.id}") {
+                            SubscriptionHeader(sub,expandedSubscription==sub.id,sub.sources.count { it.key !in s.saved.disabled },sub.id in s.importing,
+                                onExpand={expandedSubscription=if(expandedSubscription==sub.id) null else sub.id},
+                                onUpdate={model.importSubscription(sub.url,sub)},onCancel={model.cancelImport(sub.id)},onDelete={delete=sub})
+                        }
+                        // Keep source rows lazy: even a 300-source subscription composes only the viewport.
+                        if(expandedSubscription==sub.id) items(sub.sources,key={"source:${sub.id}:${it.key}"}) { source ->
+                            SubscriptionSourceRow(source,source.key !in s.saved.disabled,onToggle={model.toggle(source)},onRules={ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n")})
                         }
                     }
                     item(key="networkSettings") { SettingsGroup("播放与网络","HTTP 访问 · 广告过滤") {

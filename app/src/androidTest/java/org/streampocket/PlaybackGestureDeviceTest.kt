@@ -191,7 +191,7 @@ class PlaybackGestureDeviceTest {
                 instrument.runOnMainSync { val d=model.state.value.detail!!;model.play(d.video,Episode("失败夹具","$base/failure.mp4")) }
                 waitFor { view(ui.activity.window.decorView)?.player?.playerError!=null }
                 observingActivePlayer=true
-                ui.onNodeWithText("横屏全屏").performClick()
+                ui.onNodeWithContentDescription("横屏全屏").performClick()
                 waitFor { ui.activity.window.decorView.width>ui.activity.window.decorView.height && !playerView().isControllerFullyVisible }
                 ui.onNodeWithTag("playbackError").assertIsDisplayed()
                 ui.onNodeWithText("重试播放").assertIsDisplayed()
@@ -234,10 +234,10 @@ class PlaybackGestureDeviceTest {
             stage("first-frame-ready")
             observingActivePlayer=true
             instrument.runOnMainSync { playerView().player!!.pause();playerView().player!!.seekTo(2000) }
-            ui.onNodeWithText("上一集").assertIsNotEnabled()
-            ui.onNodeWithText("横屏全屏").performClick()
+            ui.onNodeWithContentDescription("上一集").assertIsNotEnabled()
+            ui.onNodeWithContentDescription("横屏全屏").performClick()
             waitFor { ui.activity.window.decorView.width>ui.activity.window.decorView.height && !playerView().isControllerFullyVisible }
-            ui.onNodeWithText("退出全屏").assertDoesNotExist();capture("fullscreen-hidden");stage("fullscreen-hidden")
+            ui.onNodeWithContentDescription("退出全屏").assertDoesNotExist();capture("fullscreen-hidden");stage("fullscreen-hidden")
             if(!directTouch) waitFor { ui.activity.hasWindowFocus() }
             instrument.runOnMainSync {
                 if(!directTouch) assertTrue("System overlay owns focus",ui.activity.hasWindowFocus())
@@ -333,13 +333,13 @@ class PlaybackGestureDeviceTest {
                 stage("controls-scope-accessibility-click-not-cross-session-touch")
             } else tap(false)
             waitFor { playerView().isControllerFullyVisible }
-            ui.onNodeWithText("上一集").assertIsEnabled();ui.onNodeWithText("选集").performClick()
+            ui.onNodeWithContentDescription("上一集").assertIsEnabled();ui.onNodeWithText("选集").performClick()
             ui.onNodeWithText("正在播放 · 第2集").assertExists();stage("episode-2-highlight-and-fullscreen-passed")
             ui.onNode(hasScrollToIndexAction()).performScrollToIndex(499)
             ui.onNodeWithText("第500集").performClick()
             waitFor { model.state.value.playback?.episode?.name=="第500集" && readyFor(model.state.value.playback) }
             instrument.runOnMainSync { playerView().player!!.pause();playerView().controllerShowTimeoutMs=0;playerView().showController() }
-            ui.onNodeWithText("下一集").assertIsNotEnabled()
+            ui.onNodeWithContentDescription("下一集").assertIsNotEnabled()
             ui.onNodeWithText("选集").performClick()
             ui.onNodeWithText("正在播放 · 第500集").assertIsDisplayed();capture("last-episode")
             stage("lazy-scroll-last-disabled-current-auto-position-passed")
@@ -351,7 +351,7 @@ class PlaybackGestureDeviceTest {
             instrument.runOnMainSync { assertTrue(ui.activity.window.decorView.width>ui.activity.window.decorView.height) }
             if(directTouch) instrument.runOnMainSync { ui.activity.onBackPressedDispatcher.onBackPressed() } else instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
             waitFor { ui.activity.window.decorView.width<ui.activity.window.decorView.height }
-            ui.onNodeWithText("横屏全屏").assertExists();stage("back-panel-then-fullscreen-passed")
+            ui.onNodeWithContentDescription("横屏全屏").assertExists();stage("back-panel-then-fullscreen-passed")
             instrument.runOnMainSync { playerView().hideController();playerView().player!!.seekTo(2000) }
             val (heldX,heldY)=point(true);val heldDown=SystemClock.uptimeMillis()
             inject(MotionEvent.ACTION_DOWN,heldX,heldY,heldDown)

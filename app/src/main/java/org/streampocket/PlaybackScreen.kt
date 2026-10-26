@@ -11,6 +11,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -55,6 +60,7 @@ import kotlinx.coroutines.delay
     var gestureFeedback by remember(playback.sessionId) { mutableStateOf("") }
     LaunchedEffect(gestureFeedback) { if(gestureFeedback.isNotEmpty()) { delay(1000);gestureFeedback="" } }
     var episodesOpen by remember { mutableStateOf(false) }
+    var optionsOpen by remember { mutableStateOf(false) }
     var filterSummary by remember(playback.sessionId) { mutableStateOf("") }
     var health by remember(playback.sessionId) { mutableStateOf(PlaybackHealth()) }
     var keepPosition by remember { mutableStateOf(true) }
@@ -90,7 +96,7 @@ import kotlinx.coroutines.delay
         playerView?.gesturesEnabled=!pip
         if(full || pip) playerView?.hideController()
     }
-    BackHandler { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(full) full=false else model.stopPlayback() }
+    BackHandler { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) full=false else model.stopPlayback() }
     DisposableEffect(full, pip) {
         val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
         if(full && !pip) { bars.systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE; bars.hide(WindowInsetsCompat.Type.systemBars()) }
@@ -107,40 +113,55 @@ import kotlinx.coroutines.delay
         if(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) controller.start()
         onDispose { lifecycle.removeObserver(observer); controller.close(activity.isChangingConfigurations) }
     }
+    val configuration=LocalConfiguration.current
+    // Media3 needs room for both center transport and its bottom time/settings bar.
+    // Keep those controls available at 320dp, instead of entering minimal mode at 180dp high.
+    val inlineVideoHeight=(configuration.screenWidthDp / (16f/9f)).coerceAtLeast(224f).coerceAtMost(configuration.screenHeightDp * 0.42f).dp
     val matchingDetail=state.detail?.takeIf { it.video.source.key==playback.video.source.key && it.video.id==playback.video.id }
     val hasEpisodes=matchingDetail?.lines?.any { line -> line.episodes.any { it.url==playback.episode.url } }==true
-    val controls: @Composable () -> Unit = {
-        Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp * 0.55f).dp).verticalScroll(rememberScrollState())) {
-        FlowRow(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            val previous=adjacentEpisode(state.detail,playback,-1)
-            val next=adjacentEpisode(state.detail,playback,1)
-            TextButton(enabled=previous!=null,onClick={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) } }) { Text("上一集") }
-            TextButton(enabled=next!=null,onClick={ playerView?.cancelGestures();next?.let { model.play(playback.video,it) } }) { Text("下一集") }
-            FilledTonalButton(modifier=Modifier.heightIn(min=48.dp),enabled=hasEpisodes,onClick={playerView?.cancelGestures();episodesOpen=true}) { Text("选集") }
-            if(playback.video.source.kind==SourceKind.VOD) OutlinedButton(modifier=Modifier.heightIn(min=48.dp),onClick=::showAlternatives) { Text("快速换源") }
-        }
-        FlowRow(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            FilterChip(selected=state.smoothPlayback,onClick={model.smoothPlayback(!state.smoothPlayback)},label={Text("流畅优先")})
-            Text(if(health.buffering) "正在缓冲 · 已缓冲 ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒",modifier=Modifier.padding(vertical=16.dp),style=MaterialTheme.typography.bodySmall)
-        }
-        if(state.smoothPlayback) Text("多清晰度视频优先 720p；单清晰度可换源改善",Modifier.padding(horizontal=16.dp),style=MaterialTheme.typography.bodySmall)
-        if(state.saved.adFilter) Text(filterSummary+" · 可在订阅页关闭",Modifier.padding(horizontal=16.dp),style=MaterialTheme.typography.bodySmall)
-        if(state.detailLoading) Text("正在加载选集…",modifier=Modifier.padding(horizontal=16.dp),style=MaterialTheme.typography.bodySmall)
-        else if(!hasEpisodes) Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(if(state.detailError!=null) "选集暂不可用：${state.detailError}" else "当前集不在可用线路中，选集暂不可用",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
-            TextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
-        }
-        FlowRow(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick={playerView?.cancelGestures();model.stopPlayback()}) { Text("返回选集") }
-            TextButton(onClick={
-                playerView?.cancelGestures()
-                if(activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-                    try { activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16,9)).build()) } catch(_:Exception) { error="设备当前不允许画中画" }
-                } else error="设备不支持画中画"
-            }) { Text("画中画") }
-            TextButton(onClick={full=!full},modifier=Modifier.testTag("fullscreenToggle")) { Text(if(full) "退出全屏" else "横屏全屏") }
-        }
+    val previous=adjacentEpisode(state.detail,playback,-1)
+    val next=adjacentEpisode(state.detail,playback,1)
+    val bufferingText=if(health.buffering) "正在缓冲 · ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒"
+    val openEpisodes={ playerView?.cancelGestures();episodesOpen=true }
+    val openOptions={ playerView?.cancelGestures();optionsOpen=true }
+    val leavePlayback={ playerView?.cancelGestures();model.stopPlayback() }
+    val stepPrevious={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) };Unit }
+    val stepNext={ playerView?.cancelGestures();next?.let { model.play(playback.video,it) };Unit }
+    val episodeControls: @Composable RowScope.() -> Unit = {
+        PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
+        FilledTonalButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) { Text("选集") }
+        PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
     }
+    if(optionsOpen && !pip) {
+        Dialog(onDismissRequest={optionsOpen=false}) {
+            BackHandler { optionsOpen=false }
+            Surface(shape=MaterialTheme.shapes.extraLarge,color=MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Column(Modifier.fillMaxWidth().heightIn(max=420.dp).padding(20.dp)) {
+                    Row(verticalAlignment=Alignment.CenterVertically) {
+                        Text("播放选项",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                        TextButton(onClick={optionsOpen=false}) { Text("关闭") }
+                    }
+                    Column(Modifier.weight(1f,false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                        SettingSwitch("流畅优先","多清晰度优先 720p；单清晰度可通过换源改善",state.smoothPlayback,model::smoothPlayback)
+                        Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        if(state.saved.adFilter) Text(filterSummary.ifBlank { "广告过滤已启用" }+" · 可在订阅页关闭",style=MaterialTheme.typography.bodySmall)
+                        if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
+                        else if(!hasEpisodes) {
+                            Text("选集暂不可用",style=MaterialTheme.typography.bodySmall)
+                            TextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
+                        }
+                        HorizontalDivider()
+                        OutlinedButton(modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),onClick={
+                            optionsOpen=false;playerView?.cancelGestures()
+                            if(activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                                try { activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16,9)).build()) } catch(_:Exception) { error="设备当前不允许画中画" }
+                            } else error="设备不支持画中画"
+                        }) { Text("画中画") }
+                        TextButton(onClick=leavePlayback,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("返回选集") }
+                    }
+                }
+            }
+        }
     }
     if(state.alternativeSession==playback.sessionId && !pip) {
         Dialog(onDismissRequest=model::closeAlternatives) {
@@ -199,12 +220,16 @@ import kotlinx.coroutines.delay
         }
     }
     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
-    Box(Modifier.fillMaxSize().background(Color.Black).testTag("playbackSurface")) {
+    Box(Modifier.fillMaxSize().background(if(full || pip) Color.Black else MaterialTheme.colorScheme.surface).testTag("playbackSurface")) {
         Column(Modifier.fillMaxSize().then(if(full || pip) Modifier else Modifier.safeDrawingPadding())) {
             if(!full && !pip) {
-                Text(playback.video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.padding(16.dp))
-                Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) { Text(playback.episode.name,Modifier.weight(1f));QualityBadge(playback.episode.quality) }
+                Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
+                    IconButton(onClick=leavePlayback,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回选集") }
+                    Text(playback.video.title,Modifier.weight(1f).padding(horizontal=8.dp),style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
+                    IconButton(onClick=openOptions,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"更多播放选项") }
+                }
             }
+            Box((if(full || pip) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().height(inlineVideoHeight)).background(Color.Black).testTag("videoViewport")) {
             AndroidView(
                 factory={GesturePlayerView(it).apply {
                     useController=true
@@ -225,28 +250,66 @@ import kotlinx.coroutines.delay
                     playerView=it;it.useController=!pip
                 },
                 onReset=null,onRelease={it.cancelGestures();controller.detach(it);if(playerView===it) playerView=null},
-                modifier=Modifier.weight(1f).fillMaxWidth().testTag("videoViewport")
+                modifier=Modifier.fillMaxSize()
             )
+            if(gestureFeedback.isNotEmpty() && !pip) {
+                Text(gestureFeedback,color=Color.White,modifier=Modifier.align(Alignment.Center).background(Color.Black.copy(alpha=0.7f)).padding(12.dp))
+            }
+            }
             if(!full && !pip) {
-                error?.let { Text(it,modifier=Modifier.padding(12.dp)); TextButton(onClick={error=null; controller.retry()}) { Text("重试播放") } }
-                if(error==null && health.slow) Row(Modifier.padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Text("缓冲较慢，可重连或快速换源",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
-                    TextButton(onClick={controller.retry()}) { Text("重新连接") }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            Text(playback.episode.name,style=MaterialTheme.typography.titleLarge)
+                            Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        QualityBadge(playback.episode.quality)
+                    }
+                    Surface(color=MaterialTheme.colorScheme.surfaceContainer,shape=MaterialTheme.shapes.large) {
+                        Row(Modifier.fillMaxWidth().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            episodeControls()
+                            PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();full=true})
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            Text("当前来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(playback.video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+                        }
+                        if(playback.video.source.kind==SourceKind.VOD) OutlinedButton(onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
+                    }
+                    if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
+                    else if(!hasEpisodes) {
+                        Text(if(state.detailError!=null) "选集暂不可用：${state.detailError}" else "当前集不在可用线路中，选集暂不可用",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
+                    }
+                    (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let { problem ->
+                        Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=MaterialTheme.shapes.large) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text(problem,style=MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick={error=null;controller.retry()}) { Text(if(error!=null) "重试播放" else "重新连接") }
+                            }
+                        }
+                    }
                 }
-                controls()
             }
         }
-        if(gestureFeedback.isNotEmpty() && !pip) {
-            Text(gestureFeedback,color=Color.White,modifier=Modifier.align(Alignment.Center).background(Color.Black.copy(alpha=0.7f)).padding(12.dp))
-        }
         if(full && !pip && controlsVisible && error==null && !health.slow) {
-            // Overlay controls leave the entire landscape surface available to video.
-            Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.65f)).displayCutoutPadding()) { controls() }
+            // A single top rail leaves Media3's transport and timeline unobstructed.
+            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.72f)).displayCutoutPadding().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                IconButton(onClick={playerView?.cancelGestures();full=false},modifier=Modifier.size(48.dp).testTag("fullscreenToggle")) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"退出全屏") }
+                Text("${playback.video.title} · ${playback.episode.name}",Modifier.weight(1f),style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis)
+                PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
+                TextButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.heightIn(min=48.dp)) { Text("选集") }
+                PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
+                if(playback.video.source.kind==SourceKind.VOD) TextButton(onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
+                IconButton(onClick=openOptions,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"更多播放选项") }
+            }
         }
         // Recovery must remain reachable even with hidden controls or no initialized player.
         if(full && !pip) {
             (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let {
-                Column(Modifier.align(Alignment.BottomCenter).background(Color.Black.copy(alpha=0.8f)).padding(12.dp).testTag("playbackError")) {
+                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.8f)).displayCutoutPadding().heightIn(max=(LocalConfiguration.current.screenHeightDp * 0.6f).dp).verticalScroll(rememberScrollState()).padding(16.dp).testTag("playbackError")) {
                     Text(it)
                     FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick={error=null; controller.retry()}) { Text("重试播放") }
@@ -257,5 +320,11 @@ import kotlinx.coroutines.delay
             }
         }
     }
+    }
+}
+
+@Composable private fun PlayerIconAction(icon:Int,label:String,enabled:Boolean=true,modifier:Modifier=Modifier,onClick:()->Unit) {
+    IconButton(onClick=onClick,enabled=enabled,modifier=modifier.size(48.dp)) {
+        Icon(painterResource(icon),contentDescription=label,modifier=Modifier.size(24.dp))
     }
 }
