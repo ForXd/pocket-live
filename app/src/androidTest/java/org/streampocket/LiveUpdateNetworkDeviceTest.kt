@@ -8,6 +8,7 @@ import java.io.File
 
 /** Opt-in real GitHub traffic: validates published APK against the installed production identity. */
 class LiveUpdateNetworkDeviceTest {
+    @get:org.junit.Rule val ui=androidx.compose.ui.test.junit4.createAndroidComposeRule<MainActivity>()
     @Test fun officialReleaseDownloadsThroughSystemDnsAndValidatesInstalledSigner()=runBlocking {
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveUpdate")=="true")
         val instrument=InstrumentationRegistry.getInstrumentation()
@@ -27,7 +28,7 @@ class LiveUpdateNetworkDeviceTest {
                 if(InstrumentationRegistry.getArguments().getString("completeProductionUpgrade")=="true") {
                     val context=instrument.targetContext
                     val uri=androidx.core.content.FileProvider.getUriForFile(context,"${context.packageName}.updates",file)
-                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    ui.runOnUiThread { ui.activity.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
                     fun nodes(root:android.view.accessibility.AccessibilityNodeInfo?):List<android.view.accessibility.AccessibilityNodeInfo> = if(root==null) emptyList() else listOf(root)+(0 until root.childCount).flatMap { nodes(root.getChild(it)) }
                     val deadline=android.os.SystemClock.elapsedRealtime()+15000
                     var clicked=false
@@ -39,7 +40,7 @@ class LiveUpdateNetworkDeviceTest {
                         }
                         android.os.SystemClock.sleep(200)
                     }
-                    assertTrue("System update button not found",clicked)
+                    assertTrue("System update button not found: "+nodes(instrument.uiAutomation.rootInActiveWindow).mapNotNull { it.text?.toString() }.joinToString(" | "),clicked)
                     val installedDeadline=android.os.SystemClock.elapsedRealtime()+30000
                     while(apkIdentity(context.createPackageContext("org.streampocket",0)).version!=release.version && android.os.SystemClock.elapsedRealtime()<installedDeadline) android.os.SystemClock.sleep(250)
                     assertEquals(release.version,apkIdentity(context.createPackageContext("org.streampocket",0)).version)

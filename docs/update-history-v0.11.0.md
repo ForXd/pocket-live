@@ -22,7 +22,7 @@ adb shell am instrument -w -e publishedUpgrade true -e class org.streampocket.Pu
 
 回归覆盖：官方主机限制、非 HTTPS / 非官方跳转拒绝、限流备用清单、取消不触发备用请求、下载取消和残片清理、内容篡改拒绝、安装权限拒绝后重试与 content URI 安装。
 
-`LiveUpdateNetworkDeviceTest` 使用修复后的真实网络通道下载 GitHub 正式 APK，与模拟器已安装正式包比对签名。开启 `completeProductionUpgrade=true` 后实际确认 Android 安装界面，并核对安装后的版本。已验证 0.9.0 → 0.10.0（2,652,471 字节，SHA-256 与原签名匹配），而非仅检查一个测试 Intent。
+`LiveUpdateNetworkDeviceTest` 使用修复后的真实网络通道下载 GitHub 正式 APK，与模拟器已安装正式包比对签名。开启 `completeProductionUpgrade=true` 后实际确认 Android 安装界面，并核对安装后的版本。已验证 0.9.0 → 0.10.0（2,652,471 字节，SHA-256 与原签名匹配），而非仅检查一个测试 Intent。发布后也已从公开 Release 完成 0.10.0 → 0.11.0 的下载、校验及系统确认安装。测试启动安装器时使用前台 Activity，与产品一致，避免复用系统旧安装结果任务。
 
 **旧版升级方式：** 已安装 0.9.0 / 0.10.0 的代码不会因新 Release 自动修复。如果旧通道仍被当前网络拦截，需要手动下载 0.11.0 APK 覆盖安装一次，不要卸载；之后才使用新通道。新版继续保留订阅和历史。
 
