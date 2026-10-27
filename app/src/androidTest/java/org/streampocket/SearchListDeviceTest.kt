@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit
 class SearchListDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     @Test fun boundedThousandResultsAndScroll() {
+        ui.runOnUiThread { ui.activity.viewModelStore.clear() }
+        kotlinx.coroutines.runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true)) }
         androidx.test.espresso.IdlingPolicies.setMasterPolicyTimeout(120,TimeUnit.SECONDS)
         val instrument=InstrumentationRegistry.getInstrumentation()
         val server=MockWebServer();server.start();val base="http://fixture.test:${server.port}"
@@ -39,11 +41,11 @@ class SearchListDeviceTest {
         }
         try {
             ui.waitUntil(60000) { !model.state.value.loading }
-            ui.runOnIdle { model.allowHttp(true) };ui.waitUntil(60000) { model.state.value.saved.allowHttp }
+            assertTrue(model.state.value.saved.allowHttp)
             ui.runOnIdle { model.importSubscription("$base/sub") };ui.waitUntil(60000) { model.state.value.saved.subscriptions.size==1 }
             ui.onNodeWithTag("searchInput").performTextReplacement("Result")
             val start=android.os.SystemClock.elapsedRealtime()
-            ui.onNodeWithText("开始搜索").performClick()
+            ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.onNodeWithTag("searchInput").assertIsNotFocused()
             ui.waitUntil(60000) { model.state.value.results.isNotEmpty() }
             val first=android.os.SystemClock.elapsedRealtime()-start

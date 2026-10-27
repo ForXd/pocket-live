@@ -21,7 +21,7 @@ class SearchPerformanceTest {
         ui.waitUntil(5000) { ui.onAllNodesWithTag("searchInput").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithTag("searchInput").performTextReplacement(query)
         val start=android.os.SystemClock.elapsedRealtime();var first=-1L;var done=-1L;var allCompleted=false
-        ui.onNodeWithText("开始搜索").performClick()
+        ui.onNodeWithContentDescription("开始搜索").performClick()
         ui.waitUntil(120_000) {
             val text=ui.onAllNodes(hasText("已完成",substring=true)).fetchSemanticsNodes().firstOrNull()
                 ?.config?.getOrNull(SemanticsProperties.Text)?.joinToString { it.text }.orEmpty()

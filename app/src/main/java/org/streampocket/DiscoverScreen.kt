@@ -2,6 +2,9 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -90,42 +93,41 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit) {
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item {
-            Text("发现好故事",style=MaterialTheme.typography.headlineSmall)
-            Text("豆瓣公开推荐 · 点击封面搜索你的订阅来源",style=MaterialTheme.typography.bodySmall)
+    LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 176.dp else 140.dp),
+        modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),
+        horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        item(span={GridItemSpan(maxLineSpan)}) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    Text("发现好故事",style=MaterialTheme.typography.headlineSmall)
+                    Text("豆瓣推荐 · 在你的订阅中搜索",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick={model.recommend()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
+            }
         }
-        item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
-            SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
+        item(span={GridItemSpan(maxLineSpan)}) { LazyRow(modifier=Modifier.testTag("recommendFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            item { SingleChoiceSegmentedButtonRow {
                 listOf("tv" to "剧集","movie" to "电影").forEachIndexed { index,(type,label) ->
                     SegmentedButton(selected=s.recommendType==type,onClick={model.recommend(type)},shape=SegmentedButtonDefaults.itemShape(index,2)) { Text(label) }
                 }
-            }
-            IconButton(onClick={model.recommend()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
-        } }
-        item { LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            } }
             items(Recommendations.tags(s.recommendType)) { tag -> FilterChip(selected=s.recommendTag==tag,onClick={model.recommend(tag=tag)},label={Text(tag)}) }
         } }
-        if(s.recommendLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        s.recommendError?.let { error -> item {
-            Text("推荐暂时无法加载：$error。可以重试，或切换到订阅分类。")
-            TextButton(onClick={model.recommend()}) { Text("重试推荐") }
+        if(s.recommendLoading) item(span={GridItemSpan(maxLineSpan)}) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        s.recommendError?.let { error -> item(span={GridItemSpan(maxLineSpan)}) {
+            Column { Text("推荐暂时无法加载：$error。可以重试，或切换到订阅分类。")
+                TextButton(onClick={model.recommend()}) { Text("重试推荐") } }
         } }
-        if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item { Text("当前分类暂无推荐，请切换分类。") }
-        items(s.recommendations.chunked(2), key={it.first().id}) { row ->
-            Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                row.forEach { video ->
-                    Card(onClick={searchTitle(video.title)},modifier=Modifier.weight(1f),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
-                        Column(Modifier.padding(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f/3f))
-                            Text(video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                            if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodySmall)
-                        }
-                    }
+        if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
+        items(s.recommendations,key={it.id}) { video ->
+            Card(onClick={searchTitle(video.title)},colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
+                Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f/3f))
+                Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    Text(video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
                 }
-                if(row.size==1) Spacer(Modifier.weight(1f))
             }
         }
-        if(s.recommendMore && !s.recommendLoading) item { OutlinedButton(onClick={model.recommend(more=true)}) { Text("更多推荐") } }
+        if(s.recommendMore && !s.recommendLoading) item(span={GridItemSpan(maxLineSpan)}) { OutlinedButton(onClick={model.recommend(more=true)}) { Text("更多推荐") } }
     }
 }

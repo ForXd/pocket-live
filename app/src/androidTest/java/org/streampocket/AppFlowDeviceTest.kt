@@ -85,6 +85,7 @@ class AppFlowDeviceTest {
                 return
             }
             ui.onNodeWithText("订阅").performClick()
+            if(ui.onAllNodesWithTag("subscriptionInput").fetchSemanticsNodes().isEmpty()) ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithTag("subscriptionInput").performTextReplacement("$base/sub")
             ui.onNodeWithText("添加订阅").performScrollTo().performClick()
             ui.waitUntil(60000) { model.state.value.saved.subscriptions.size==1 }
@@ -100,7 +101,7 @@ class AppFlowDeviceTest {
             }
             ui.onNodeWithText("搜索",useUnmergedTree=true).performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("测试")
-            ui.onNodeWithText("开始搜索").performClick()
+            ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(60000) { model.state.value.results.size==(if(fullFlow) 2 else 1) && !model.state.value.searching }
             ui.onAllNodesWithText("测试画面")[0].performClick()
             ui.waitUntil(60000) { model.state.value.detail!=null }
@@ -142,6 +143,8 @@ class AppFlowDeviceTest {
             for((cycle,label) in (listOf("MP4集","HLS集")+List(stress) { if(it%2==0) "MP4集" else "HLS集" }).withIndex()) {
                 val frames=PlaybackMetrics.frames
                 val frameStart=android.os.SystemClock.elapsedRealtime()
+                ui.onNodeWithTag("detailGrid").performScrollToNode(hasText(if(label=="HLS集") "HLS · 1 集" else "MP4 · 1 集"))
+                ui.onNodeWithText(if(label=="HLS集") "HLS · 1 集" else "MP4 · 1 集").performClick()
                 ui.onNodeWithText(label).performClick()
                 ui.waitUntil(120000) { PlaybackMetrics.frames>frames }
                 val firstFrame=android.os.SystemClock.elapsedRealtime()-frameStart

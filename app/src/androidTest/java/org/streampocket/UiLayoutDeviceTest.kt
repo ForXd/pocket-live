@@ -26,6 +26,7 @@ class UiLayoutDeviceTest {
         runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history),allowHttp=true)) }
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse = if(request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5"},{"id":"2","title":"山海之间","rate":"8.2"}]}""")
+            else if(request.requestUrl!!.queryParameter("ids")!=null) MockResponse().setBody("""{"list":[{"vod_content":"一次穿越群星的旅程。每个故事，都值得被认真观看。","vod_play_from":"高清线路","vod_play_url":"第1集${'$'}$base/video.mp4#第2集${'$'}$base/video2.mp4#第3集${'$'}$base/video3.mp4#第4集${'$'}$base/video4.mp4#第5集${'$'}$base/video5.mp4#第6集${'$'}$base/video6.mp4"}]}""")
             else MockResponse().setBody("""{"list":[{"vod_id":"1","vod_name":"星河漫游","vod_remarks":"更新至第12集"},{"vod_id":"2","vod_name":"山海之间","vod_remarks":"高清"}]}""")
         }
         lateinit var model:AppModel
@@ -46,16 +47,23 @@ class UiLayoutDeviceTest {
             android.os.SystemClock.sleep(450) // Let platform IME/inset and navigation animations settle before pixels.
             ui.waitForIdle()
             instrument.waitForIdleSync()
-            val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"ui-v080-${InstrumentationRegistry.getArguments().getString("appearance","light")}").apply { mkdirs() }
+            val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"ui-v090-${InstrumentationRegistry.getArguments().getString("appearance","light")}").apply { mkdirs() }
             instrument.uiAutomation.takeScreenshot()?.let { b -> try { java.io.File(dir,"$name.png").outputStream().use { b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { b.recycle() } }
         }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            if(ui.activity.resources.configuration.screenWidthDp>=600 && ui.activity.resources.configuration.screenHeightDp>=480) ui.onNodeWithTag("navigationRail").assertIsDisplayed()
+            else ui.onNodeWithTag("navigationRail").assertDoesNotExist()
             ui.onNodeWithTag("searchInput").performTextInput("星河")
             capture("00-keyboard")
-            ui.onNodeWithText("开始搜索").assertHeightIsAtLeast(48.dp).performClick()
+            ui.onNodeWithContentDescription("开始搜索").assertHeightIsAtLeast(48.dp).performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
             capture("01-search")
+            ui.onNodeWithText("星河漫游").performClick()
+            ui.waitUntil(10000) { model.state.value.detail!=null }
+            capture("06-detail")
+            ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
+            ui.waitUntil(5000) { model.state.value.detail==null }
             ui.onNodeWithText("订阅",useUnmergedTree=true).performClick()
             capture("02-subscriptions")
             ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("播放与网络"))

@@ -55,7 +55,7 @@ class QualityUiDeviceTest {
             capture("subscriptions")
             ui.onNodeWithText("搜索",useUnmergedTree=true).performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("演示")
-            ui.onNodeWithText("开始搜索").performClick()
+            ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(60000) { !model.state.value.searching && model.state.value.results.size==3 }
             assertEquals(listOf("1080","720","unknown"),model.state.value.results.map { it.id })
             ui.onNodeWithText("1920×1080 · 接口自报").assertIsDisplayed()

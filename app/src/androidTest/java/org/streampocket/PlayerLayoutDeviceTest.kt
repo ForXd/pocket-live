@@ -21,6 +21,8 @@ class PlayerLayoutDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     private fun view(v:View):GesturePlayerView? = if(v is GesturePlayerView) v else if(v is ViewGroup) (0 until v.childCount).firstNotNullOfOrNull { view(v.getChildAt(it)) } else null
     @Test fun portraitAndLandscapeActionsKeepPlayerSession() {
+        ui.runOnUiThread { ui.activity.viewModelStore.clear() }
+        kotlinx.coroutines.runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true)) }
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
         val assets=InstrumentationRegistry.getInstrumentation().context.assets
@@ -41,10 +43,10 @@ class PlayerLayoutDeviceTest {
         }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
-            ui.runOnIdle { model.allowHttp(true) }
-            ui.waitUntil(5000) { model.state.value.saved.allowHttp }
+            assertTrue(model.state.value.saved.allowHttp)
             ui.runOnIdle { model.open(Video(Source("我的影视来源","$base/api"),"1","星河漫游")) }
-            ui.waitUntil(10000) { model.state.value.detail!=null }
+            ui.waitUntil(10000) { model.state.value.detail!=null || (!model.state.value.detailLoading && model.state.value.detailError!=null) }
+            assertNotNull("Detail failure: ${model.state.value.detailError}; message: ${model.state.value.message}",model.state.value.detail)
             val beforeFrames=PlaybackMetrics.frames
             ui.runOnIdle { val d=model.state.value.detail!!;model.play(d.video,d.lines[0].episodes[0]) }
             ui.waitUntil(20000) { PlaybackMetrics.frames>beforeFrames }
@@ -75,9 +77,14 @@ class PlayerLayoutDeviceTest {
             captureUi(ui,"player-landscape")
             assertEquals(created,PlaybackMetrics.created)
             ui.onNodeWithText("选集").performClick()
+            val nextFrames=PlaybackMetrics.frames
             ui.onNodeWithText("第2集").performClick()
-            ui.waitUntil(10000) { model.state.value.playback?.episode?.name=="第2集" }
-            ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
+            ui.waitUntil(20000) { model.state.value.playback?.episode?.name=="第2集" && PlaybackMetrics.frames>nextFrames }
+            // A new session intentionally hides controls. Wait for that effect, then reveal them.
+            ui.waitUntil(5000) {
+                ui.runOnUiThread { view(ui.activity.window.decorView)?.apply { player?.pause();controllerShowTimeoutMs=0;showController() } }
+                ui.onAllNodesWithContentDescription("上一集").fetchSemanticsNodes().isNotEmpty()
+            }
             ui.onNodeWithContentDescription("上一集").assertIsEnabled()
             ui.onNodeWithContentDescription("退出全屏").performClick()
             ui.waitUntil(5000) { ui.activity.window.decorView.width<ui.activity.window.decorView.height }

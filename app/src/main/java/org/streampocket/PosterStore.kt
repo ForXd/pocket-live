@@ -124,8 +124,8 @@ class PosterStore(private val directory: File) {
             if(value==null) value=model.posters.load(video.poster,model.network)
         }
     }
-    Surface(modifier,color=MaterialTheme.colorScheme.surfaceVariant) {
+    Surface(modifier,shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surfaceContainerHighest) {
         bitmap?.let { Image(it.asImageBitmap(),"${video.title} 封面",contentScale=ContentScale.Crop) }
-            ?: Icon(painterResource(R.drawable.ic_play),"暂无封面",Modifier.padding(20.dp))
+            ?: Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) { Icon(painterResource(R.drawable.ic_play),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }

@@ -8,6 +8,9 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
@@ -56,6 +59,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun Pocket(model: AppModel) {
     val s by model.state.collectAsStateWithLifecycle()
+    val rail=LocalConfiguration.current.screenWidthDp>=600 && LocalConfiguration.current.screenHeightDp>=480
     val compact=LocalConfiguration.current.screenHeightDp<500 || WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -102,63 +106,53 @@ class MainActivity : ComponentActivity() {
     if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
     if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
     BackHandler(s.detail != null || s.detailLoading) { model.closeDetail() }
-    Scaffold(
+    val destinations=listOf("搜索","订阅","历史","发现")
+    val navIcon:@Composable (Int)->Unit = { i -> if(i==3) Icon(Icons.Default.Star,null) else Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history)[i]),null) }
+    Row(Modifier.fillMaxSize()) {
+    if(rail) NavigationRail(modifier=Modifier.fillMaxHeight().testTag("navigationRail"),containerColor=MaterialTheme.colorScheme.surfaceContainerLow) {
+        Spacer(Modifier.height(16.dp))
+        destinations.forEachIndexed { i,title -> NavigationRailItem(selected=tab==i,onClick={tab=i;model.closeDetail()},icon={navIcon(i)},label={Text(title)}) }
+    }
+    Scaffold(modifier=Modifier.weight(1f),
         topBar = { TopAppBar(colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title = {
             if(s.detail!=null) Text("详情与选集",style=MaterialTheme.typography.titleMedium)
             else Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 Image(painterResource(R.drawable.pocket_logo),null,Modifier.size(40.dp))
                 Text("Pocket Live",style=MaterialTheme.typography.titleMedium)
             }
-        }, actions = {
+        }, navigationIcon={ if(s.detail!=null || s.detailLoading) IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") } }, actions = {
             IconButton(onClick={appearanceOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Settings,"外观设置") }
             TextButton(onClick={updatesOpen=true;model.checkUpdates()}) { Text(if(s.appRelease!=null) "有新版" else "更新") }
-            if(s.detail != null || s.detailLoading) TextButton(onClick = model::closeDetail) { Text("返回") }
         }) },
-        bottomBar = { NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainer,tonalElevation=0.dp) {
+        bottomBar = { if(!rail) NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainer,tonalElevation=0.dp) {
             listOf("搜索","订阅","历史","发现").forEachIndexed { i, title ->
                 NavigationBarItem(selected = tab == i, onClick = { tab = i; model.closeDetail() }, icon = { if(i==3) Icon(Icons.Default.Star,contentDescription=null) else Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history)[i]),contentDescription=null) }, label = { Text(title) })
             }
         } }, snackbarHost = { SnackbarHost(snack) }
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize().imePadding()) {
+        Box(Modifier.padding(padding).fillMaxSize().imePadding(),contentAlignment=Alignment.TopCenter) {
+        Box(Modifier.widthIn(max=1100.dp).fillMaxSize()) {
             if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
             if(s.loading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); Text("正在读取本地数据…") }; return@Box }
             if(s.detailLoading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); TextButton(onClick=model::closeDetail) { Text("取消详情请求") } }; return@Box }
             val detail = s.detail
             if(detail != null) {
-                LazyColumn(Modifier.fillMaxSize(),contentPadding = PaddingValues(16.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item { Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                        Text(detail.video.source.name,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-                        Text(detail.video.title,style=MaterialTheme.typography.titleLarge)
-                        Poster(detail.video,model)
-                        QualityBadge(detail.video.quality,lastPlayback=true)
-                        if(detail.description.isNotBlank()) Text(detail.description,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    } }
-                    item { OutlinedButton(onClick={ query=detail.video.title; model.closeDetail(); tab=0; model.search(query) }) { Text("搜索同名 · 换源") } }
-                    detail.lines.forEach { line ->
-                        item { Text("${line.name} · ${line.episodes.size} 集",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=12.dp)) }
-                        items(line.episodes) { episode -> OutlinedCard(onClick={model.play(detail.video,episode)},modifier=Modifier.fillMaxWidth()) {
-                            Row(Modifier.padding(14.dp).heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                Icon(painterResource(R.drawable.ic_play),null,tint=MaterialTheme.colorScheme.primary)
-                                Text(episode.name,Modifier.weight(1f),style=MaterialTheme.typography.titleSmall)
-                                QualityBadge(episode.quality)
-                            }
-                        } }
-                    }
-                    item { Text("网页解析、脚本源和 DRM 解锁不受支持。", style=MaterialTheme.typography.bodySmall) }
-                }
+                DetailScreen(detail,model) { query=detail.video.title;model.closeDetail();tab=0;model.search(query) }
             } else when(tab) {
                 0 -> Column(Modifier.fillMaxSize().padding(horizontal=16.dp)) {
-                    if(!compact) {
-                        Text("搜你想看的", style=MaterialTheme.typography.headlineLarge,modifier=Modifier.padding(top=24.dp))
-                        Text("从你的订阅，发现下一部好片",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
+                    if(!compact && s.results.isEmpty()) {
+                        Text("搜索片库",style=MaterialTheme.typography.headlineSmall,modifier=Modifier.padding(top=16.dp))
+                        Text("在你的订阅中寻找下一部好片",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=4.dp))
                     }
-                    Spacer(Modifier.height(if(compact) 8.dp else 16.dp))
-                    OutlinedTextField(query,{query=it.take(100)},modifier=Modifier.fillMaxWidth().testTag("searchInput"),singleLine=true,keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={focusManager.clearFocus();keyboard?.hide();model.search(query)}),label={Text("影片或频道名称")},shape=MaterialTheme.shapes.large,leadingIcon={Icon(painterResource(R.drawable.ic_search),null)})
-                    Row(Modifier.padding(top=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Button(shape=MaterialTheme.shapes.medium,modifier=Modifier.weight(1f).heightIn(min=52.dp),onClick={focusManager.clearFocus(); keyboard?.hide(); model.search(query)},enabled=query.isNotBlank()) { Icon(Icons.Default.Search,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("开始搜索") }
-                        if(s.searching) OutlinedButton(onClick=model::cancelSearch) { Text("取消搜索") }
-                    }
+                    Spacer(Modifier.height(12.dp))
+                    TextField(query,{query=it.take(100)},modifier=Modifier.fillMaxWidth().testTag("searchInput").semantics { contentDescription="影片或频道名称" },singleLine=true,
+                        keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={if(query.isNotBlank()) { focusManager.clearFocus();keyboard?.hide();model.search(query) }}),
+                        placeholder={Text("影片或频道名称")},shape=RoundedCornerShape(28.dp),
+                        colors=TextFieldDefaults.colors(focusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent,unfocusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent),
+                        leadingIcon={Icon(Icons.Default.Search,null)},trailingIcon={
+                            FilledIconButton(onClick={focusManager.clearFocus();keyboard?.hide();model.search(query)},enabled=query.isNotBlank(),modifier=Modifier.padding(4.dp).size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
+                        })
+                    if(s.searching) TextButton(onClick=model::cancelSearch) { Text("取消搜索") }
                     if(s.searching) LinearProgressIndicator(progress={if(s.total==0) 0f else s.completed.toFloat()/s.total},modifier=Modifier.fillMaxWidth().padding(vertical=8.dp))
                     if(s.results.isNotEmpty()) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                         Text("可用资源",style=MaterialTheme.typography.titleMedium)
@@ -167,18 +161,16 @@ class MainActivity : ComponentActivity() {
                     if(s.total > 0) Text("已完成 ${s.completed}/${s.total} 个源 · ${s.failures} 个失败 · ${s.results.size} 条结果（最多 1000）",style=MaterialTheme.typography.bodySmall)
                     if(s.results.isEmpty() && !compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total>0) "暂未找到结果" else "你的片库，由你定义",
                         if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.failures>0) "部分片源未响应，可换个关键词或检查订阅。" else "在订阅页添加来源，即可开始搜索。",R.drawable.ic_search)
-                    LazyColumn(contentPadding=PaddingValues(top=12.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(10.dp),modifier=Modifier.pointerInput(model) {
+                    LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),contentPadding=PaddingValues(top=12.dp,bottom=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp),modifier=Modifier.weight(1f).pointerInput(model) {
                         awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
                     }) {
                         items(s.results,key={it.source.key+":"+it.id}) { v ->
                             Card(onClick={model.open(v)},colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer),shape=MaterialTheme.shapes.large,modifier=Modifier.fillMaxWidth().animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
-                                Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                        Poster(v,model)
-                                        Text(v.title,Modifier.weight(1f),style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                    }
-                                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                        Text("${v.source.name} · ${v.subtitle}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+                                    Poster(v,model,Modifier.size(76.dp,110.dp))
+                                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                        Text(v.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                        Text("${v.source.name} · ${v.subtitle}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
                                         QualityBadge(v.quality,lastPlayback=true)
                                     }
                                 }
@@ -230,7 +222,7 @@ class MainActivity : ComponentActivity() {
                             Text("封面缓存：${u.posterBytes/1024} KiB / 20 MB",style=MaterialTheme.typography.bodyMedium)
                             Text("响应内存：${u.memoryBytes/1024} KiB / 2 MiB",style=MaterialTheme.typography.bodyMedium)
                         }
-                        Text("总预算含临时文件与余量。响应60秒、封面24小时过期；视频不落盘。APK和系统缓存另计。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("总预算含临时文件与余量。响应60秒、封面24小时过期；视频不落盘。已安装APK和系统缓存另计；下载中的更新包计入预算。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
                             TextButton(onClick=model::refreshStorage,modifier=Modifier.heightIn(min=48.dp)) { Text("刷新用量") }
@@ -242,6 +234,8 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    } // Bounded content
+    } // Navigation rail and content
     ruleSource?.let { source -> AlertDialog(onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
         OutlinedTextField(ruleText,{ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={TextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={TextButton(onClick={ruleSource=null}) { Text("取消") }}) }
     delete?.let { sub -> AlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={TextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={TextButton(onClick={delete=null}){Text("取消")}}) }

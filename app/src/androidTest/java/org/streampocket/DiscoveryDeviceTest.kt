@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class DiscoveryDeviceTest {
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
     @Test fun recommendationsCategoriesPostersRetryAndSearch() {
+        ui.runOnUiThread { ui.activity.viewModelStore.clear() }
+        kotlinx.coroutines.runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true)) }
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
         val fail=AtomicBoolean(false)
@@ -60,8 +62,7 @@ class DiscoveryDeviceTest {
         }
         try {
             ui.waitUntil(15000) { !model.state.value.loading }
-            ui.runOnIdle { model.allowHttp(true) }
-            ui.waitUntil(10000) { model.state.value.saved.allowHttp }
+            assertTrue(model.state.value.saved.allowHttp)
             ui.runOnIdle { model.importSubscription("$base/sub") }
             ui.waitUntil(15000) { model.state.value.saved.subscriptions.any { it.url=="$base/sub" } }
             ui.onNodeWithText("发现",useUnmergedTree=true).performClick()
@@ -74,6 +75,7 @@ class DiscoveryDeviceTest {
             ui.onNodeWithText("电影",useUnmergedTree=true).performClick()
             ui.waitUntil(15000) { model.state.value.recommendations.firstOrNull()?.title=="movie 推荐 1-1" }
             fail.set(true)
+            ui.onNodeWithTag("recommendFilters").performScrollToNode(hasText("最新"))
             ui.onNodeWithText("最新").performClick()
             ui.waitUntil(15000) { model.state.value.recommendError!=null }
             ui.onNodeWithText("重试推荐").assertExists()
