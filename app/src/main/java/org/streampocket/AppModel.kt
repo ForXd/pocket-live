@@ -25,7 +25,7 @@ data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false,
     val importing: Set<String> = emptySet(), val storageUsage: StorageUsage? = null, val message: String? = null)
 class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.Dns = PublicNetwork.dns,
     private val recommendationUrl: (String,String,Int)->String = Recommendations::url,
-    private val updateDocument:suspend (Network)->String = { it.text(AppUpdates.API) }) : AndroidViewModel(application) {
+    private val updateDocument:(suspend (Network)->String)? = null) : AndroidViewModel(application) {
     private val responseCache = ResponseCache(java.io.File(application.cacheDir,"responses-v1"))
     val posters = PosterStore(java.io.File(application.cacheDir,"posters-v1"))
     private val store = Storage(application, purgeCache={ responseCache.clear(); posters.clear() })
@@ -33,7 +33,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     val state = _state.asStateFlow()
     private val lock = Mutex()
     val network = Network({ _state.value.saved.allowHttp }, dns=dns, cache = responseCache)
-    val updater=ApkUpdater(application,network.client,viewModelScope)
+    private val updateNetwork=UpdateNetwork()
+    val updater=ApkUpdater(application,updateNetwork.client,viewModelScope)
     private var updateJob:Job?=null
     private var updateAttemptAt:Long?=null
     fun checkUpdates(force:Boolean=false) {
@@ -43,11 +44,11 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         _state.update { it.copy(updateChecking=true,updateError=null) }
         updateJob=viewModelScope.launch {
             try {
-                val release=withTimeout(22_000) { withContext(Dispatchers.Default) { AppUpdates.parse(updateDocument(network),BuildConfig.VERSION_NAME) } }
+                val release=withTimeout(45_000) { withContext(Dispatchers.Default) { AppUpdates.parse(updateDocument?.invoke(network) ?: updateNetwork.latest(),BuildConfig.VERSION_NAME) } }
                 _state.update { it.copy(appRelease=release,updateChecking=false,updateChecked=true) }
             } catch(e:TimeoutCancellationException) { _state.update { it.copy(updateChecking=false,updateError="请求超时，请稍后重试") } }
             catch(e:CancellationException) { throw e }
-            catch(e:Exception) { _state.update { it.copy(updateChecking=false,updateError=safeError(e)) } }
+            catch(e:Exception) { _state.update { it.copy(updateChecking=false,updateError=UpdateNetwork.error(e)) } }
         }
     }
     private var storageRefreshJob: Job?=null
@@ -440,5 +441,5 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         }
     }
     fun trimMemory() { if(memoryTrimJob?.isActive != true) memoryTrimJob=viewModelScope.launch(Dispatchers.IO) { responseCache.trimMemory();posters.trimMemory() } }
-    override fun onCleared() { network.close(); super.onCleared() }
+    override fun onCleared() { updateNetwork.close();network.close(); super.onCleared() }
 }

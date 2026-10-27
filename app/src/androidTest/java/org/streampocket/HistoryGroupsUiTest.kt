@@ -1,6 +1,8 @@
 package org.streampocket
 
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -15,12 +17,19 @@ class HistoryGroupsUiTest {
         val source=Source("源一","https://one.example/api")
         fun history(id:String,ep:Int,src:Source=source)=History(Playback(Video(src,id,"剧目$id"),Episode("第${ep}集","https://media.example/$id/$ep.mp4"),ep*1000L),ep.toLong())
         val a=history("a",1);val a2=history("a",2);val b=history("b",3);val other=history("a",4,source.copy(name="源二",url="https://two.example/api"))
-        val records=mutableStateOf(listOf(a2,a,b,other));var selected:History?=null
-        ui.runOnUiThread { ui.activity.setContent { PocketTheme { HistoryScreen(records.value,{selected=it},{key -> records.value=HistoryGroups.remove(Saved(history=records.value),key).history},{records.value=emptyList()}) } } }
+        val sameEpisode=a.copy(playback=a.playback.copy(video=a.playback.video.copy(source=source.copy(name="源三",url="https://three.example/api")),episode=a.playback.episode.copy(name="EP01"),position=81000),updated=5)
+        val records=mutableStateOf(listOf(a2,a,b,other,sameEpisode));var selected:History?=null
+        ui.runOnUiThread { ui.activity.setContent { PocketTheme { androidx.compose.material3.Surface(Modifier.safeDrawingPadding()) { HistoryScreen(records.value,{selected=it},{key -> records.value=HistoryGroups.remove(Saved(history=records.value),key).history},{records.value=emptyList()}) } } } }
         val id=HistoryGroups.key(a.playback.video).stableKey
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyGroup:$id"))
-        ui.onNodeWithTag("continue:$id").performClick();ui.runOnIdle { assertEquals(other,selected) }
+        ui.onNodeWithTag("continue:$id").performClick();ui.runOnIdle { assertEquals(sameEpisode,selected) }
         ui.onNodeWithText("查看分集（3）").performClick()
+        val episodeId="$id:${HistoryGroups.episodeKey(a)}"
+        ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continueEpisode:$episodeId"))
+        ui.onNodeWithTag("continueEpisode:$episodeId").performClick();ui.runOnIdle { assertEquals(sameEpisode,selected) }
+        ui.onNodeWithTag("expandEpisode:$episodeId").performClick()
+        ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyEpisode:${sameEpisode.playback.key}"))
+        ui.onNodeWithTag("historyEpisode:${sameEpisode.playback.key}").performClick();ui.runOnIdle { assertEquals(81000L,selected!!.playback.position) }
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyEpisode:${a.playback.key}"))
         ui.onNodeWithTag("historyEpisode:${a.playback.key}").performClick();ui.runOnIdle { assertEquals(a,selected) }
         val instrument=InstrumentationRegistry.getInstrumentation()

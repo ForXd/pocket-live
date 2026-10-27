@@ -16,12 +16,13 @@ import androidx.compose.ui.unit.dp
     // once per changed snapshot, never on the player's position sampling tick.
     val groups=remember(history) { HistoryGroups.group(history) }
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
+    var expandedEpisode by rememberSaveable { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<HistoryGroupKey?>(null) }
     var clearing by remember { mutableStateOf(false) }
     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("historyGroups")) {
         item {
             Text("继续观看",style=MaterialTheme.typography.headlineSmall)
-            Text("同名剧目合并来源 · 保留各集观看进度",style=MaterialTheme.typography.bodySmall)
+            Text("按剧集与分集整理 · 各来源独立保存进度",style=MaterialTheme.typography.bodySmall)
         }
         if(groups.isEmpty()) item { EmptyPanel("继续上次的精彩","每部剧独立保存断点，展开可查看各集记录。",R.drawable.ic_history) }
         else item { TextButton(onClick={clearing=true},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("清空历史") } }
@@ -44,18 +45,36 @@ import androidx.compose.ui.unit.dp
                             }
                         }
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                            TextButton(onClick={expanded=if(expanded==id) null else id},modifier=Modifier.weight(1f)) { Text(if(expanded==id) "收起分集" else "查看分集（${group.entries.size}）") }
+                            TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.weight(1f)) { Text(if(expanded==id) "收起分集" else "查看分集（${group.episodes.size}）") }
                             TextButton(onClick={deleting=group.key},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除记录") }
                         }
                     }
                 }
             }
-            if(expanded==id) items(group.entries,key={"episode:$id:${it.playback.key}"}) { entry ->
-                OutlinedCard(onClick={resume(entry)},modifier=Modifier.fillMaxWidth().testTag("historyEpisode:${entry.playback.key}")) {
-                    Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                        Text(entry.playback.episode.name,style=MaterialTheme.typography.titleSmall)
-                        Text(entry.playback.video.source.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
-                        Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.bodySmall)
+            if(expanded==id) group.episodes.forEach { episode ->
+                val episodeId="$id:${episode.key}"
+                item(key="episode-group:$episodeId") {
+                    OutlinedCard(Modifier.fillMaxWidth().testTag("historyEpisodeGroup:$episodeId")) {
+                        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick={expandedEpisode=if(expandedEpisode==episodeId) null else episodeId},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("expandEpisode:$episodeId")) {
+                                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                                    Text(episode.latest.playback.episode.name,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)
+                                    Text("${episode.entries.size} 条来源记录 · 最近：${episode.latest.playback.video.source.name}",style=MaterialTheme.typography.bodySmall)
+                                }
+                                Text(if(expandedEpisode==episodeId) "收起" else "展开")
+                            }
+                            Text(HistoryGroups.progress(episode.latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(horizontal=12.dp))
+                            TextButton(onClick={resume(episode.latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continueEpisode:$episodeId")) { Text("继续本集") }
+                        }
+                    }
+                }
+                if(expandedEpisode==episodeId) items(episode.entries,key={"record:$id:${it.playback.key}"}) { entry ->
+                    OutlinedCard(onClick={resume(entry)},modifier=Modifier.fillMaxWidth().padding(start=16.dp).testTag("historyEpisode:${entry.playback.key}")) {
+                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            Text(entry.playback.video.source.name,style=MaterialTheme.typography.titleSmall)
+                            Text(entry.playback.episode.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+                            Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }

@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Allow the debug-only upgrade test to inspect the separately installed signed release. -->
+    <queries><package android:name="org.streampocket" /></queries>
+</manifest>

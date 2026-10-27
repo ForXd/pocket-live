@@ -51,4 +51,18 @@ class HistoryGroupsTest {
         assertEquals(listOf(a,b),HistoryGroups.group(listOf(a,b)).map { it.latest })
         assertNotEquals(HistoryGroupKey("a","bc").stableKey,HistoryGroupKey("ab","c").stableKey)
     }
+    @Test fun episodeGroupsMergeEquivalentNumbersAndRetainEverySourceBreakpoint() {
+        val first=h("a",1,10)
+        val other=h("a",1,30,source.copy(name="源二",url="https://two.example/api")).let { it.copy(playback=it.playback.copy(episode=it.playback.episode.copy(name="EP 001"),position=87000)) }
+        val second=h("a",2,20)
+        val groups=HistoryGroups.group(listOf(first,second,other)).single().episodes
+        assertEquals(2,groups.size)
+        assertEquals(listOf(other,first),groups.first().entries)
+        assertEquals(87000L,HistoryGroups.resume(groups.first().latest).position)
+        assertEquals(1000L,HistoryGroups.resume(groups.first().entries.last()).position)
+        fun named(label:String)=first.copy(playback=first.playback.copy(episode=first.playback.episode.copy(name=label)))
+        assertEquals(HistoryGroups.episodeKey(first),HistoryGroups.episodeKey(named("第０１集")))
+        for(label in listOf("第1集上","第1集下","特别篇","S02E01","第2集")) assertNotEquals(HistoryGroups.episodeKey(first),HistoryGroups.episodeKey(named(label)))
+    }
+
 }

@@ -108,7 +108,7 @@ class ApkUpdater(private val app:Application,client:OkHttpClient,private val sco
                 mutable.value=UpdateTransfer()
                 throw e
             } catch(e:Exception) {
-                mutable.value=UpdateTransfer(UpdatePhase.ERROR,release,error=safeError(e))
+                mutable.value=UpdateTransfer(UpdatePhase.ERROR,release,error=UpdateNetwork.error(e))
             } finally {
                 withContext(NonCancellable+Dispatchers.IO) {
                     partial.delete()
@@ -134,7 +134,7 @@ class ApkUpdater(private val app:Application,client:OkHttpClient,private val sco
         catch(e:Exception) {
             if(e is CancellationException) throw e
             ready.delete();metadata.delete()
-            mutable.value=UpdateTransfer(UpdatePhase.ERROR,release,error=safeError(e))
+            mutable.value=UpdateTransfer(UpdatePhase.ERROR,release,error=UpdateNetwork.error(e))
             throw e
         }
         Intent(Intent.ACTION_VIEW).setDataAndType(FileProvider.getUriForFile(app,"${app.packageName}.updates",ready),"application/vnd.android.package-archive")
