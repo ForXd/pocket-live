@@ -24,7 +24,11 @@ class LiveUpdateNetworkDeviceTest {
                     assertEquals(release.sha256,digest)
                 }
                 val installed=apkIdentity(instrument.targetContext.createPackageContext("org.streampocket",0))
-                validateUpdateIdentity(apkIdentity(instrument.targetContext,file),installed,release)
+                val downloaded=apkIdentity(instrument.targetContext,file)
+                instrument.sendStatus(0,android.os.Bundle().apply {
+                    putString("update_identity","installed=${installed.packageName}/${installed.version}/${installed.code}; downloaded=${downloaded.packageName}/${downloaded.version}/${downloaded.code}; release=${release.version}")
+                })
+                validateUpdateIdentity(downloaded,installed,release)
                 if(InstrumentationRegistry.getArguments().getString("completeProductionUpgrade")=="true") {
                     val context=instrument.targetContext
                     val uri=androidx.core.content.FileProvider.getUriForFile(context,"${context.packageName}.updates",file)
