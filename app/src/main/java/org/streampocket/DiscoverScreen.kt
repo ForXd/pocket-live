@@ -2,6 +2,11 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -119,15 +124,48 @@ import androidx.compose.ui.text.style.TextOverflow
                 TextButton(onClick={model.recommend()}) { Text("重试推荐") } }
         } }
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
-        items(s.recommendations,key={it.id}) { video ->
-            Card(onClick={searchTitle(video.title)},colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
+        s.recommendations.firstOrNull()?.let { featured ->
+            item(span={GridItemSpan(maxLineSpan)}) {
+                FeaturedRecommendation(featured,model) { searchTitle(featured.title) }
+            }
+        }
+        if(s.recommendations.size>1) item(span={GridItemSpan(maxLineSpan)}) {
+            Row(Modifier.fillMaxWidth().padding(top=12.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                Text("值得一看",style=MaterialTheme.typography.titleLarge)
+                Text(s.recommendTag,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        items(s.recommendations.drop(1),key={it.id}) { video ->
+            Column(Modifier.clip(MaterialTheme.shapes.small).clickable { searchTitle(video.title) },verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f/3f))
-                Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                    Text(video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
-                }
+                Text(video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if(s.recommendMore && !s.recommendLoading) item(span={GridItemSpan(maxLineSpan)}) { OutlinedButton(onClick={model.recommend(more=true)}) { Text("更多推荐") } }
+    }
+}
+
+/** Artwork remains decorative; opaque scrims keep labels legible for arbitrary user posters. */
+@Composable private fun FeaturedRecommendation(video:Video,model:AppModel,open:()->Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(Color(0xff151b1c)).clickable(onClick=open)) {
+        val wide=maxWidth>=600.dp
+        val tallText=LocalDensity.current.fontScale>1.3f
+        val imageWidth=if(wide) 330.dp else 260.dp
+        val blendStart=((maxWidth-imageWidth)/maxWidth+.08f).coerceIn(0f,.85f)
+        Box(Modifier.fillMaxWidth().heightIn(min=if(wide) 360.dp else if(tallText) 480.dp else 390.dp)) {
+            Box(Modifier.matchParentSize()) {
+                Poster(video,model,Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(imageWidth),shape=androidx.compose.ui.graphics.RectangleShape,containerColor=Color(0xff28332f))
+            }
+            Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Color(0xff151b1c),blendStart to Color(0xff151b1c),1f to Color(0xff151b1c).copy(alpha=.08f))))
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color(0xff151b1c).copy(alpha=.3f),Color(0xff151b1c)))))
+            Column(Modifier.align(Alignment.BottomStart).padding(24.dp).widthIn(max=420.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Text("本期推荐",style=MaterialTheme.typography.labelLarge,color=Color(0xffa9decf))
+                Text(video.title,style=MaterialTheme.typography.headlineLarge,color=Color.White,maxLines=3,overflow=TextOverflow.Ellipsis)
+                if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodyMedium,color=Color(0xffd6dfdd))
+                Button(onClick=open,colors=ButtonDefaults.buttonColors(containerColor=Color(0xffdef7ed),contentColor=Color(0xff15382e)),modifier=Modifier.padding(top=4.dp).heightIn(min=48.dp)) { Text("搜索此片") }
+                Text("在你的订阅中查找播放资源",style=MaterialTheme.typography.labelSmall,color=Color(0xffb7c3bf))
+            }
+        }
     }
 }

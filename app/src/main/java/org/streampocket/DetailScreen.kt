@@ -26,30 +26,36 @@ import androidx.compose.ui.unit.dp
         modifier=Modifier.fillMaxSize().testTag("detailGrid"),contentPadding=PaddingValues(20.dp),
         horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item(span={GridItemSpan(maxLineSpan)}) {
-            Row(horizontalArrangement=Arrangement.spacedBy(18.dp),verticalAlignment=Alignment.CenterVertically) {
-                Poster(detail.video,model,Modifier.size(104.dp,156.dp))
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Text(detail.video.source.name,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-                    Text(detail.video.title,style=MaterialTheme.typography.headlineSmall)
-                    Text("${detail.lines.size} 条线路 · ${line?.episodes?.size ?: 0} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    QualityBadge(detail.video.quality,lastPlayback=true)
+            Column(verticalArrangement=Arrangement.spacedBy(20.dp)) {
+                Box(Modifier.fillMaxWidth().heightIn(min=240.dp),contentAlignment=Alignment.Center) {
+                    Surface(Modifier.fillMaxWidth().height(180.dp),shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.surfaceContainerHigh) {}
+                    Poster(detail.video,model,Modifier.size(160.dp,240.dp))
                 }
+                Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Text(detail.video.source.name,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+                    Text(detail.video.title,style=MaterialTheme.typography.headlineLarge)
+                    FlowRow(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Text("${detail.lines.size} 条线路 · ${line?.episodes?.size ?: 0} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        QualityBadge(detail.video.quality,lastPlayback=true)
+                    }
+                }
+            }
+        }
+
+        item(span={GridItemSpan(maxLineSpan)}) {
+            Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                line?.episodes?.firstOrNull()?.let { first ->
+                    Button(onClick={model.play(detail.video,first)},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)) {
+                        Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("播放 · ${first.name}")
+                    }
+                }
+                TextButton(onClick=searchSame,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("搜索同名 · 换源") }
             }
         }
         if(detail.description.isNotBlank()) item(span={GridItemSpan(maxLineSpan)}) {
             Column {
                 Text(detail.description,onTextLayout={if(!expanded) descriptionOverflows=it.hasVisualOverflow},maxLines=if(expanded) Int.MAX_VALUE else 3,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(expanded || descriptionOverflows) TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
-            }
-        }
-        item(span={GridItemSpan(maxLineSpan)}) {
-            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                line?.episodes?.firstOrNull()?.let { first ->
-                    Button(onClick={model.play(detail.video,first)},modifier=Modifier.heightIn(min=48.dp)) {
-                        Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("播放 · ${first.name}")
-                    }
-                }
-                OutlinedButton(onClick=searchSame,modifier=Modifier.heightIn(min=48.dp)) { Text("搜索同名 · 换源") }
             }
         }
         item(span={GridItemSpan(maxLineSpan)}) { Text("选择剧集",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=12.dp)) }

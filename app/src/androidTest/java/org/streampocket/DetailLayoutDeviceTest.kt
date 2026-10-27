@@ -26,6 +26,7 @@ class DetailLayoutDeviceTest {
         }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            ui.onNodeWithTag("detailGrid").performScrollToNode(hasText("展开简介"))
             ui.onNodeWithText("展开简介").performClick()
             ui.onNodeWithTag("detailGrid").performScrollToNode(hasText("收起简介"))
             ui.onNodeWithText("收起简介").performClick()

@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
-@Composable fun HistoryScreen(history:List<History>,resume:(History)->Unit,remove:(HistoryGroupKey)->Unit,clear:()->Unit) {
+@Composable fun HistoryScreen(history:List<History>,resume:(History)->Unit,remove:(HistoryGroupKey)->Unit,clear:()->Unit,model:AppModel?=null) {
     // This screen is not composed during playback. At most 100 records are grouped
     // once per changed snapshot, never on the player's position sampling tick.
     val groups=remember(history) { HistoryGroups.group(history) }
@@ -31,13 +31,17 @@ import androidx.compose.ui.unit.dp
             item(key="group:$id") {
                 Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer),modifier=Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
                     Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                        Text(latest.playback.video.title,style=MaterialTheme.typography.titleMedium)
-                        Text("${group.entries.map { it.playback.video.source.key }.distinct().size} 个来源 · 最近：${latest.playback.video.source.name}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
-                        Text("上次观看 · ${latest.playback.episode.name}",style=MaterialTheme.typography.bodyMedium)
-                        Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall)
-                        QualityBadge(latest.playback.episode.quality)
-                        Button(shape=MaterialTheme.shapes.medium,onClick={resume(latest)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("continue:$id")) {
-                            Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
+                        Row(horizontalArrangement=Arrangement.spacedBy(18.dp)) {
+                            if(model!=null) Poster(latest.playback.video,model,Modifier.size(88.dp,132.dp))
+                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text(latest.playback.video.title,style=MaterialTheme.typography.titleMedium)
+                                Text("${group.entries.map { it.playback.video.source.key }.distinct().size} 个来源 · 最近：${latest.playback.video.source.name}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("上次观看 · ${latest.playback.episode.name}",style=MaterialTheme.typography.bodyMedium)
+                                Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                Button(onClick={resume(latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continue:$id")) {
+                                    Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
+                                }
+                            }
                         }
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
                             TextButton(onClick={expanded=if(expanded==id) null else id},modifier=Modifier.weight(1f)) { Text(if(expanded==id) "收起分集" else "查看分集（${group.entries.size}）") }

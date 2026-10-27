@@ -117,7 +117,7 @@ class MainActivity : ComponentActivity() {
         topBar = { TopAppBar(colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title = {
             if(s.detail!=null) Text("详情与选集",style=MaterialTheme.typography.titleMedium)
             else Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Image(painterResource(R.drawable.pocket_logo),null,Modifier.size(40.dp))
+                Image(painterResource(R.drawable.pocket_logo),null,Modifier.size(32.dp))
                 Text("Pocket Live",style=MaterialTheme.typography.titleMedium)
             }
         }, navigationIcon={ if(s.detail!=null || s.detailLoading) IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") } }, actions = {
@@ -165,9 +165,9 @@ class MainActivity : ComponentActivity() {
                         awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
                     }) {
                         items(s.results,key={it.source.key+":"+it.id}) { v ->
-                            Card(onClick={model.open(v)},colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer),shape=MaterialTheme.shapes.large,modifier=Modifier.fillMaxWidth().animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
-                                Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
-                                    Poster(v,model,Modifier.size(76.dp,110.dp))
+                            Card(onClick={model.open(v)},colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.background),shape=MaterialTheme.shapes.large,modifier=Modifier.fillMaxWidth().animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
+                                Row(Modifier.padding(vertical=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(18.dp)) {
+                                    Poster(v,model,Modifier.size(88.dp,132.dp))
                                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                                         Text(v.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                                         Text("${v.source.name} · ${v.subtitle}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity() {
                     } }
                     item { Text("Pocket Live · AGPL-3.0-or-later\n参考 LibreTV deb72fa01f；完整源码和许可证随项目提供。\nEPG 字段保留，当前不提供节目表界面。",style=MaterialTheme.typography.bodySmall) }
                 }
-                2 -> HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory)
+                2 -> HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory,model)
             }
         }
     }

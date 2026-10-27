@@ -52,7 +52,7 @@ class Storage(context: Context, private val purgeCache: () -> Unit = {}, private
                 Subscription(s.scalar("id"), s.scalar("name"), s.scalar("url"), s.scalar("updated").toLong(), s.arr("sources").map { source(it.asJsonObject) })
             }, r.arr("disabled").map { it.asString }.toSet(), r.arr("history").take(100).map {
                 val h = it.asJsonObject; val v = h.getAsJsonObject("video"); val ep = h.getAsJsonObject("episode")
-                History(Playback(Video(source(v.getAsJsonObject("source")),v.scalar("id"),v.scalar("title"),quality=QualityRules.read(v.get("quality")?.obj())),Episode(ep.scalar("name"),ep.scalar("url"),QualityRules.read(ep.get("quality")?.obj())),h.scalar("position").toLong().coerceAtLeast(0)),h.scalar("updated").toLong())
+                History(Playback(Video(source(v.getAsJsonObject("source")),v.scalar("id"),v.scalar("title"),poster=validUrl(v.scalar("poster")),quality=QualityRules.read(v.get("quality")?.obj())),Episode(ep.scalar("name"),ep.scalar("url"),QualityRules.read(ep.get("quality")?.obj())),h.scalar("position").toLong().coerceAtLeast(0)),h.scalar("updated").toLong())
             },r.bool("allowHttp") == true, r.bool("adFilter") == true, r.get("adRules")?.obj()?.entrySet()?.take(300)?.associate { (key,value) -> key to value.asJsonArray.take(32).map { it.asString }.filter { it.length <= 512 && it.startsWith("/") } }.orEmpty())
             require(r.arr("subscriptions").size <= 20 && r.arr("history").size <= 100)
             require(saved.subscriptions.sumOf { it.sources.size } <= 300)
@@ -75,7 +75,7 @@ class Storage(context: Context, private val purgeCache: () -> Unit = {}, private
             add("disabled", JsonArray().apply { s.disabled.forEach { add(it) } })
             add("history", JsonArray().apply { s.history.take(100).forEach { h -> add(JsonObject().apply {
                 addProperty("updated",h.updated); addProperty("position",h.playback.position)
-                add("video",JsonObject().apply { addProperty("id",h.playback.video.id); addProperty("title",h.playback.video.title);add("quality",QualityRules.json(h.playback.video.quality)); add("source",source(h.playback.video.source)) })
+                add("video",JsonObject().apply { addProperty("id",h.playback.video.id); addProperty("title",h.playback.video.title);validUrl(h.playback.video.poster.orEmpty())?.let { addProperty("poster",it) };add("quality",QualityRules.json(h.playback.video.quality)); add("source",source(h.playback.video.source)) })
                 add("episode",JsonObject().apply { addProperty("name",h.playback.episode.name); addProperty("url",h.playback.episode.url);add("quality",QualityRules.json(h.playback.episode.quality)) })
             }) } })
         }
@@ -98,7 +98,7 @@ class Storage(context: Context, private val purgeCache: () -> Unit = {}, private
         if(!historyFile.baseFile.exists()) { write(saved);return@withContext }
         val history=JsonArray().apply { saved.history.take(100).forEach { h -> add(JsonObject().apply {
             addProperty("updated",h.updated);addProperty("position",h.playback.position)
-            add("video",JsonObject().apply { addProperty("id",h.playback.video.id);addProperty("title",h.playback.video.title);add("quality",QualityRules.json(h.playback.video.quality));add("source",source(h.playback.video.source)) })
+            add("video",JsonObject().apply { addProperty("id",h.playback.video.id);addProperty("title",h.playback.video.title);validUrl(h.playback.video.poster.orEmpty())?.let { addProperty("poster",it) };add("quality",QualityRules.json(h.playback.video.quality));add("source",source(h.playback.video.source)) })
             add("episode",JsonObject().apply { addProperty("name",h.playback.episode.name);addProperty("url",h.playback.episode.url);add("quality",QualityRules.json(h.playback.episode.quality)) })
         }) } }.toString()
         if(history.toByteArray().size>StorageBudget.HISTORY) throw UserError("历史记录超过 1 MiB")

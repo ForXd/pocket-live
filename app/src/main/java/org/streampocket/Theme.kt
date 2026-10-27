@@ -47,19 +47,19 @@ internal val NightColors=darkColorScheme(
     primary=Color(0xff78d8c6),onPrimary=Color(0xff00382f),primaryContainer=Color(0xff154d43),onPrimaryContainer=Color(0xffa4f3df),
     secondary=Color(0xffb5c8c4),onSecondary=Color(0xff203532),secondaryContainer=Color(0xff304741),onSecondaryContainer=Color(0xffd0e7df),
     tertiary=Color(0xffb2c7f1),onTertiary=Color(0xff1a3152),tertiaryContainer=Color(0xff334969),onTertiaryContainer=Color(0xffd5e3ff),
-    background=Color(0xff0e151b),onBackground=Color(0xffe3e9ee),surface=Color(0xff0e151b),onSurface=Color(0xffe3e9ee),
+    background=Color(0xff101313),onBackground=Color(0xffe9eeeb),surface=Color(0xff101313),onSurface=Color(0xffe9eeeb),
     surfaceVariant=Color(0xff35444a),onSurfaceVariant=Color(0xffb5c2c9),surfaceTint=Color(0xff78d8c6),
-    surfaceContainerLowest=Color(0xff090f14),surfaceContainerLow=Color(0xff131d25),surfaceContainer=Color(0xff18232c),
-    surfaceContainerHigh=Color(0xff222f39),surfaceContainerHighest=Color(0xff2c3a44),surfaceDim=Color(0xff0e151b),surfaceBright=Color(0xff34424c),
-    outline=Color(0xff81929b),outlineVariant=Color(0xff34434d))
+    surfaceContainerLowest=Color(0xff090f14),surfaceContainerLow=Color(0xff151a18),surfaceContainer=Color(0xff1c2220),
+    surfaceContainerHigh=Color(0xff252e2a),surfaceContainerHighest=Color(0xff303b35),surfaceDim=Color(0xff101313),surfaceBright=Color(0xff34424c),
+    outline=Color(0xff81929b),outlineVariant=Color(0xff35423b))
 private val DayColors=lightColorScheme(
     primary=Color(0xff006b5e),onPrimary=Color.White,primaryContainer=Color(0xffd4f3e9),onPrimaryContainer=Color(0xff004e42),
     secondary=Color(0xff50635e),onSecondary=Color.White,secondaryContainer=Color(0xffe0ebe6),onSecondaryContainer=Color(0xff203831),
     tertiary=Color(0xff435e86),onTertiary=Color.White,tertiaryContainer=Color(0xffdbe7ff),onTertiaryContainer=Color(0xff223c60),
-    background=Color(0xfff4f7fa),onBackground=Color(0xff17242d),surface=Color(0xfff4f7fa),onSurface=Color(0xff17242d),
-    surfaceVariant=Color(0xffdfe7eb),onSurfaceVariant=Color(0xff52636e),surfaceTint=Color(0xff006b5e),
-    surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xffeff3f7),surfaceContainer=Color.White,
-    surfaceContainerHigh=Color(0xffe8eef3),surfaceContainerHighest=Color(0xffdfe7ed),surfaceDim=Color(0xffdce4eb),surfaceBright=Color(0xfff9fbfd),
+    background=Color(0xfff8f9f5),onBackground=Color(0xff202923),surface=Color(0xfff8f9f5),onSurface=Color(0xff202923),
+    surfaceVariant=Color(0xffdfe7eb),onSurfaceVariant=Color(0xff5c685f),surfaceTint=Color(0xff006b5e),
+    surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xfff0f2ec),surfaceContainer=Color.White,
+    surfaceContainerHigh=Color(0xffe9ede4),surfaceContainerHighest=Color(0xffe0e6dc),surfaceDim=Color(0xffdce4eb),surfaceBright=Color(0xfff9fbfd),
     outline=Color(0xff71828c),outlineVariant=Color(0xffc9d5dd))
 
 @Composable fun PocketTheme(mode:ThemeMode?=null,content:@Composable ()->Unit) {

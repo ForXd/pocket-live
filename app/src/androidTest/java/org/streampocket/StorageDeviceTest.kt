@@ -20,13 +20,16 @@ class StorageDeviceTest {
             store.write(saved)
             val config=File(dir,"state.json");val baseline=config.readBytes();val stamp=config.lastModified()
             repeat(101) { i ->
-                saved=StateRules.checkpoint(saved,Playback(Video(source,"$i","movie"),Episode("ep","https://example.org/$i.mp4"),position=i*1000L),i.toLong())
+                saved=StateRules.checkpoint(saved,Playback(Video(source,"$i","movie",poster=if(i%2==0) "https://example.org/poster/$i.jpg" else null),Episode("ep","https://example.org/$i.mp4"),position=i*1000L),i.toLong())
                 store.writeHistory(saved)
             }
             assertArrayEquals(baseline,config.readBytes());assertEquals(stamp,config.lastModified())
             assertTrue(File(dir,"history.json").length()<=StorageBudget.HISTORY)
             assertTrue(store.usage()<=StorageBudget.STATE)
             assertEquals(100,Storage(context).read().history.size)
+            val restored=Storage(context).read().history
+            assertEquals("https://example.org/poster/100.jpg",restored.first { it.playback.video.id=="100" }.playback.video.poster)
+            assertNull(restored.first { it.playback.video.id=="99" }.playback.video.poster)
             val before=File(dir,"history.json").readBytes();free=0
             try { store.writeHistory(saved.copy(history=emptyList()));fail("expected low-space rejection") } catch(_:UserError) {}
             assertTrue(purges>0);assertArrayEquals(before,File(dir,"history.json").readBytes())
