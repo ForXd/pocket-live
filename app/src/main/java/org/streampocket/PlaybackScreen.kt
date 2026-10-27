@@ -5,7 +5,9 @@ import android.view.WindowManager
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
@@ -18,6 +20,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.platform.testTag
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.activity.compose.BackHandler
@@ -122,6 +126,8 @@ import kotlinx.coroutines.delay
     val inlineVideoHeight=(configuration.screenWidthDp / (16f/9f)).coerceAtLeast(224f).coerceAtMost(configuration.screenHeightDp * 0.42f).dp
     val matchingDetail=state.detail?.takeIf { it.video.source.key==playback.video.source.key && it.video.id==playback.video.id }
     val hasEpisodes=matchingDetail?.lines?.any { line -> line.episodes.any { it.url==playback.episode.url } }==true
+    val currentLine=matchingDetail?.lines?.firstOrNull { line -> line.episodes.any { it.url==playback.episode.url } }
+    val episodes=currentLine?.episodes.orEmpty()
     val previous=adjacentEpisode(state.detail,playback,-1)
     val next=adjacentEpisode(state.detail,playback,1)
     val bufferingText=if(health.buffering) "正在缓冲 · ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒"
@@ -199,33 +205,72 @@ import kotlinx.coroutines.delay
             }
         }
     }
+    val selectEpisode:(Episode)->Unit = { episode ->
+        playerView?.cancelGestures();episodesOpen=false
+        if(episode.url!=playback.episode.url) model.play(playback.video,episode)
+    }
     if(episodesOpen && !pip) {
-        val episodes=state.detail?.takeIf { it.video.id==playback.video.id && it.video.source.key==playback.video.source.key }?.lines?.firstOrNull { line -> line.episodes.any { it.url==playback.episode.url } }?.episodes.orEmpty()
-        val selected=episodes.indexOfFirst { it.url==playback.episode.url }.coerceAtLeast(0)
-        val listState=rememberLazyListState(initialFirstVisibleItemIndex=selected)
         LaunchedEffect(episodesOpen) { playerView?.cancelGestures() }
-        Dialog(onDismissRequest={episodesOpen=false}) {
+        Dialog(onDismissRequest={episodesOpen=false},properties=DialogProperties(usePlatformDefaultWidth=false)) {
             BackHandler { episodesOpen=false }
-            Surface(shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.surface) {
-                Column(Modifier.fillMaxWidth().heightIn(max=360.dp).padding(12.dp)) {
+            Surface(modifier=Modifier.widthIn(max=600.dp).fillMaxWidth(.94f),shape=MaterialTheme.shapes.extraLarge,color=MaterialTheme.colorScheme.surface) {
+                Column(Modifier.heightIn(max=(configuration.screenHeightDp*.8f).dp).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                        Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                        TextButton(onClick={episodesOpen=false}) { Text("关闭") }
-                    }
-                    LazyColumn(state=listState,modifier=Modifier.weight(1f,false)) {
-                        itemsIndexed(episodes,key={ index,episode -> "$index:${episode.url}" }) { _,episode ->
-                            TextButton(onClick={ playerView?.cancelGestures();episodesOpen=false;if(episode.url!=playback.episode.url) model.play(playback.video,episode) },modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {
-                                Text((if(episode.url==playback.episode.url) "正在播放 · " else "")+episode.name,color=if(episode.url==playback.episode.url) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                            }
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            Text("选集",style=MaterialTheme.typography.titleLarge)
+                            Text("${currentLine?.name.orEmpty()} · ${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        TextButton(onClick={episodesOpen=false},modifier=Modifier.heightIn(min=48.dp)) { Text("关闭") }
                     }
+                    PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f,false))
                 }
             }
         }
     }
+    val playbackInformation: @Composable ()->Unit = {
+                Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            Text("正在播放",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+                            Text(playback.episode.name,style=MaterialTheme.typography.headlineSmall)
+                            Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        QualityBadge(playback.episode.quality)
+                    }
+                    Surface(color=MaterialTheme.colorScheme.surfaceContainerLow,shape=MaterialTheme.shapes.extraLarge) {
+                        Row(Modifier.fillMaxWidth().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            episodeControls()
+                            PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();full=true})
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            Text("播放来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(playback.video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+                        }
+                        if(playback.video.source.kind==SourceKind.VOD) OutlinedButton(onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
+                    }
+                    if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
+                    else if(!hasEpisodes) {
+                        Text(if(state.detailError!=null) "选集暂不可用：${state.detailError}" else "当前集不在可用线路中，选集暂不可用",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
+                    }
+                    (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let { problem ->
+                        Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=MaterialTheme.shapes.large) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text(problem,style=MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick={error=null;controller.retry()}) { Text(if(error!=null) "重试播放" else "重新连接") }
+                            }
+                        }
+                    }
+                }
+    }
     CompositionLocalProvider(LocalContentColor provides if(full || pip) Color.White else MaterialTheme.colorScheme.onSurface) {
     Box(Modifier.fillMaxSize().background(if(full || pip) Color.Black else MaterialTheme.colorScheme.surface).testTag("playbackSurface")) {
-        Column(Modifier.fillMaxSize().then(if(full || pip) Modifier else Modifier.safeDrawingPadding())) {
+        BoxWithConstraints(Modifier.fillMaxSize().then(if(full || pip) Modifier else Modifier.safeDrawingPadding())) {
+        val wide=maxWidth>=840.dp && maxHeight>=480.dp && !full && !pip
+        Row(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).fillMaxHeight()) {
             if(!full && !pip) {
                 Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
                     IconButton(onClick=leavePlayback,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回选集") }
@@ -233,10 +278,12 @@ import kotlinx.coroutines.delay
                     IconButton(onClick=openOptions,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"更多播放选项") }
                 }
             }
-            Box((if(full || pip) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().height(inlineVideoHeight)).background(Color.Black).testTag("videoViewport")) {
+            Box((if(full || pip || wide) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().height(inlineVideoHeight)).background(Color.Black).testTag("videoViewport")) {
             AndroidView(
                 factory={GesturePlayerView(it).apply {
                     useController=true
+                    setShowPreviousButton(false)
+                    setShowNextButton(false)
                     seekRelative=controller::seekRelative
                     feedback={ gestureFeedback=it }
                     playerView=this
@@ -260,44 +307,25 @@ import kotlinx.coroutines.delay
                 Text(gestureFeedback,color=Color.White,modifier=Modifier.align(Alignment.Center).background(Color.Black.copy(alpha=0.7f)).padding(12.dp))
             }
             }
-            if(!full && !pip) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            Text(playback.episode.name,style=MaterialTheme.typography.titleLarge)
-                            Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        QualityBadge(playback.episode.quality)
-                    }
-                    Surface(color=MaterialTheme.colorScheme.surfaceContainer,shape=MaterialTheme.shapes.large) {
-                        Row(Modifier.fillMaxWidth().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                            episodeControls()
-                            PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();full=true})
-                        }
-                    }
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            Text("当前来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(playback.video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-                        }
-                        if(playback.video.source.kind==SourceKind.VOD) OutlinedButton(onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
-                    }
-                    if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
-                    else if(!hasEpisodes) {
-                        Text(if(state.detailError!=null) "选集暂不可用：${state.detailError}" else "当前集不在可用线路中，选集暂不可用",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
-                    }
-                    (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let { problem ->
-                        Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=MaterialTheme.shapes.large) {
-                            Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                Text(problem,style=MaterialTheme.typography.bodyMedium)
-                                TextButton(onClick={error=null;controller.retry()}) { Text(if(error!=null) "重试播放" else "重新连接") }
-                            }
-                        }
+            if(!full && !pip && !wide) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { playbackInformation() }
+            }
+        }
+        if(wide) {
+            Surface(Modifier.width(340.dp).fillMaxHeight().testTag("playerSidePanel"),color=MaterialTheme.colorScheme.surfaceContainerLow) {
+                Column {
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { playbackInformation() }
+                    HorizontalDivider(Modifier.padding(horizontal=20.dp),color=MaterialTheme.colorScheme.outlineVariant)
+                    Column(Modifier.weight(1f).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Text("本线路选集",style=MaterialTheme.typography.titleMedium)
+                        PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f))
                     }
                 }
             }
         }
+        }
+        }
+
         if(full && !pip && controlsVisible && error==null && !health.slow) {
             // A single top rail leaves Media3's transport and timeline unobstructed.
             Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.72f)).displayCutoutPadding().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -331,5 +359,27 @@ import kotlinx.coroutines.delay
 @Composable private fun PlayerIconAction(icon:Int,label:String,enabled:Boolean=true,modifier:Modifier=Modifier,onClick:()->Unit) {
     IconButton(onClick=onClick,enabled=enabled,modifier=modifier.size(48.dp)) {
         Icon(painterResource(icon),contentDescription=label,modifier=Modifier.size(24.dp))
+    }
+}
+
+/** Presentation only; selection delegates to the existing session owner. */
+@Composable private fun PlaybackEpisodeGrid(episodes:List<Episode>,currentUrl:String,select:(Episode)->Unit,modifier:Modifier=Modifier) {
+    val selected=episodes.indexOfFirst { it.url==currentUrl }.coerceAtLeast(0)
+    val grid=rememberLazyGridState(initialFirstVisibleItemIndex=selected)
+    LaunchedEffect(currentUrl,episodes) { if(episodes.isNotEmpty()) grid.scrollToItem(selected) }
+    LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 144.dp else 100.dp),state=grid,
+        modifier=modifier.fillMaxWidth().testTag("playbackEpisodes"),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        itemsIndexed(episodes,key={index,episode->"$index:${episode.url}"}) { _,episode ->
+            val playing=episode.url==currentUrl
+            Surface(onClick={select(episode)},shape=MaterialTheme.shapes.medium,
+                color=if(playing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor=if(playing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                modifier=Modifier.fillMaxWidth().heightIn(min=64.dp).semantics { this.selected=playing }) {
+                Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    Text(episode.name,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    if(playing) Text("正在播放",style=MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
     }
 }

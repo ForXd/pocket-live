@@ -33,7 +33,7 @@ class PlayerLayoutDeviceTest {
         lateinit var model:AppModel
         ui.runOnUiThread {
             ui.activity.viewModelStore.clear()
-            ui.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            ui.activity.requestedOrientation=if (InstrumentationRegistry.getArguments().getString("widePlayer")=="true") android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
                 override fun <T:ViewModel> create(clazz:Class<T>):T {
                     @Suppress("UNCHECKED_CAST") return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
@@ -51,6 +51,28 @@ class PlayerLayoutDeviceTest {
             ui.runOnIdle { val d=model.state.value.detail!!;model.play(d.video,d.lines[0].episodes[0]) }
             ui.waitUntil(20000) { PlaybackMetrics.frames>beforeFrames }
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { player!!.pause();controllerShowTimeoutMs=0;showController() } }
+            if (InstrumentationRegistry.getArguments().getString("widePlayer")=="true") {
+                val created=PlaybackMetrics.created
+                val fallbacks=PlaybackMetrics.decoderFallbacks
+                ui.onNodeWithTag("playerSidePanel").assertIsDisplayed()
+                captureUi(ui,"player-wide")
+                ui.onNode(hasText("第1集") and isSelected()).performClick()
+                assertEquals(created,PlaybackMetrics.created)
+                ui.onNodeWithContentDescription("横屏全屏").performClick()
+                ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+                ui.onNodeWithContentDescription("退出全屏").performClick()
+                ui.onNodeWithTag("playerSidePanel").assertIsDisplayed()
+                assertEquals(created,PlaybackMetrics.created)
+                val frames=PlaybackMetrics.frames
+                ui.onNodeWithText("第2集").performClick()
+                ui.waitUntil(20000) { model.state.value.playback?.episode?.name=="第2集" && PlaybackMetrics.frames>frames }
+                // The software emulator may recover a decoder after resizing its surface.
+                assertEquals(created+1+PlaybackMetrics.decoderFallbacks-fallbacks,PlaybackMetrics.created)
+                assertEquals(1L,PlaybackMetrics.created-PlaybackMetrics.released)
+                ui.onNodeWithContentDescription("返回选集").performClick()
+                ui.waitUntil(10000) { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }
+                return
+            }
             ui.onNodeWithContentDescription("上一集").assertIsNotEnabled()
             ui.onNodeWithContentDescription("下一集").assertHeightIsAtLeast(48.dp)
             ui.onNodeWithText("选集").assertHeightIsAtLeast(48.dp)
@@ -77,6 +99,7 @@ class PlayerLayoutDeviceTest {
             captureUi(ui,"player-landscape")
             assertEquals(created,PlaybackMetrics.created)
             ui.onNodeWithText("选集").performClick()
+            captureUi(ui,"player-episodes")
             val nextFrames=PlaybackMetrics.frames
             ui.onNodeWithText("第2集").performClick()
             ui.waitUntil(20000) { model.state.value.playback?.episode?.name=="第2集" && PlaybackMetrics.frames>nextFrames }

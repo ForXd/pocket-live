@@ -315,7 +315,7 @@ class PlaybackGestureDeviceTest {
             instrument.runOnMainSync { playerView().showController() }
             stage("opening-episode-panel")
             ui.onNodeWithText("选集").performClick()
-            ui.onNodeWithText("正在播放 · 第1集").assertExists();capture("episodes")
+            ui.onNode(hasText("第1集") and isSelected()).assertExists();capture("episodes")
             ui.onNodeWithText("第2集").performClick()
             stage("episode-2-selected")
             waitFor { model.state.value.playback?.episode?.name=="第2集" }
@@ -334,20 +334,20 @@ class PlaybackGestureDeviceTest {
             } else tap(false)
             waitFor { playerView().isControllerFullyVisible }
             ui.onNodeWithContentDescription("上一集").assertIsEnabled();ui.onNodeWithText("选集").performClick()
-            ui.onNodeWithText("正在播放 · 第2集").assertExists();stage("episode-2-highlight-and-fullscreen-passed")
+            ui.onNode(hasText("第2集") and isSelected()).assertExists();stage("episode-2-highlight-and-fullscreen-passed")
             ui.onNode(hasScrollToIndexAction()).performScrollToIndex(499)
             ui.onNodeWithText("第500集").performClick()
             waitFor { model.state.value.playback?.episode?.name=="第500集" && readyFor(model.state.value.playback) }
             instrument.runOnMainSync { playerView().player!!.pause();playerView().controllerShowTimeoutMs=0;playerView().showController() }
             ui.onNodeWithContentDescription("下一集").assertIsNotEnabled()
             ui.onNodeWithText("选集").performClick()
-            ui.onNodeWithText("正在播放 · 第500集").assertIsDisplayed();capture("last-episode")
+            ui.onNode(hasText("第500集") and isSelected()).assertIsDisplayed();capture("last-episode")
             stage("lazy-scroll-last-disabled-current-auto-position-passed")
             waitFor { android.view.inspector.WindowInspector.getGlobalWindowViews().any { it !== ui.activity.window.decorView && it.hasWindowFocus() } }
             if(directTouch) instrument.runOnMainSync { ui.activity.onBackPressedDispatcher.onBackPressed() } else instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
             // System Back is delivered asynchronously (including predictive Back).
-            ui.waitUntil(5000) { ui.onAllNodesWithText("正在播放 · 第500集").fetchSemanticsNodes().isEmpty() }
-            ui.onNodeWithText("正在播放 · 第500集").assertDoesNotExist()
+            ui.waitUntil(5000) { ui.onAllNodes(hasText("第500集") and isSelected()).fetchSemanticsNodes().isEmpty() }
+            ui.onNode(hasText("第500集") and isSelected()).assertDoesNotExist()
             instrument.runOnMainSync { assertTrue(ui.activity.window.decorView.width>ui.activity.window.decorView.height) }
             if(directTouch) instrument.runOnMainSync { ui.activity.onBackPressedDispatcher.onBackPressed() } else instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
             waitFor { ui.activity.window.decorView.width<ui.activity.window.decorView.height }
