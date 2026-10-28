@@ -139,7 +139,7 @@ class MainActivity : ComponentActivity() {
             if(detail != null) {
                 DetailScreen(detail,model) { query=detail.video.title;model.closeDetail();tab=0;model.search(query) }
             } else when(tab) {
-                0 -> Column(Modifier.fillMaxSize().padding(horizontal=16.dp)) {
+                0 -> Column(Modifier.fillMaxSize().padding(horizontal=20.dp)) {
                     if(!compact && s.results.isEmpty()) {
                         Text("搜索片库",style=MaterialTheme.typography.headlineSmall,modifier=Modifier.padding(top=16.dp))
                         Text("在你的订阅中寻找下一部好片",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=4.dp))
@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
                     TextField(query,{query=it.take(100)},modifier=Modifier.fillMaxWidth().testTag("searchInput").semantics { contentDescription="影片或频道名称" },singleLine=true,
                         keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={if(query.isNotBlank()) { focusManager.clearFocus();keyboard?.hide();model.search(query) }}),
                         placeholder={Text("影片或频道名称")},shape=RoundedCornerShape(28.dp),
-                        colors=TextFieldDefaults.colors(focusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent,unfocusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent),
+                        colors=TextFieldDefaults.colors(focusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,focusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent,unfocusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent),
                         leadingIcon={Icon(Icons.Default.Search,null)},trailingIcon={
                             FilledIconButton(onClick={focusManager.clearFocus();keyboard?.hide();model.search(query)},enabled=query.isNotBlank(),modifier=Modifier.padding(4.dp).size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                         })
@@ -161,12 +161,12 @@ class MainActivity : ComponentActivity() {
                     if(s.total > 0) Text("已完成 ${s.completed}/${s.total} 个源 · ${s.failures} 个失败 · ${s.results.size} 条结果（最多 1000）",style=MaterialTheme.typography.bodySmall)
                     if(s.results.isEmpty() && !compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total>0) "暂未找到结果" else "你的片库，由你定义",
                         if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.failures>0) "部分片源未响应，可换个关键词或检查订阅。" else "在订阅页添加来源，即可开始搜索。",R.drawable.ic_search)
-                    LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),contentPadding=PaddingValues(top=12.dp,bottom=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp),modifier=Modifier.weight(1f).pointerInput(model) {
+                    LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),contentPadding=PaddingValues(top=12.dp,bottom=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).pointerInput(model) {
                         awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
                     }) {
                         items(s.results,key={it.source.key+":"+it.id}) { v ->
-                            Card(onClick={model.open(v)},colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.background),shape=MaterialTheme.shapes.large,modifier=Modifier.fillMaxWidth().animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
-                                Row(Modifier.padding(vertical=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(18.dp)) {
+                            ContentCard(onClick={model.open(v)},modifier=Modifier.fillMaxWidth().animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
+                                Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                                     Poster(v,model,Modifier.size(88.dp,132.dp))
                                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                                         Text(v.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)

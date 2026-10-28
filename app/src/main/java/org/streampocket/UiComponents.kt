@@ -55,3 +55,19 @@ import androidx.compose.ui.unit.dp
         Switch(checked=checked,onCheckedChange=null)
     }
 }
+
+/** Shared quiet surface for discovery, search and viewing history. */
+@Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,content:@Composable ColumnScope.()->Unit) {
+    val colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)
+    if(onClick==null) Card(modifier=modifier,shape=RoundedCornerShape(28.dp),colors=colors,content=content)
+    else Card(onClick=onClick,modifier=modifier,shape=RoundedCornerShape(28.dp),colors=colors,content=content)
+}
+@Composable fun ContentDivider(modifier:Modifier=Modifier) {
+    HorizontalDivider(modifier,color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.35f))
+}
+
+@Composable fun ContentFilterChip(selected:Boolean,onClick:()->Unit,label:@Composable ()->Unit) {
+    FilterChip(selected=selected,onClick=onClick,label=label,shape=RoundedCornerShape(28.dp),border=null,
+        colors=FilterChipDefaults.filterChipColors(containerColor=MaterialTheme.colorScheme.surfaceContainer,
+            selectedContainerColor=MaterialTheme.colorScheme.primaryContainer))
+}

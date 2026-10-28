@@ -56,7 +56,7 @@ private val DayColors=lightColorScheme(
     primary=Color(0xff006b5e),onPrimary=Color.White,primaryContainer=Color(0xffd4f3e9),onPrimaryContainer=Color(0xff004e42),
     secondary=Color(0xff50635e),onSecondary=Color.White,secondaryContainer=Color(0xffe0ebe6),onSecondaryContainer=Color(0xff203831),
     tertiary=Color(0xff435e86),onTertiary=Color.White,tertiaryContainer=Color(0xffdbe7ff),onTertiaryContainer=Color(0xff223c60),
-    background=Color(0xfff8f9f5),onBackground=Color(0xff202923),surface=Color(0xfff8f9f5),onSurface=Color(0xff202923),
+    background=Color(0xfff1f2f4),onBackground=Color(0xff202525),surface=Color(0xfff1f2f4),onSurface=Color(0xff202525),
     surfaceVariant=Color(0xffdfe7eb),onSurfaceVariant=Color(0xff5c685f),surfaceTint=Color(0xff006b5e),
     surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xfff0f2ec),surfaceContainer=Color.White,
     surfaceContainerHigh=Color(0xffe9ede4),surfaceContainerHighest=Color(0xffe0e6dc),surfaceDim=Color(0xffdce4eb),surfaceBright=Color(0xfff9fbfd),

@@ -94,6 +94,13 @@ class UiLayoutDeviceTest {
             capture("05-discovery")
             ui.onNodeWithContentDescription("刷新推荐").assertHeightIsAtLeast(48.dp).performClick()
             ui.waitUntil(10000) { !model.state.value.recommendLoading }
+            ui.onNode(hasScrollToIndexAction() and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange))
+                .performScrollToNode(hasText("搜索此片"))
+            ui.onNodeWithText("搜索此片").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
+            capture("07-discovery-action")
+            ui.onNodeWithText("搜索此片").performClick()
+            ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
+            ui.onNodeWithTag("searchInput").assertTextContains("星河漫游")
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     }
 }
