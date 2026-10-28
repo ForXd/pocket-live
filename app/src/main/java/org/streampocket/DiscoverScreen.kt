@@ -72,11 +72,11 @@ import androidx.compose.ui.text.style.TextOverflow
             if(!s.catalogLoading && s.catalogVideos.isEmpty() && s.catalogError==null) item { Text("该来源未返回内容或不支持此分类接口。仍可使用全源搜索。") }
             items(s.catalogVideos,key={it.source.key+":"+it.id}) { video ->
                 ContentCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.CenterVertically) {
-                        Poster(video,model)
+                    Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
+                        Poster(video,model,Modifier.size(88.dp,132.dp))
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                            Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-                            Text(video.subtitle,style=MaterialTheme.typography.bodySmall)
+                            CardTextSlot(video.title,style=MaterialTheme.typography.titleMedium)
+                            CardTextSlot(video.subtitle.ifBlank { "暂无更新信息" },style=MaterialTheme.typography.bodySmall)
                             Text("查看剧集 →",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelMedium)
                         }
                     }
@@ -94,7 +94,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit) {
     LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 176.dp else 140.dp),
-        modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),
+        modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(20.dp),
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item(span={GridItemSpan(maxLineSpan)}) {
             Row(verticalAlignment=Alignment.CenterVertically) {
@@ -130,12 +130,26 @@ import androidx.compose.ui.text.style.TextOverflow
                 Text(s.recommendTag,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        items(s.recommendations.drop(1),key={it.id}) { video ->
-            ContentCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f/3f))
-                    Text(video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        items(s.recommendations.drop(1),key={it.id},contentType={"recommendation"}) { video ->
+            ContentCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}")) {
+                BoxWithConstraints(Modifier.padding(12.dp)) {
+                    val text:@Composable ()->Unit = {
+                        Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            CardTextSlot(video.title,modifier=Modifier.testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.titleSmall)
+                            CardTextSlot(video.subtitle.ifBlank { "暂无评分与更新信息" },modifier=Modifier.testTag("recommendMeta:${video.id}"),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    if(maxWidth>=240.dp) {
+                        Row(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
+                            Poster(video,model,Modifier.size(72.dp,108.dp))
+                            Box(Modifier.weight(1f)) { text() }
+                        }
+                    } else {
+                        Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f/3f))
+                            text()
+                        }
+                    }
                 }
             }
         }

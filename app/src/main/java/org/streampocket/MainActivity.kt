@@ -166,12 +166,12 @@ class MainActivity : ComponentActivity() {
                     }) {
                         items(s.results,key={it.source.key+":"+it.id}) { v ->
                             ContentCard(onClick={model.open(v)},modifier=Modifier.fillMaxWidth().animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
-                                Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                                Row(Modifier.padding(16.dp),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                                     Poster(v,model,Modifier.size(88.dp,132.dp))
                                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                        Text(v.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                        Text("${v.source.name} · ${v.subtitle}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                        QualityBadge(v.quality,lastPlayback=true)
+                                        CardTextSlot(v.title,style=MaterialTheme.typography.titleMedium)
+                                        CardTextSlot(listOf(v.source.name,v.subtitle).filter { it.isNotBlank() }.joinToString(" · "),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                        QualityBadge(v.quality,lastPlayback=true,reserveLines=2)
                                     }
                                 }
                             }

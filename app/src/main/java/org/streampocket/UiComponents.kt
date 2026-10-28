@@ -15,11 +15,16 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-@Composable fun QualityBadge(quality:VideoQuality,lastPlayback:Boolean=false) {
-    Surface(shape=RoundedCornerShape(8.dp),color=if(quality.evidence==QualityEvidence.MEASURED) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant) {
-        Text((if(lastPlayback && quality.evidence==QualityEvidence.MEASURED) "最近播放 · " else "")+quality.label,Modifier.padding(horizontal=8.dp,vertical=5.dp).widthIn(max=176.dp),style=MaterialTheme.typography.labelSmall)
+@Composable fun QualityBadge(quality:VideoQuality,lastPlayback:Boolean=false,reserveLines:Int=1) {
+    val reservedHeight=with(androidx.compose.ui.platform.LocalDensity.current) { MaterialTheme.typography.labelSmall.lineHeight.toDp()*2+8.sp.toDp() }+10.dp
+    val badge:@Composable ()->Unit = {
+        Surface(shape=RoundedCornerShape(8.dp),color=if(quality.evidence==QualityEvidence.MEASURED) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant) {
+            Text((if(lastPlayback && quality.evidence==QualityEvidence.MEASURED) "最近播放 · " else "")+quality.label,Modifier.padding(horizontal=8.dp,vertical=5.dp).widthIn(max=176.dp),style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
     }
+    if(reserveLines>1) Box(Modifier.height(reservedHeight)) { badge() } else badge()
 }
 @Composable fun EmptyPanel(title:String,body:String,icon:Int) {
     Column(Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=36.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -70,4 +75,12 @@ import androidx.compose.ui.unit.dp
     FilterChip(selected=selected,onClick=onClick,label=label,shape=RoundedCornerShape(28.dp),border=null,
         colors=FilterChipDefaults.filterChipColors(containerColor=MaterialTheme.colorScheme.surfaceContainer,
             selectedContainerColor=MaterialTheme.colorScheme.primaryContainer))
+}
+
+/** Reserve geometry independently of fallback-font metrics and whether the text wraps. */
+@Composable fun CardTextSlot(text:String,style:androidx.compose.ui.text.TextStyle,modifier:Modifier=Modifier,color:androidx.compose.ui.graphics.Color=LocalContentColor.current) {
+    val height=with(androidx.compose.ui.platform.LocalDensity.current) { style.lineHeight.toDp()*2+8.sp.toDp() }
+    Box(modifier.fillMaxWidth().height(height)) {
+        Text(text,style=style,color=color,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
 }

@@ -41,15 +41,15 @@ import androidx.compose.ui.unit.dp
                                 Text("${group.entries.map { it.playback.video.source.key }.distinct().size} 个来源 · 最近：${latest.playback.video.source.name}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text("上次观看 · ${latest.playback.episode.name}",style=MaterialTheme.typography.bodyMedium)
                                 Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                FilledTonalButton(onClick={resume(latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continue:$id")) {
-                                    Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
-                                }
                             }
+                        }
+                        FilledTonalButton(onClick={resume(latest)},modifier=Modifier.align(androidx.compose.ui.Alignment.End).heightIn(min=48.dp).testTag("continue:$id")) {
+                            Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
                         }
                         ContentDivider()
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
                             TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.weight(1f)) { Text(if(expanded==id) "收起分集" else "查看分集（${group.episodes.size}）") }
-                            TextButton(onClick={deleting=group.key},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除记录") }
+                            TextButton(onClick={deleting=group.key},modifier=Modifier.weight(1f),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除记录") }
                         }
                     }
                 }
@@ -72,7 +72,7 @@ import androidx.compose.ui.unit.dp
                     }
                 }
                 if(expandedEpisode==episodeId) items(episode.entries,key={"record:$id:${it.playback.key}"}) { entry ->
-                    ContentCard(onClick={resume(entry)},modifier=Modifier.fillMaxWidth().padding(start=16.dp).testTag("historyEpisode:${entry.playback.key}")) {
+                    ContentCard(onClick={resume(entry)},modifier=Modifier.fillMaxWidth().padding(start=24.dp).testTag("historyEpisode:${entry.playback.key}")) {
                         Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                             Text(entry.playback.video.source.name,style=MaterialTheme.typography.titleSmall)
                             Text(entry.playback.episode.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
