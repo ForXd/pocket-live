@@ -8,7 +8,9 @@ import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 
 data class PlaybackHealth(val buffering:Boolean=false,val slow:Boolean=false,val bufferedSeconds:Long=0)
 object PlaybackPolicy {
-    const val MIN_BUFFER_MS=20_000
+    // Refill before the reservoir falls into the range of common network stalls.
+    // Keep a 10-second hysteresis window and the existing byte budget.
+    const val MIN_BUFFER_MS=50_000
     const val MAX_BUFFER_MS=60_000
     const val START_MS=1000
     const val REBUFFER_MS=4000
@@ -27,3 +29,11 @@ class PlaybackLoadPolicy:DefaultLoadErrorHandlingPolicy(2) {
         return PlaybackPolicy.retryDelay(http?.responseCode,info.errorCount) ?: C.TIME_UNSET
     }
 }
+
+/** Shared production factory, also exercised by deterministic network-trace tests. */
+@androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
+internal fun playbackLoadControl() = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+    .setBufferDurationsMs(PlaybackPolicy.MIN_BUFFER_MS,PlaybackPolicy.MAX_BUFFER_MS,PlaybackPolicy.START_MS,PlaybackPolicy.REBUFFER_MS)
+    .setTargetBufferBytes(PlaybackPolicy.TARGET_BYTES)
+    .setPrioritizeTimeOverSizeThresholds(false)
+    .build()

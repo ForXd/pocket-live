@@ -53,8 +53,7 @@ class PlaybackController(
     fun start() {
         if(closed || player != null) return
         try {
-            val load = DefaultLoadControl.Builder().setBufferDurationsMs(PlaybackPolicy.MIN_BUFFER_MS,PlaybackPolicy.MAX_BUFFER_MS,PlaybackPolicy.START_MS,PlaybackPolicy.REBUFFER_MS)
-                .setTargetBufferBytes(PlaybackPolicy.TARGET_BYTES).setPrioritizeTimeOverSizeThresholds(false).build()
+            val load = playbackLoadControl()
             val calls=MediaCallOwner(network.client);mediaCalls=calls
             val dataSource=OkHttpDataSource.Factory(calls)
             val loadPolicy=PlaybackLoadPolicy()

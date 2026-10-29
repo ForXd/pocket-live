@@ -73,6 +73,48 @@ class PlaybackResilienceDeviceTest {
             ui.waitUntil(10000) { PlaybackMetrics.created==PlaybackMetrics.released && MediaCallOwner.active.get()==0 }
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     }
+    @Test fun longHlsRefillsReservoirAfterBufferedSeek() {
+        val server=MockWebServer();server.start()
+        val base="http://fixture.test:${server.port}"
+        val assets=InstrumentationRegistry.getInstrumentation().context.assets
+        val playlist=buildString {
+            append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n")
+            repeat(10) { cycle ->
+                if(cycle>0) append("#EXT-X-DISCONTINUITY\n")
+                repeat(8) { index -> append("#EXTINF:${if(index==7) 1 else 2}.000000,\nsegment0$index.ts?cycle=$cycle\n") }
+            }
+            append("#EXT-X-ENDLIST\n")
+        }
+        server.dispatcher=object:Dispatcher() {
+            override fun dispatch(request:RecordedRequest):MockResponse {
+                val path=request.requestUrl!!.encodedPath
+                if(path.endsWith(".m3u8")) return MockResponse().setBody(playlist)
+                return MockResponse().setBody(Buffer().write(assets.open(path.removePrefix("/")).use { it.readBytes() }))
+                    .setHeader("Content-Type","video/mp2t").throttleBody(64*1024,20,TimeUnit.MILLISECONDS)
+            }
+        }
+        val model=model()
+        try {
+            ui.runOnIdle { model.play(Video(Source("缓冲测试","$base/api"),"buffer","合成视频"),Episode("第1集","$base/long.m3u8")) }
+            ui.waitUntil(15000) { var ready=false;ui.runOnIdle {
+                player(ui.activity.window.decorView)?.let { p ->
+                    if(p.playbackState==androidx.media3.common.Player.STATE_READY) { p.pause();ready=true }
+                }
+            };ready }
+            ui.waitUntil(20000) { var full=false;ui.runOnIdle { full=(player(ui.activity.window.decorView)?.totalBufferedDuration ?: 0)>=55_000 };full }
+            val requests=server.requestCount
+            ui.runOnIdle { player(ui.activity.window.decorView)!!.seekTo(15_000) }
+            ui.waitUntil(20000) { var refilled=false;ui.runOnIdle { refilled=(player(ui.activity.window.decorView)?.totalBufferedDuration ?: 0)>=55_000 };refilled }
+            assertTrue("Buffered seek must trigger fresh prefetch",server.requestCount>requests)
+            ui.runOnIdle { player(ui.activity.window.decorView)!!.play() }
+            ui.waitUntil(10000) { var advanced=false;ui.runOnIdle {
+                val p=player(ui.activity.window.decorView)!!
+                assertNull(p.playerError);advanced=p.isPlaying && p.currentPosition>17_000
+            };advanced }
+            ui.runOnIdle { model.stopPlayback() }
+            ui.waitUntil(10000) { PlaybackMetrics.created==PlaybackMetrics.released && MediaCallOwner.active.get()==0 }
+        } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
+    }
     @Test fun repeatedSwitchBackgroundAndCancellationReleaseResources() {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
