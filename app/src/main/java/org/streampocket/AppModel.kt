@@ -149,6 +149,40 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         val normalized = validUrl(url, true) ?: return message("请输入有效的 HTTP(S) 订阅链接")
         if(!normalized.startsWith("https://", true) && !state.value.saved.allowHttp) return message("HTTP 未加密，请先在订阅页明确启用")
         if(existing == null && state.value.saved.subscriptions.any { it.url == normalized }) return message("订阅已存在，请使用更新")
+        importDocument(existing) {
+            val parsed=withContext(Dispatchers.Default) { SubscriptionParser.parse(network.text(normalized)) }
+            parsed to Subscription(existing?.id ?: UUID.randomUUID().toString(),parsed.name ?: existing?.name ?: "我的订阅",normalized,System.currentTimeMillis(),parsed.sources)
+        }
+    }
+    fun importJson(text:String,existing:Subscription?=null,onImported:()->Unit={}) {
+        importDocument(existing,onImported) {
+            withContext(Dispatchers.Default) {
+                val parsed=SubscriptionParser.parse(text)
+                parsed to localSubscription(parsed,text,"粘贴的 JSON",existing)
+            }
+        }
+    }
+    fun importJsonFile(uri:android.net.Uri,existing:Subscription?=null) {
+        importDocument(existing) {
+            val (text,name)=runInterruptible(Dispatchers.IO) {
+                try {
+                    val resolver=getApplication<Application>().contentResolver
+                    val name=resolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use {
+                        if(it.moveToFirst()) it.getString(0) else null
+                    } ?: "本地 JSON"
+                    val text=resolver.openInputStream(uri)?.use(::readSubscriptionJson) ?: throw UserError("无法打开 JSON 文件，请重新选择")
+                    text to name
+                } catch(e:java.io.IOException) { throw UserError("无法读取 JSON 文件，请重新选择") }
+                catch(e:SecurityException) { throw UserError("无法访问 JSON 文件，请重新选择") }
+            }
+            withContext(Dispatchers.Default) {
+                val parsed=SubscriptionParser.parse(text)
+                parsed to localSubscription(parsed,text,name,existing)
+            }
+        }
+    }
+    private fun importDocument(existing:Subscription?,onImported:()->Unit={},load:suspend ()->Pair<ImportResult,Subscription>) {
+        if(state.value.loading || state.value.loadFailed) return
         val key = existing?.id ?: "new"
         val owner = UUID.randomUUID().toString()
         importOwners[key] = owner
@@ -158,15 +192,15 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
             try {
                 previous?.join()
                 _state.update { it.copy(importing = it.importing + key) }
-                val parsed = withContext(Dispatchers.Default) { SubscriptionParser.parse(network.text(normalized)) }
+                val (parsed,sub) = load()
                 ensureActive()
                 mutate { saved ->
-                    val sub = Subscription(existing?.id ?: UUID.randomUUID().toString(),parsed.name ?: existing?.name ?: "我的订阅",normalized,System.currentTimeMillis(),parsed.sources)
                     StateRules.importSubscription(saved, sub, replacing = existing != null)
                 }
                 ensureActive()
                 invalidateSources()
                 message("${parsed.format}：导入 ${parsed.sources.size} 条，跳过 ${parsed.skipped}，超限 ${parsed.truncated}；${parsed.skippedByReason.entries.joinToString { it.key + ":" + it.value }}")
+                onImported()
             } catch(e: CancellationException) { throw e }
             catch(e: Exception) { message(safeError(e)) }
             finally {

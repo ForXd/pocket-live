@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Alignment
@@ -88,6 +90,31 @@ class MainActivity : ComponentActivity() {
     // Do not put token-bearing input into saved-instance-state or screen titles.
     var url by remember { mutableStateOf("") }
     var addingSubscription by remember { mutableStateOf(false) }
+    var jsonDialog by remember { mutableStateOf(false) }
+    var jsonText by remember { mutableStateOf("") }
+    var fileTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+    val jsonPicker=rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        val target=fileTargetId
+        fileTargetId=null
+        if(uri!=null) {
+            val existing=target?.let { id -> model.state.value.saved.subscriptions.find { it.id==id } }
+            if(target!=null && existing==null) model.message("订阅已删除") else model.importJsonFile(uri,existing)
+        }
+    }
+    fun chooseJson(existing:Subscription?=null) {
+        fileTargetId=existing?.id
+        try { jsonPicker.launch(arrayOf("*/*")) }
+        catch(_:android.content.ActivityNotFoundException) { fileTargetId=null;model.message("未找到文件选择器，可使用粘贴 JSON") }
+    }
+    if(jsonDialog) AlertDialog(onDismissRequest={model.cancelImport("new");jsonDialog=false;jsonText=""},title={Text("粘贴 JSON")},text={
+        Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text("粘贴订阅配置，支持与链接导入相同的格式。最多 2 MiB。")
+            OutlinedTextField(jsonText,{ if(it.length<=JsonData.LIMIT) jsonText=it else model.message("JSON 内容超过 2 MiB 上限") },
+                modifier=Modifier.fillMaxWidth().heightIn(max=280.dp).testTag("subscriptionJsonInput"),label={Text("JSON 内容")},minLines=5,maxLines=10,enabled="new" !in s.importing)
+            if("new" in s.importing) Text("正在导入…") else s.message?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
+        }
+    },confirmButton={TextButton(enabled=jsonText.isNotBlank() && "new" !in s.importing,onClick={model.message(null);model.importJson(jsonText,onImported={jsonDialog=false;jsonText=""})}) { Text("导入") }},
+        dismissButton={TextButton(onClick={model.cancelImport("new");jsonDialog=false;jsonText=""}) { Text("取消") }})
     var delete by remember { mutableStateOf<Subscription?>(null) }
     var expandedSubscription by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(s.loading,s.saved.subscriptions.map { it.id }) {
@@ -193,8 +220,10 @@ class MainActivity : ComponentActivity() {
                             Button(shape=MaterialTheme.shapes.medium,onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
                                 Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("添加订阅")
                             }
+                            OutlinedButton(onClick={chooseJson()},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("选择 JSON 文件") }
+                            TextButton(onClick={model.message(null);jsonDialog=true},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("粘贴 JSON") }
                             if("new" in s.importing) TextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
-                            Text("支持 LibreTV JSON、接口目录和 TVBOX 直连源。链接仅存本机。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("支持 LibreTV JSON、接口目录和 TVBOX 直连源。文件使用 UTF-8，最多 2 MiB；本地订阅可重新选择文件更新。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     } }
                     if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在搜索或发现页浏览内容。",R.drawable.ic_library) }
@@ -202,7 +231,7 @@ class MainActivity : ComponentActivity() {
                         item(key="subscription:${sub.id}") {
                             SubscriptionHeader(sub,expandedSubscription==sub.id,sub.sources.count { it.key !in s.saved.disabled },sub.id in s.importing,
                                 onExpand={expandedSubscription=if(expandedSubscription==sub.id) null else sub.id},
-                                onUpdate={model.importSubscription(sub.url,sub)},onCancel={model.cancelImport(sub.id)},onDelete={delete=sub})
+                                onUpdate={if(sub.isLocalJson) chooseJson(sub) else model.importSubscription(sub.url,sub)},onCancel={model.cancelImport(sub.id)},onDelete={delete=sub})
                         }
                         // Keep source rows lazy: even a 300-source subscription composes only the viewport.
                         if(expandedSubscription==sub.id) items(sub.sources,key={"source:${sub.id}:${it.key}"}) { source ->

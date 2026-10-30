@@ -57,7 +57,7 @@ class Storage(context: Context, private val purgeCache: () -> Unit = {}, private
             require(r.arr("subscriptions").size <= 20 && r.arr("history").size <= 100)
             require(saved.subscriptions.sumOf { it.sources.size } <= 300)
             require(saved.subscriptions.map { it.id }.distinct().size == saved.subscriptions.size)
-            require(saved.subscriptions.all { it.id.isNotBlank() && validUrl(it.url) != null && it.name.length <= 120 })
+            require(saved.subscriptions.all { it.id.isNotBlank() && (validUrl(it.url) != null || it.isLocalJson) && it.name.length <= 120 })
             require(saved.history.all { validUrl(it.playback.episode.url) != null && it.playback.video.title.length <= 200 })
             require(r.getAsJsonArray("subscriptions").toString().toByteArray().size <= StorageBudget.CONFIG)
             require(r.getAsJsonArray("history").toString().toByteArray().size <= StorageBudget.HISTORY)

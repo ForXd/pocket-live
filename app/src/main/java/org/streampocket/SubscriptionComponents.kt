@@ -25,13 +25,13 @@ import androidx.compose.ui.unit.dp
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                     Text(sub.name,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    Text("${sub.sources.size} 个源 · 已启用 $enabledCount 个",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${if(sub.isLocalJson) "本地 JSON · " else ""}${sub.sources.size} 个源 · 已启用 $enabledCount 个",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Box {
                 IconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"管理订阅 ${sub.name}") }
                 DropdownMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
-                    DropdownMenuItem(text={Text("更新订阅")},enabled=!importing,onClick={menuOpen=false;onUpdate()})
+                    DropdownMenuItem(text={Text(if(sub.isLocalJson) "重新选择 JSON 文件" else "更新订阅")},enabled=!importing,onClick={menuOpen=false;onUpdate()})
                     DropdownMenuItem(text={Text("删除订阅",color=MaterialTheme.colorScheme.error)},onClick={menuOpen=false;onDelete()})
                 }
             }

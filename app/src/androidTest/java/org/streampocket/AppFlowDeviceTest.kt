@@ -132,7 +132,7 @@ class AppFlowDeviceTest {
                     ui.waitUntil(60000) { !ui.activity.isInPictureInPictureMode }
                 }
                 if(!includePip) instrument.sendStatus(0,android.os.Bundle().apply { putString("pip_acceptance","NOT RUN in this isolated playback stress run; separate PiP acceptance remains required") })
-                ui.onNodeWithText("返回选集").performClick()
+                ui.onNode(hasText("返回选集") or hasContentDescription("返回选集")).performClick()
                 ui.waitUntil(60000) { PlaybackMetrics.created==PlaybackMetrics.released }
                 if(pipOnly) { assertEquals(0,PlaybackMetrics.samplers);return }
             }
@@ -145,7 +145,8 @@ class AppFlowDeviceTest {
                 val frameStart=android.os.SystemClock.elapsedRealtime()
                 ui.onNodeWithTag("detailGrid").performScrollToNode(hasText(if(label=="HLS集") "HLS · 1 集" else "MP4 · 1 集"))
                 ui.onNodeWithText(if(label=="HLS集") "HLS · 1 集" else "MP4 · 1 集").performClick()
-                ui.onNodeWithText(label).performClick()
+                ui.onNodeWithTag("detailGrid").performScrollToNode(hasText(label))
+                ui.onNodeWithText(label).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
                 ui.waitUntil(120000) { PlaybackMetrics.frames>frames }
                 val firstFrame=android.os.SystemClock.elapsedRealtime()-frameStart
                 ui.waitUntil(120000) {
@@ -164,7 +165,7 @@ class AppFlowDeviceTest {
                 }
                 if(cycle==0 && InstrumentationRegistry.getArguments().getString("fullscreenOnly")=="true") {
                     verifyFullscreenAndPip()
-                    ui.onNodeWithText("返回选集").performClick()
+                    ui.onNode(hasText("返回选集") or hasContentDescription("返回选集")).performClick()
                     ui.waitUntil(60000) { PlaybackMetrics.created==PlaybackMetrics.released }
                     assertEquals(0,PlaybackMetrics.samplers)
                     return
@@ -200,7 +201,7 @@ class AppFlowDeviceTest {
                 ui.waitUntil(60000) { PlaybackMetrics.created-PlaybackMetrics.released==1L }
                 }
                 if(injectReleaseFailure && cycle==2) ReleaseFaultInjection.pending.set(true)
-                ui.onNodeWithText("返回选集").performClick()
+                ui.onNode(hasText("返回选集") or hasContentDescription("返回选集")).performClick()
                 ui.waitUntil(60000) { PlaybackMetrics.created==PlaybackMetrics.released }
                 assertEquals(0,PlaybackMetrics.samplers)
                 if(stress>0) {
