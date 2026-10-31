@@ -21,7 +21,7 @@ class UiLayoutDeviceTest {
         val base="http://fixture.test:${server.port}"
         val source=Source("示例来源","$base/api")
         val video=Video(source,"1","星河漫游", "更新至第12集",poster="$base/poster.png")
-        val history=History(Playback(video,Episode("第3集","$base/video.mp4"),72000),1)
+        val history=History(Playback(video,Episode("第3集","$base/video3.mp4"),72000),1)
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
         runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history),allowHttp=true)) }
         server.dispatcher=object:Dispatcher() {
@@ -64,6 +64,9 @@ class UiLayoutDeviceTest {
             capture("01-search")
             ui.onNodeWithText("星河漫游").performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
+            ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("detailPlay"))
+            ui.onNodeWithTag("detailPlay").assertTextContains("继续观看",substring=true)
+            ui.onNodeWithTag("detailGrid").performScrollToIndex(0)
             capture("06-detail")
             ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
             ui.waitUntil(5000) { model.state.value.detail==null }
@@ -121,6 +124,12 @@ class UiLayoutDeviceTest {
             ui.onNodeWithText("搜索此片").performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
             ui.onNodeWithTag("searchInput").assertTextContains("星河漫游")
+            ui.onNodeWithText("发现",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("continueWatching"))
+            ui.onNodeWithTag("discoverContinue:${HistoryGroups.key(video).stableKey}").performClick()
+            ui.waitUntil(5000) { model.state.value.playback!=null }
+            assertEquals(72000L,model.state.value.playback!!.position)
+            assertEquals(video.id,model.state.value.playback!!.video.id)
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     }
 }

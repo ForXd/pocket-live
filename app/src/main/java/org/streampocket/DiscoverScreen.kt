@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
@@ -21,7 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit) {
     val sources=s.saved.subscriptions.flatMap { it.sources }.distinctBy { it.key }
         .filter { it.kind==SourceKind.VOD && it.key !in s.saved.disabled }
-    var recommendations by remember { mutableStateOf(true) }
+    var recommendations by rememberSaveable { mutableStateOf(true) }
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle,model) {
         val observer=androidx.lifecycle.LifecycleEventObserver { _,event ->
@@ -30,7 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(sources.map { it.key }) { if(sources.isNotEmpty() && s.catalogSource==null) model.browse(sources.first()) }
     Column(Modifier.fillMaxSize()) {
         PrimaryTabRow(selectedTabIndex=if(recommendations) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
@@ -93,6 +94,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit) {
+    val recent=remember(s.saved.history) { HistoryGroups.group(s.saved.history).take(5) }
     LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 176.dp else 140.dp),
         modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(20.dp),
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -103,6 +105,30 @@ import androidx.compose.ui.text.style.TextOverflow
                     Text("豆瓣推荐 · 在你的订阅中搜索",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick={model.recommend()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
+            }
+        }
+        if(recent.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)},key="continue-watching") {
+            Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text("继续观看",style=MaterialTheme.typography.titleMedium)
+                BoxWithConstraints {
+                    val cardWidth=minOf(maxWidth,360.dp)
+                    LazyRow(horizontalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("continueWatching")) {
+                        items(recent,key={it.key.stableKey}) { group ->
+                            val entry=group.latest
+                            ContentCard(onClick={model.resume(entry)},modifier=Modifier.width(cardWidth).testTag("discoverContinue:${group.key.stableKey}")) {
+                                Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                                    Poster(entry.playback.video,model,Modifier.size(64.dp,96.dp))
+                                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                        Text(entry.playback.video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                        Text(entry.playback.episode.name,style=MaterialTheme.typography.bodySmall,maxLines=1,overflow=TextOverflow.Ellipsis)
+                                        Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(if(entry.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续播放",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         item(span={GridItemSpan(maxLineSpan)}) { LazyRow(modifier=Modifier.testTag("recommendFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {

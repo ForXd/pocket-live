@@ -18,38 +18,58 @@ import androidx.compose.ui.unit.dp
 
 /** Visual state is scoped to a detail, never stored in the playback/session model. */
 @Composable fun DetailScreen(detail:Detail,model:AppModel,searchSame:()->Unit) {
-    var selected by rememberSaveable(detail.video.source.key,detail.video.id) { mutableIntStateOf(0) }
+    val state by model.state.collectAsState()
+    val recent=remember(detail,state.saved.history) { detailResume(detail,state.saved.history) }
+    var selected by rememberSaveable(detail.video.source.key,detail.video.id) { mutableIntStateOf(detail.lines.indexOfFirst { option -> option.episodes.any { it.url==recent?.playback?.episode?.url } }.coerceAtLeast(0)) }
+    var descending by rememberSaveable(detail.video.source.key,detail.video.id) { mutableStateOf(false) }
     var expanded by rememberSaveable(detail.video.source.key,detail.video.id) { mutableStateOf(false) }
     var descriptionOverflows by remember(detail.description) { mutableStateOf(false) }
     val line=detail.lines.getOrNull(selected) ?: detail.lines.firstOrNull()
+    val latest=recent?.takeIf { entry -> line?.episodes?.any { it.url==entry.playback.episode.url }==true }
     LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 180.dp else 132.dp),
         modifier=Modifier.fillMaxSize().testTag("detailGrid"),contentPadding=PaddingValues(20.dp),
         horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item(span={GridItemSpan(maxLineSpan)}) {
-            Column(verticalArrangement=Arrangement.spacedBy(20.dp)) {
-                Box(Modifier.fillMaxWidth().heightIn(min=240.dp),contentAlignment=Alignment.Center) {
-                    Surface(Modifier.fillMaxWidth().height(180.dp),shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.surfaceContainerHigh) {}
-                    Poster(detail.video,model,Modifier.size(160.dp,240.dp))
-                }
-                Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Text(detail.video.source.name,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-                    Text(detail.video.title,style=MaterialTheme.typography.headlineLarge)
-                    FlowRow(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Text("${detail.lines.size} 条线路 · ${line?.episodes?.size ?: 0} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        QualityBadge(detail.video.quality,lastPlayback=true)
+            ContentCard(Modifier.fillMaxWidth()) {
+                BoxWithConstraints(Modifier.padding(20.dp)) {
+                    val identity:@Composable ()->Unit = {
+                        Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                            Text(detail.video.source.name,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+                            Text(detail.video.title,style=MaterialTheme.typography.headlineMedium)
+                            Text("${detail.lines.size} 条线路 · ${line?.episodes?.size ?: 0} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            if(detail.video.subtitle.isNotBlank()) Text(detail.video.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            QualityBadge(detail.video.quality,lastPlayback=true)
+                        }
+                    }
+                    val actions:@Composable ()->Unit = {
+                        Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull()
+                            primary?.let { episode ->
+                                Button(onClick={model.play(detail.video,episode)},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("detailPlay")) {
+                                    Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("${if(latest!=null) "继续观看" else "播放"} · ${episode.name}")
+                                }
+                            }
+                            latest?.let { Text(HistoryGroups.progress(it),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                            TextButton(onClick=searchSame,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("搜索同名 · 换源") }
+                        }
+                    }
+                    if(maxWidth>=480.dp && LocalDensity.current.fontScale<=1.3f) {
+                        Row(horizontalArrangement=Arrangement.spacedBy(24.dp),verticalAlignment=Alignment.CenterVertically) {
+                            Poster(detail.video,model,Modifier.size(160.dp,240.dp))
+                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(16.dp)) { identity();actions() }
+                        }
+                    } else {
+                        Column(verticalArrangement=Arrangement.spacedBy(20.dp)) {
+                            Row(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.CenterVertically) {
+                                Poster(detail.video,model,Modifier.size(88.dp,132.dp))
+                                Box(Modifier.weight(1f)) { identity() }
+                            }
+                            actions()
+                        }
                     }
                 }
-            }
-        }
-
-        item(span={GridItemSpan(maxLineSpan)}) {
-            Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                line?.episodes?.firstOrNull()?.let { first ->
-                    Button(onClick={model.play(detail.video,first)},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)) {
-                        Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("播放 · ${first.name}")
-                    }
-                }
-                TextButton(onClick=searchSame,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("搜索同名 · 换源") }
             }
         }
         if(detail.description.isNotBlank()) item(span={GridItemSpan(maxLineSpan)}) {
@@ -58,7 +78,12 @@ import androidx.compose.ui.unit.dp
                 if(expanded || descriptionOverflows) TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
             }
         }
-        item(span={GridItemSpan(maxLineSpan)}) { Text("选择剧集",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=12.dp)) }
+        item(span={GridItemSpan(maxLineSpan)}) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                Text("选择剧集",style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f))
+                TextButton(onClick={descending=!descending},modifier=Modifier.heightIn(min=48.dp).testTag("episodeOrder")) { Text(if(descending) "倒序 · 切换正序" else "正序 · 切换倒序") }
+            }
+        }
         item(span={GridItemSpan(maxLineSpan)}) {
             LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 itemsIndexed(detail.lines) { index,option ->
@@ -66,10 +91,11 @@ import androidx.compose.ui.unit.dp
                 }
             }
         }
-        line?.let { current -> itemsIndexed(current.episodes,key={index,_->"$selected:$index"}) { _,episode ->
+        line?.let { current -> itemsIndexed(if(descending) current.episodes.asReversed() else current.episodes,key={index,_->"$selected:$index"}) { _,episode ->
             FilledTonalButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.medium,
                 modifier=Modifier.fillMaxWidth().heightIn(min=56.dp)) {
                 Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    if(latest?.playback?.episode?.url==episode.url) Text("上次观看",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
                     Text(episode.name,maxLines=2,overflow=TextOverflow.Ellipsis)
                     if(episode.quality.evidence!=QualityEvidence.UNKNOWN) Text(episode.quality.label,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                 }
