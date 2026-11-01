@@ -155,7 +155,7 @@ object CmsParser {
         if(raw != null && !raw.isJsonNull && !raw.isJsonArray) throw UserError("接口 list 不是数组")
         return root.arr("list").take(100).mapNotNull { it.obj() }.mapNotNull {
             val id = it.scalar("vod_id").take(256); val title = it.str("vod_name")?.take(200)
-            if(id.isEmpty() || title == null) null else Video(source, id, title, listOf(it.scalar("vod_year"), it.scalar("vod_remarks")).filter { it.isNotBlank() }.joinToString(" · ").take(200), QualityRules.api(it), validUrl(it.str("vod_pic")))
+            if(id.isEmpty() || title == null) null else Video(source, id, title, listOf(it.scalar("vod_year"), it.scalar("vod_remarks")).filter { it.isNotBlank() }.joinToString(" · ").take(200), QualityRules.api(it), validUrl(it.str("vod_pic")), rating=sourceRating(it.scalar("vod_score")), updatedAt=sourceUpdatedAt(it.scalar("vod_time")))
         }
     }
     fun detail(text: String, video: Video): Detail {

@@ -29,6 +29,9 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit) {
     val sources=s.saved.subscriptions.flatMap { it.sources }.distinctBy { it.key }
         .filter { it.kind==SourceKind.VOD && it.key !in s.saved.disabled }
+    var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
+    var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
+    val catalogVideos=remember(s.catalogVideos,catalogSort) { catalogSort.apply(s.catalogVideos) }
     var recommendations by rememberSaveable { mutableStateOf(true) }
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle,model) {
@@ -45,11 +48,11 @@ import androidx.compose.ui.text.style.TextOverflow
             Tab(selected=recommendations,onClick={recommendations=true},text={Text("剧集推荐")})
             Tab(selected=!recommendations,onClick={recommendations=false},text={Text("订阅分类")})
         }
-        if(recommendations) { RecommendationList(s,model,searchTitle); return@Column }
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        if(recommendations) { RecommendationList(s,model,searchTitle,recommendationSort) { recommendationSort=it }; return@Column }
+    LazyColumn(Modifier.fillMaxSize().testTag("catalogList"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {
             Text("发现与你的分类",style=MaterialTheme.typography.titleLarge)
-            Text("内容来自你启用的订阅 · 按来源返回顺序展示",style=MaterialTheme.typography.bodySmall)
+            Text("内容来自你启用的订阅",style=MaterialTheme.typography.bodySmall)
         }
         if(sources.isEmpty()) item {
             EmptyPanel("从你的订阅开始","添加点播来源后查看最新内容与分类。应用不内置播放源或榜单。",R.drawable.ic_library)
@@ -72,19 +75,22 @@ import androidx.compose.ui.text.style.TextOverflow
                     if(s.catalogLoading) TextButton(onClick=model::cancelCatalog) { Text("取消") }
                 }
             }
+            item { DiscoverySortControl(catalogSort,{catalogSort=it},s.catalogVideos,false) }
             if(s.catalogLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             s.catalogError?.let { message -> item {
                 Text(message)
                 TextButton(onClick={model.browse(source,s.catalogCategory,query)}) { Text("重新加载") }
             } }
             if(!s.catalogLoading && s.catalogVideos.isEmpty() && s.catalogError==null) item { Text("该来源未返回内容或不支持此分类接口。仍可使用全源搜索。") }
-            items(s.catalogVideos,key={it.source.key+":"+it.id}) { video ->
-                DiscoveryCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth()) {
+            items(catalogVideos,key={it.source.key+":"+it.id}) { video ->
+                DiscoveryCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth().testTag("catalogVideo:${video.id}")) {
                     Row(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
                         Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=DiscoverySurface)
                         Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             CardTextSlot(video.title,style=MaterialTheme.typography.titleMedium)
-                            CardTextSlot(video.subtitle.ifBlank { "暂无更新信息" },style=MaterialTheme.typography.bodySmall)
+                            CardTextSlot(video.subtitle.ifBlank { "暂无剧集说明" },style=MaterialTheme.typography.bodySmall)
+                            if(video.rating!=null) Text("来源评分 ${video.rating}",style=MaterialTheme.typography.labelSmall,color=DiscoveryMuted)
+                            video.updatedAt?.let { Text("更新 ${updatedDate(it)}",style=MaterialTheme.typography.labelSmall,color=DiscoveryMuted) }
                             Text("查看剧集 →",color=DiscoveryAccent,style=MaterialTheme.typography.labelMedium)
                         }
                     }
@@ -100,7 +106,8 @@ import androidx.compose.ui.text.style.TextOverflow
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit) {
+@Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit,sort:DiscoverySort,onSort:(DiscoverySort)->Unit) {
+    val videos=remember(s.recommendations,sort) { sort.apply(s.recommendations) }
     val recent=remember(s.saved.history) { HistoryGroups.group(s.saved.history).take(5) }
     LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 176.dp else 140.dp),
         modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(20.dp),
@@ -146,13 +153,14 @@ import androidx.compose.ui.text.style.TextOverflow
             } }
             items(Recommendations.tags(s.recommendType)) { tag -> ContentFilterChip(selected=s.recommendTag==tag,onClick={model.recommend(tag=tag)},label={Text(tag)}) }
         } }
+        item(span={GridItemSpan(maxLineSpan)}) { DiscoverySortControl(sort,onSort,s.recommendations,true) }
         if(s.recommendLoading) item(span={GridItemSpan(maxLineSpan)}) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         s.recommendError?.let { error -> item(span={GridItemSpan(maxLineSpan)}) {
             Column { Text("推荐暂时无法加载：$error。可以重试，或切换到订阅分类。")
                 TextButton(onClick={model.recommend()}) { Text("重试推荐") } }
         } }
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
-        s.recommendations.firstOrNull()?.let { featured ->
+        videos.firstOrNull()?.let { featured ->
             item(span={GridItemSpan(maxLineSpan)}) {
                 FeaturedRecommendation(featured,model) { searchTitle(featured.title) }
             }
@@ -163,7 +171,7 @@ import androidx.compose.ui.text.style.TextOverflow
                 Text(s.recommendTag,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        items(s.recommendations.drop(1),key={it.id},contentType={"recommendation"}) { video ->
+        items(videos.drop(1),key={it.id},contentType={"recommendation"}) { video ->
             DiscoveryCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}")) {
                 BoxWithConstraints {
                     val artwork:@Composable (Modifier)->Unit = { size ->
@@ -207,7 +215,7 @@ private val DiscoveryAccent=Color(0xff78d8c6)
 }
 
 @Composable private fun RecommendationRating(video:Video,modifier:Modifier=Modifier) {
-    val rating=remember(video.subtitle) { Regex("^豆瓣 ([0-9]+(?:\\.[0-9]+)?)(?: ·|$)").find(video.subtitle)?.groupValues?.get(1) }
+    val rating=video.rating?.toString()
     if(rating!=null) Surface(modifier=modifier.testTag("recommendRating:${video.id}").semantics { contentDescription="豆瓣评分 $rating 分" },
         shape=RoundedCornerShape(50),color=Color(0xee12212a),contentColor=Color(0xffffc12b)) {
         Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
@@ -218,18 +226,40 @@ private val DiscoveryAccent=Color(0xff78d8c6)
 }
 
 @Composable private fun FeaturedRecommendation(video:Video,model:AppModel,open:()->Unit) {
-    DiscoveryCard(modifier=Modifier.fillMaxWidth(),onClick=open) {
+    DiscoveryCard(modifier=Modifier.fillMaxWidth().testTag("featured:${video.id}"),onClick=open) {
         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
             Box {
                 Poster(video,model,Modifier.size(112.dp,168.dp),shape=RectangleShape,containerColor=DiscoverySurface)
                 RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(6.dp))
             }
             Column(Modifier.weight(1f).padding(vertical=16.dp).padding(end=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                Text("本期推荐",style=MaterialTheme.typography.labelLarge,color=DiscoveryAccent)
+                Text("精选内容",style=MaterialTheme.typography.labelLarge,color=DiscoveryAccent)
                 Text(video.title,style=MaterialTheme.typography.titleLarge,maxLines=3,overflow=TextOverflow.Ellipsis)
                 Text("在你的订阅中查找",style=MaterialTheme.typography.bodySmall,color=DiscoveryMuted)
                 FilledTonalButton(onClick=open,modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.filledTonalButtonColors(containerColor=Color(0xff24483f),contentColor=DiscoveryText)) { Text("搜索此片") }
             }
         }
+    }
+}
+
+@Composable private fun DiscoverySortControl(selected:DiscoverySort,onSelect:(DiscoverySort)->Unit,videos:List<Video>,recommendation:Boolean) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        Box {
+            OutlinedButton(onClick={expanded=true},modifier=Modifier.heightIn(min=48.dp).testTag("discoverySort")) { Text("排序 · ${selected.label}") }
+            DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) {
+                DiscoverySort.entries.forEach { option ->
+                    DropdownMenuItem(text={Text(option.label)},onClick={onSelect(option);expanded=false},
+                        enabled=option!=DiscoverySort.UPDATED || !recommendation,
+                        trailingIcon={if(option==selected) Text("已选")})
+                }
+            }
+        }
+        Text(when {
+            recommendation -> "仅排序已加载的 ${videos.size} 部 · 豆瓣未提供更新时间"
+            selected==DiscoverySort.RATING -> "仅排序已加载的 ${videos.size} 部 · 无评分排在最后"
+            selected==DiscoverySort.UPDATED -> "仅排序已加载的 ${videos.size} 部 · 无更新时间排在最后"
+            else -> "仅排序已加载的 ${videos.size} 部 · 加载下一页后重新排序"
+        },style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
