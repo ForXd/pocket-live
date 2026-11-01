@@ -11,6 +11,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -72,13 +79,13 @@ import androidx.compose.ui.text.style.TextOverflow
             } }
             if(!s.catalogLoading && s.catalogVideos.isEmpty() && s.catalogError==null) item { Text("该来源未返回内容或不支持此分类接口。仍可使用全源搜索。") }
             items(s.catalogVideos,key={it.source.key+":"+it.id}) { video ->
-                ContentCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
-                        Poster(video,model,Modifier.size(88.dp,132.dp))
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                DiscoveryCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth()) {
+                    Row(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
+                        Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=DiscoverySurface)
+                        Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             CardTextSlot(video.title,style=MaterialTheme.typography.titleMedium)
                             CardTextSlot(video.subtitle.ifBlank { "暂无更新信息" },style=MaterialTheme.typography.bodySmall)
-                            Text("查看剧集 →",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelMedium)
+                            Text("查看剧集 →",color=DiscoveryAccent,style=MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -115,14 +122,14 @@ import androidx.compose.ui.text.style.TextOverflow
                     LazyRow(horizontalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("continueWatching")) {
                         items(recent,key={it.key.stableKey}) { group ->
                             val entry=group.latest
-                            ContentCard(onClick={model.resume(entry)},modifier=Modifier.width(cardWidth).testTag("discoverContinue:${group.key.stableKey}")) {
-                                Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
-                                    Poster(entry.playback.video,model,Modifier.size(64.dp,96.dp))
-                                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                            DiscoveryCard(onClick={model.resume(entry)},modifier=Modifier.width(cardWidth).testTag("discoverContinue:${group.key.stableKey}")) {
+                                Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                                    Poster(entry.playback.video,model,Modifier.size(80.dp,120.dp),shape=RectangleShape,containerColor=DiscoverySurface)
+                                    Column(Modifier.weight(1f).padding(vertical=12.dp).padding(end=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                                         Text(entry.playback.video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                                         Text(entry.playback.episode.name,style=MaterialTheme.typography.bodySmall,maxLines=1,overflow=TextOverflow.Ellipsis)
-                                        Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Text(if(entry.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续播放",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+                                        Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.labelSmall,color=DiscoveryMuted)
+                                        Text(if(entry.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续播放",style=MaterialTheme.typography.labelLarge,color=DiscoveryAccent)
                                     }
                                 }
                             }
@@ -157,48 +164,71 @@ import androidx.compose.ui.text.style.TextOverflow
             }
         }
         items(s.recommendations.drop(1),key={it.id},contentType={"recommendation"}) { video ->
-            ContentCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}")) {
-                BoxWithConstraints(Modifier.padding(12.dp)) {
-                    val text:@Composable ()->Unit = {
-                        Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                            CardTextSlot(video.title,modifier=Modifier.testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.titleSmall)
-                            CardTextSlot(video.subtitle.ifBlank { "暂无评分与更新信息" },modifier=Modifier.testTag("recommendMeta:${video.id}"),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            DiscoveryCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}")) {
+                BoxWithConstraints {
+                    val artwork:@Composable (Modifier)->Unit = { size ->
+                        Box {
+                            Poster(video,model,size.testTag("recommendPoster:${video.id}"),shape=RectangleShape,containerColor=DiscoverySurface)
+                            RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp))
                         }
                     }
+                    val title:@Composable ()->Unit = {
+                        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp).testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.titleSmall,color=DiscoveryText)
+                    }
                     if(maxWidth>=240.dp) {
-                        Row(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
-                            Poster(video,model,Modifier.size(72.dp,108.dp))
-                            Box(Modifier.weight(1f)) { text() }
+                        Row(verticalAlignment=Alignment.CenterVertically) {
+                            artwork(Modifier.size(112.dp,168.dp))
+                            Box(Modifier.weight(1f)) { title() }
                         }
                     } else {
-                        Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f/3f))
-                            text()
+                        Column {
+                            artwork(Modifier.fillMaxWidth().aspectRatio(2f/3f))
+                            title()
                         }
                     }
                 }
             }
         }
+
         if(s.recommendMore && !s.recommendLoading) item(span={GridItemSpan(maxLineSpan)}) { OutlinedButton(onClick={model.recommend(more=true)}) { Text("更多推荐") } }
     }
 }
 
-/** Same surface and actions as the rest of the library; artwork remains decorative. */
+private val DiscoverySurface=Color(0xff0e1621)
+private val DiscoveryText=Color(0xffe5edf6)
+private val DiscoveryMuted=Color(0xffaab8c8)
+private val DiscoveryAccent=Color(0xff78d8c6)
+
+/** Artwork meets the outer clip; no inset surface or independently rounded poster. */
+@Composable private fun DiscoveryCard(modifier:Modifier=Modifier,onClick:()->Unit,content:@Composable ColumnScope.()->Unit) {
+    Card(onClick=onClick,modifier=modifier,shape=RoundedCornerShape(12.dp),
+        border=BorderStroke(1.dp,Color(0xff26364a)),
+        colors=CardDefaults.cardColors(containerColor=DiscoverySurface,contentColor=DiscoveryText),content=content)
+}
+
+@Composable private fun RecommendationRating(video:Video,modifier:Modifier=Modifier) {
+    val rating=remember(video.subtitle) { Regex("^豆瓣 ([0-9]+(?:\\.[0-9]+)?)(?: ·|$)").find(video.subtitle)?.groupValues?.get(1) }
+    if(rating!=null) Surface(modifier=modifier.testTag("recommendRating:${video.id}").semantics { contentDescription="豆瓣评分 $rating 分" },
+        shape=RoundedCornerShape(50),color=Color(0xee12212a),contentColor=Color(0xffffc12b)) {
+        Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Default.Star,null,Modifier.size(16.dp))
+            Text(rating,style=MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
 @Composable private fun FeaturedRecommendation(video:Video,model:AppModel,open:()->Unit) {
-    ContentCard(modifier=Modifier.fillMaxWidth(),onClick=open) {
-        Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-            Text("本期推荐",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-            Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                Poster(video,model,Modifier.size(96.dp,144.dp))
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Text(video.title,style=MaterialTheme.typography.titleLarge,maxLines=3,overflow=TextOverflow.Ellipsis)
-                    if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+    DiscoveryCard(modifier=Modifier.fillMaxWidth(),onClick=open) {
+        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+            Box {
+                Poster(video,model,Modifier.size(112.dp,168.dp),shape=RectangleShape,containerColor=DiscoverySurface)
+                RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(6.dp))
             }
-            ContentDivider()
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                Text("在你的订阅中查找播放资源",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                FilledTonalButton(onClick=open,modifier=Modifier.heightIn(min=48.dp)) { Text("搜索此片") }
+            Column(Modifier.weight(1f).padding(vertical=16.dp).padding(end=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text("本期推荐",style=MaterialTheme.typography.labelLarge,color=DiscoveryAccent)
+                Text(video.title,style=MaterialTheme.typography.titleLarge,maxLines=3,overflow=TextOverflow.Ellipsis)
+                Text("在你的订阅中查找",style=MaterialTheme.typography.bodySmall,color=DiscoveryMuted)
+                FilledTonalButton(onClick=open,modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.filledTonalButtonColors(containerColor=Color(0xff24483f),contentColor=DiscoveryText)) { Text("搜索此片") }
             }
         }
     }

@@ -98,18 +98,22 @@ class UiLayoutDeviceTest {
             val grid=ui.onNodeWithTag("recommendationGrid")
             var expectedHeight:Float?=null
             var expectedTitleOffset:Float?=null
-            var expectedMetaOffset:Float?=null
+
             for(id in listOf("2","3","4","5")) {
                 grid.performScrollToNode(hasTestTag("recommendation:$id"))
                 val card=ui.onNodeWithTag("recommendation:$id").getUnclippedBoundsInRoot()
                 val title=ui.onNodeWithTag("recommendTitle:$id",useUnmergedTree=true).getUnclippedBoundsInRoot()
-                val meta=ui.onNodeWithTag("recommendMeta:$id",useUnmergedTree=true).getUnclippedBoundsInRoot()
+                val poster=ui.onNodeWithTag("recommendPoster:$id",useUnmergedTree=true).getUnclippedBoundsInRoot()
+                assertEquals("Poster touches left edge",card.left.value,poster.left.value,1f)
+                if((card.right-card.left).value<240f) assertEquals("Poster touches right edge",card.right.value,poster.right.value,1f)
+                assertEquals("Poster touches top edge",card.top.value,poster.top.value,1f)
+                if(id in listOf("3","5")) ui.onNodeWithTag("recommendRating:$id",useUnmergedTree=true).assertDoesNotExist()
+                else ui.onNodeWithTag("recommendRating:$id",useUnmergedTree=true).assertExists()
                 if(expectedHeight==null) {
-                    expectedHeight=(card.bottom-card.top).value;expectedTitleOffset=title.top.value-card.top.value;expectedMetaOffset=meta.top.value-card.top.value
+                    expectedHeight=(card.bottom-card.top).value;expectedTitleOffset=title.top.value-card.top.value
                 } else {
                     assertEquals("Mixed title/rating card height",expectedHeight!!,(card.bottom-card.top).value,1f)
                     assertEquals("Title anchor",expectedTitleOffset!!,title.top.value-card.top.value,1f)
-                    assertEquals("Metadata anchor",expectedMetaOffset!!,meta.top.value-card.top.value,1f)
                 }
             }
             grid.performScrollToNode(hasTestTag("recommendation:2"))
