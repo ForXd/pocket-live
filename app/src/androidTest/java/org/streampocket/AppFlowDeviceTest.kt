@@ -99,7 +99,7 @@ class AppFlowDeviceTest {
                 ui.runOnIdle { model.importSubscription(original.url,original) }
                 ui.waitUntil(60000) { model.state.value.saved.subscriptions.single().updated>original.updated && model.state.value.importing.isEmpty() }
             }
-            ui.onNodeWithText("搜索",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:0").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("测试")
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(60000) { model.state.value.results.size==(if(fullFlow) 2 else 1) && !model.state.value.searching }

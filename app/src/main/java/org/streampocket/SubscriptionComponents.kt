@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
     }
 }
 
-@Composable internal fun SubscriptionSourceRow(source:Source,enabled:Boolean,onToggle:()->Unit,onRules:()->Unit) {
+@Composable internal fun SubscriptionSourceRow(source:Source,enabled:Boolean,onToggle:()->Unit,onRules:(()->Unit)?=null) {
     var menuOpen by remember(source.key) { mutableStateOf(false) }
     Surface(Modifier.fillMaxWidth().padding(start=16.dp),shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -57,7 +57,7 @@ import androidx.compose.ui.unit.dp
                 }
                 Switch(checked=enabled,onCheckedChange=null)
             }
-            if(source.kind==SourceKind.VOD) Box {
+            if(source.kind==SourceKind.VOD && onRules!=null) Box {
                 IconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"来源选项 ${source.name}") }
                 DropdownMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
                     DropdownMenuItem(text={Text("广告精确路径规则")},onClick={menuOpen=false;onRules()})

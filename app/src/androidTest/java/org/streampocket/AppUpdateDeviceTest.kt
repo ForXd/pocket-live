@@ -32,7 +32,8 @@ class AppUpdateDeviceTest {
             ui.runOnIdle { repeat(5) { model.checkUpdates() } }
             ui.waitUntil(5000) { model.state.value.appRelease!=null }
             assertEquals(1,calls.get())
-            ui.onNodeWithText("有新版").performClick()
+            ui.onNodeWithTag("nav:3").performClick()
+            ui.onNodeWithTag("settingsUpdates").performClick()
             ui.onNodeWithText("下载并安装").assertExists()
             assertEquals(1,calls.get())
             ui.onNodeWithText("重新检查").performClick()
@@ -42,6 +43,8 @@ class AppUpdateDeviceTest {
             ui.waitUntil(5000) { calls.get()==3 && !model.state.value.updateChecking }
             assertNull(model.state.value.updateError)
             ui.onNodeWithText("关闭").performClick()
+            ui.onNodeWithTag("settingsList").assertExists()
+            ui.onNodeWithTag("nav:0").performClick()
             ui.onNodeWithTag("searchInput").assertExists()
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() } }
     }

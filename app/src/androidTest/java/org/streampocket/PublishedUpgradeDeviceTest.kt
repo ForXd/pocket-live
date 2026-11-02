@@ -28,7 +28,9 @@ class PublishedUpgradeDeviceTest {
         val context=instrument.targetContext
         val launch=context.packageManager.getLaunchIntentForPackage("org.streampocket") ?: android.content.Intent().setClassName("org.streampocket","org.streampocket.MainActivity").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(launch)
-        click("更新")
+        if(nodes(instrument.uiAutomation.rootInActiveWindow).any { it.text?.toString()=="设置" }) {
+            click("设置");click("应用更新")
+        } else click("更新")
         waitText("下载并安装",30000)
         click("下载并安装")
         val deadline=android.os.SystemClock.elapsedRealtime()+200000

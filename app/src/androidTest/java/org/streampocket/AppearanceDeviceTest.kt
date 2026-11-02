@@ -23,6 +23,7 @@ class AppearanceDeviceTest {
         }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            ui.onNodeWithTag("nav:3").performClick()
             ui.onNodeWithContentDescription("外观设置").performClick()
             ui.onNodeWithText("夜间模式").performClick()
             ui.waitUntil(5000) { observedDark }
@@ -32,6 +33,7 @@ class AppearanceDeviceTest {
             assertEquals(ThemeMode.LIGHT,ThemePreference.read(ui.activity))
             captureUi(ui,"appearance-light")
             ui.onNodeWithText("完成").performClick()
+            ui.onNodeWithTag("nav:3").performClick()
             ui.onNodeWithContentDescription("外观设置").performClick()
             ui.onNodeWithText("日间模式").assertIsSelected()
             ui.onNodeWithText("跟随系统").performClick()

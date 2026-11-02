@@ -54,12 +54,16 @@ class UiLayoutDeviceTest {
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
             assertEquals("History artwork survives persistence",video.poster,model.state.value.saved.history.single().playback.video.poster)
-            if(ui.activity.resources.configuration.screenWidthDp>=600 && ui.activity.resources.configuration.screenHeightDp>=480) ui.onNodeWithTag("navigationRail").assertIsDisplayed()
-            else ui.onNodeWithTag("navigationRail").assertDoesNotExist()
+            ui.onNodeWithTag("navigationRail").assertDoesNotExist()
+            ui.onNodeWithTag("recommendationGrid").assertExists()
+            ui.onNodeWithContentDescription("外观设置").assertDoesNotExist()
+            assertTrue(ui.onNodeWithTag("nav:3").getUnclippedBoundsInRoot().left>ui.onNodeWithTag("nav:2").getUnclippedBoundsInRoot().left)
+            val searchTop=ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot().top.value
             ui.onNodeWithTag("searchInput").performTextInput("星河")
             capture("00-keyboard")
             ui.onNodeWithContentDescription("开始搜索").assertHeightIsAtLeast(48.dp).performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
+            ui.onNodeWithTag("searchResults").performScrollToNode(hasText("星河漫游"))
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             capture("01-search")
             ui.onNodeWithText("星河漫游").performClick()
@@ -72,26 +76,31 @@ class UiLayoutDeviceTest {
             ui.waitUntil(5000) { model.state.value.detail==null }
             ui.onNodeWithText("订阅",useUnmergedTree=true).performClick()
             capture("02-subscriptions")
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("播放与网络"))
+            ui.onNodeWithText("播放与网络").assertDoesNotExist()
+            ui.onNodeWithTag("nav:3").performClick()
+            ui.onNodeWithTag("settingsAppearance").assertIsDisplayed()
+            ui.onNodeWithTag("settingsUpdates").assertIsDisplayed()
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasText("播放与网络"))
             ui.onNodeWithText("播放与网络").performClick()
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("允许未加密 HTTP"))
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasText("允许未加密 HTTP"))
             ui.onNodeWithText("允许未加密 HTTP").assertIsDisplayed()
             capture("03-settings")
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("自动 HLS 广告过滤"))
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasText("自动 HLS 广告过滤"))
             ui.onNodeWithText("自动 HLS 广告过滤").performClick()
             ui.waitUntil(5000) { model.state.value.saved.adFilter }
             ui.onNodeWithText("自动 HLS 广告过滤").performClick()
             ui.waitUntil(5000) { !model.state.value.saved.adFilter }
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("存储与缓存"))
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasText("存储与缓存"))
             ui.onNodeWithText("存储与缓存").performClick()
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("清缓存（保留配置）"))
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasText("清缓存（保留配置）"))
             ui.onNodeWithText("清缓存（保留配置）").assertHeightIsAtLeast(48.dp)
             ui.onNodeWithText("历史",useUnmergedTree=true).performClick()
             ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continue:${HistoryGroups.key(video).stableKey}"))
             ui.onNodeWithTag("continue:${HistoryGroups.key(video).stableKey}").assertHeightIsAtLeast(48.dp)
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             capture("04-history")
-            ui.onNodeWithText("发现",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:0").performClick()
+            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.waitUntil(10000) { !model.state.value.recommendLoading && model.state.value.recommendations.size==5 }
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             capture("05-discovery")
@@ -117,6 +126,7 @@ class UiLayoutDeviceTest {
                 }
             }
             grid.performScrollToNode(hasTestTag("recommendation:2"))
+            assertEquals("Search stays fixed during recommendation scroll",searchTop,ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot().top.value,1f)
             capture("08-aligned-grid")
             grid.performScrollToIndex(0)
             ui.onNodeWithContentDescription("刷新推荐").assertHeightIsAtLeast(48.dp).performClick()
@@ -128,7 +138,15 @@ class UiLayoutDeviceTest {
             ui.onNodeWithText("搜索此片").performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
             ui.onNodeWithTag("searchInput").assertTextContains("星河漫游")
-            ui.onNodeWithText("发现",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:3").performClick()
+            ui.onNodeWithTag("searchInput").assertDoesNotExist()
+            ui.onNodeWithTag("nav:0").performClick()
+            ui.onNodeWithTag("searchResults").assertExists()
+            ui.runOnIdle { ui.activity.onBackPressedDispatcher.onBackPressed() }
+            ui.onNodeWithTag("recommendationGrid").assertExists()
+            assertFalse(model.state.value.searching)
+            ui.onNodeWithTag("nav:0").performClick()
+            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("continueWatching"))
             ui.onNodeWithTag("discoverContinue:${HistoryGroups.key(video).stableKey}").performClick()
             ui.waitUntil(5000) { model.state.value.playback!=null }

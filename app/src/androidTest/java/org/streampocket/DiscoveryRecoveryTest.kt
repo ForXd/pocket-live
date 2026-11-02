@@ -45,7 +45,8 @@ class DiscoveryRecoveryTest {
             ui.waitUntil(10000) { !model.state.value.loading }
             ui.runOnIdle { model.allowHttp(true) }
             ui.waitUntil(10000) { model.state.value.saved.allowHttp }
-            ui.onNodeWithText("发现",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:0").performClick()
+            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.waitUntil(10000) { server.requestCount>=2 && !model.state.value.recommendLoading }
             ui.onNodeWithContentDescription("暂无封面").assertExists()
             ui.activityRule.scenario.moveToState(Lifecycle.State.CREATED)

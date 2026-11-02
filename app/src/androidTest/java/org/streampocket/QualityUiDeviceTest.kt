@@ -53,7 +53,7 @@ class QualityUiDeviceTest {
             ui.onNodeWithText("添加订阅").performScrollTo().performClick()
             ui.waitUntil(60000) { model.state.value.saved.subscriptions.size==1 }
             capture("subscriptions")
-            ui.onNodeWithText("搜索",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:0").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("演示")
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(60000) { !model.state.value.searching && model.state.value.results.size==3 }

@@ -65,7 +65,8 @@ class DiscoveryDeviceTest {
             assertTrue(model.state.value.saved.allowHttp)
             ui.runOnIdle { model.importSubscription("$base/sub") }
             ui.waitUntil(15000) { model.state.value.saved.subscriptions.any { it.url=="$base/sub" } }
-            ui.onNodeWithText("发现",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:0").performClick()
+            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.waitUntil(15000) { model.state.value.recommendations.size==20 && !model.state.value.recommendLoading }
             ui.onNodeWithText("tv 推荐 1-1").assertExists()
             ui.waitUntil(15000) { ui.onAllNodesWithContentDescription("tv 推荐 1-1 封面").fetchSemanticsNodes().isNotEmpty() }
@@ -84,7 +85,8 @@ class DiscoveryDeviceTest {
             ui.onNodeWithText("movie 推荐 1-1").performClick()
             ui.waitUntil(15000) { !model.state.value.searching && model.state.value.results.isNotEmpty() }
             ui.onNodeWithTag("searchInput").assertTextContains("movie 推荐 1-1")
-            ui.onNodeWithText("发现",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:0").performClick()
+            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.onNodeWithText("订阅分类").performClick()
             ui.waitUntil(15000) { model.state.value.categories.isNotEmpty() }
             ui.onNodeWithText("电视剧").performClick()

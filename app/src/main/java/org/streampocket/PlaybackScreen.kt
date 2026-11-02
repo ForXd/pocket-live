@@ -154,7 +154,7 @@ import kotlinx.coroutines.delay
                     Column(Modifier.weight(1f,false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         SettingSwitch("流畅优先","多清晰度优先 720p；单清晰度可通过换源改善",state.smoothPlayback,model::smoothPlayback)
                         Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        if(state.saved.adFilter) Text(filterSummary.ifBlank { "广告过滤已启用" }+" · 可在订阅页关闭",style=MaterialTheme.typography.bodySmall)
+                        if(state.saved.adFilter) Text(filterSummary.ifBlank { "广告过滤已启用" }+" · 可在设置页关闭",style=MaterialTheme.typography.bodySmall)
                         if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
                         else if(!hasEpisodes) {
                             Text("选集暂不可用",style=MaterialTheme.typography.bodySmall)

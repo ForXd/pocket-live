@@ -23,7 +23,8 @@ class SubscriptionUiDeviceTest {
         val a=Subscription("group-a","我的影视订阅","$base/sub",System.currentTimeMillis(),sources)
         val b=Subscription("group-b","我的直播订阅","$base/live",System.currentTimeMillis(),listOf(Source("直播来源","$base/live.m3u",SourceKind.LIVE)))
         runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(a,b),allowHttp=true)) }
-        server.enqueue(MockResponse().setBody("""{"name":"我的影视订阅","sources":[{"name":"精选来源 1","url":"$base/api/1"},{"name":"新增来源","url":"$base/new"}]}"""))
+        val subscriptionResponse=MockResponse().setBody("""{"name":"我的影视订阅","sources":[{"name":"精选来源 1","url":"$base/api/1"},{"name":"新增来源","url":"$base/new"}]}""")
+        server.dispatcher=object:Dispatcher() { override fun dispatch(request:RecordedRequest)=if(request.path=="/sub") subscriptionResponse else MockResponse().setBody("{\"list\":[],\"subjects\":[]}") }
         val restoration=StateRestorationTester(ui)
         lateinit var model:AppModel
         ui.runOnUiThread {
@@ -54,11 +55,16 @@ class SubscriptionUiDeviceTest {
             ui.onNodeWithContentDescription("启用或停用 精选来源 1").performClick()
             ui.waitUntil(5000) { sources[0].key in model.state.value.saved.disabled }
             captureUi(ui,"subscriptions-expanded")
-            ui.onNodeWithContentDescription("来源选项 精选来源 1").performClick()
-            ui.onNodeWithText("广告精确路径规则").performClick()
+            ui.onNodeWithContentDescription("来源选项 精选来源 1").assertDoesNotExist()
+            ui.onNodeWithTag("nav:3").performClick()
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsSourceRules"))
+            ui.onNodeWithTag("settingsSourceRules").performClick()
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasText("配置规则 · 精选来源 1"))
+            ui.onNodeWithText("配置规则 · 精选来源 1").performClick()
             ui.onNodeWithText("当前源的广告精确路径").assertIsDisplayed()
             ui.onNodeWithText("取消").performClick()
             assertTrue(sources[0].key in model.state.value.saved.disabled)
+            ui.onNodeWithTag("nav:1").performClick()
             ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("精选来源 40"))
             ui.onNodeWithText("精选来源 40").assertIsDisplayed()
             scroll("subscription:group-a")
