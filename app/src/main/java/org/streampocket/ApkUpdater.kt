@@ -58,7 +58,14 @@ internal fun apkIdentity(context:Context,file:File?=null):ApkIdentity {
 class ApkUpdater(private val app:Application,client:OkHttpClient,private val scope:CoroutineScope) {
     private val client=client.newBuilder().callTimeout(3,TimeUnit.MINUTES).readTimeout(25,TimeUnit.SECONDS).build()
     private val directory=File(app.cacheDir,"updates")
-    private val ready=File(directory,"ready/update.apk")
+    private val readyDirectory = File(directory, "ready")
+    // FileProvider derives its URI from this path. An old grant must never serve a later APK.
+    private fun readyFile(release: AppRelease) =
+        File(readyDirectory, "pocket-live-${release.version}-${release.sha256}.apk")
+
+    private fun clearReadyFiles(keep: File? = null) {
+        readyDirectory.listFiles()?.filter { it != keep }?.forEach { it.delete() }
+    }
     private val metadata=File(directory,"release.json")
     private val mutable=MutableStateFlow(UpdateTransfer())
     val state=mutable.asStateFlow()
@@ -70,10 +77,17 @@ class ApkUpdater(private val app:Application,client:OkHttpClient,private val sco
                 if(metadata.exists()) try {
                     val release=AppUpdates.restoreDownload(metadata.readText())
                     if(!AppUpdates.newer(release.version,BuildConfig.VERSION_NAME)) throw UserError("已安装")
+                    val ready = readyFile(release)
+                    if (!ready.exists()) {
+                        val legacy = File(readyDirectory, "update.apk")
+                        verify(legacy, release)
+                        if (!legacy.renameTo(ready)) throw UserError("无法迁移已下载的安装包")
+                    }
                     verify(ready,release)
+                    clearReadyFiles(ready)
                     mutable.value=UpdateTransfer(UpdatePhase.READY,release,release.bytes)
                 } catch(e:CancellationException) { throw e }
-                catch(_:Exception) { ready.delete();metadata.delete() }
+                catch(_:Exception) { clearReadyFiles();metadata.delete() } else clearReadyFiles()
             }
         }
     }
@@ -85,7 +99,7 @@ class ApkUpdater(private val app:Application,client:OkHttpClient,private val sco
                 AppUpdates.validateDownload(release)
                 mutable.value=UpdateTransfer(UpdatePhase.DOWNLOADING,release)
                 withContext(Dispatchers.IO) {
-                    ready.delete();metadata.delete();directory.mkdirs()
+                    clearReadyFiles();metadata.delete();directory.mkdirs()
                     // Reserve the existing data/cache maxima plus 12 MB for a single installer.
                     if(release.bytes>12_000_000 || app.cacheDir.usableSpace<release.bytes+5_000_000) throw UserError("更新空间不足或安装包超过 12 MB，请清理缓存后重试")
                     val ownedBytes=(app.filesDir.walkTopDown()+app.cacheDir.walkTopDown()).filter { it.isFile }.sumOf { it.length() }
@@ -96,7 +110,8 @@ class ApkUpdater(private val app:Application,client:OkHttpClient,private val sco
                 withContext(Dispatchers.IO) {
                     verify(partial,release)
                     currentCoroutineContext().ensureActive()
-                    ready.parentFile!!.mkdirs()
+                    val ready = readyFile(release)
+                    readyDirectory.mkdirs()
                     if(!partial.renameTo(ready)) throw UserError("无法保存安装包")
                     val atomic=android.util.AtomicFile(metadata)
                     val stream=atomic.startWrite()
@@ -112,7 +127,7 @@ class ApkUpdater(private val app:Application,client:OkHttpClient,private val sco
             } finally {
                 withContext(NonCancellable+Dispatchers.IO) {
                     partial.delete()
-                    if(mutable.value.phase!=UpdatePhase.READY) { ready.delete();metadata.delete() }
+                    if(mutable.value.phase!=UpdatePhase.READY) { clearReadyFiles();metadata.delete() }
                 }
             }
         }
@@ -130,6 +145,7 @@ class ApkUpdater(private val app:Application,client:OkHttpClient,private val sco
     /** Revalidate after permission settings or process recreation, before granting a URI. */
     suspend fun installIntent():Intent = withContext(Dispatchers.IO) {
         val release=mutable.value.release ?: throw UserError("请先下载安装包")
+        val ready = readyFile(release)
         try { verify(ready,release) }
         catch(e:Exception) {
             if(e is CancellationException) throw e

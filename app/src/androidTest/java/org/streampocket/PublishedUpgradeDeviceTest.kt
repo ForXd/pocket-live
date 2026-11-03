@@ -23,27 +23,50 @@ class PublishedUpgradeDeviceTest {
         while(node!=null && !node.isClickable) node=node.parent
         assertTrue("Cannot click $text",node?.performAction(AccessibilityNodeInfo.ACTION_CLICK)==true)
     }
-    @Test fun installedReleaseDownloadsAndReachesSystemInstaller() {
-        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("publishedUpgrade")=="true")
-        val context=instrument.targetContext
-        val launch=context.packageManager.getLaunchIntentForPackage("org.streampocket") ?: android.content.Intent().setClassName("org.streampocket","org.streampocket.MainActivity").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    @Test fun installedReleaseUpdatesThroughSystemConfirmation() {
+        val args = InstrumentationRegistry.getArguments()
+        org.junit.Assume.assumeTrue(args.getString("publishedUpgrade") == "true")
+        val previous = requireNotNull(args.getString("fromVersion"))
+        val expected = requireNotNull(args.getString("toVersion"))
+        val code = requireNotNull(args.getString("toCode")).toInt()
+        val pkg = "org.streampocket"
+        val context = instrument.targetContext
+        fun identity() = context.packageManager.getPackageInfo(pkg, 0)
+        val before = identity()
+        assertEquals(previous, before.versionName)
+        assertTrue(code > before.versionCode)
+        val launch = requireNotNull(context.packageManager.getLaunchIntentForPackage(pkg))
         context.startActivity(launch)
-        if(nodes(instrument.uiAutomation.rootInActiveWindow).any { it.text?.toString()=="设置" }) {
-            click("设置");click("应用更新")
-        } else click("更新")
-        waitText("下载并安装",30000)
+        click("设置")
+        click("应用更新")
+        waitText("下载并安装", 60000)
+        assertTrue("Unexpected update: ${texts()}", texts().contains("新版 $expected ·"))
         click("下载并安装")
-        val deadline=android.os.SystemClock.elapsedRealtime()+200000
-        while(android.os.SystemClock.elapsedRealtime()<deadline) {
-            val root=instrument.uiAutomation.rootInActiveWindow
-            if(root?.packageName?.contains("packageinstaller")==true) {
-                instrument.sendStatus(0,android.os.Bundle().apply { putString("release_upgrade_ui",texts()) })
-                return
+        val deadline = android.os.SystemClock.elapsedRealtime() + 200000
+        var confirmed = false
+        while (android.os.SystemClock.elapsedRealtime() < deadline && !confirmed) {
+            val root = instrument.uiAutomation.rootInActiveWindow
+            if (root?.packageName?.contains("packageinstaller") == true) {
+                val button = nodes(root).firstOrNull { it.isClickable && it.text?.toString() in listOf("Update", "更新") }
+                confirmed = button?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
             }
-            val text=texts()
-            if(text.contains("重新下载") || text.contains("检查失败")) throw AssertionError("Release upgrade failed: $text")
-            android.os.SystemClock.sleep(250)
+            val text = texts()
+            if (text.contains("重新下载") || text.contains("检查失败")) fail("Upgrade failed: $text")
+            android.os.SystemClock.sleep(200)
         }
-        fail("Installer not reached: ${texts()}")
+        assertTrue("System update confirmation missing: ${texts()}", confirmed)
+        val installedDeadline = android.os.SystemClock.elapsedRealtime() + 30000
+        while (identity().versionCode != code && android.os.SystemClock.elapsedRealtime() < installedDeadline) {
+            android.os.SystemClock.sleep(200)
+        }
+        val after = identity()
+        assertEquals(expected, after.versionName)
+        assertEquals(code, after.versionCode)
+        assertEquals(before.firstInstallTime, after.firstInstallTime)
+        launch.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(launch)
+        click("设置")
+        click("应用更新")
+        waitText("Pocket Live · $expected")
     }
 }

@@ -94,3 +94,5 @@ Release 默认不配置签名，私钥由开发者在项目外保存，通过 `a
 ## 许可证
 
 AGPL-3.0-or-later，参见 [LICENSE](LICENSE) 和 [参考来源说明](THIRD_PARTY_NOTICES.md)。项目仅提供播放器功能，用户自行提供和管理其有权使用的来源。
+
+正式版发布、最近三个 Release 的保留规则及应用内升级验收见[发布手册](docs/releasing.md)。

@@ -1,0 +1,43 @@
+# Android 正式版发布与应用内升级验收
+
+## 发版流程
+
+1. 从当前 GitHub 最新正式版记录 tag、包名、versionName、versionCode 和签名证书 SHA-256。在专用测试设备上安装这份旧版正式 APK，保留到发布后做应用内升级。另留一台完整走过上一次系统安装流程的设备，用于连续升级。
+2. 更新 `app/build.gradle.kts`。包名为 `org.streampocket`，versionName 与计划发布的 tag 一致（tag 加 v），versionCode 严格大于上版。提交代码后用该提交构建，运行单元测试、更新器设备测试和 release lint。签名使用原 release 密钥，密码和密钥文件留在仓库之外。
+3. 对最终签名 APK 运行 `apksigner verify --verbose --print-certs` 和 `aapt dump badging`。逐项核对包名、包内版本、证书与预期值。用同一份 APK 生成 SHA256SUMS，并运行 `python3 scripts/release-manifest.py VERSION APK --notes NOTES --out update.json`。核对清单里的版本、URL、字节数和 SHA-256。
+4. 在 GitHub 为该提交建立草稿 Release，上传版本化 APK、SHA256SUMS 和 update.json 后再发布为 Latest。下载发布页的附件重新验哈希，同时检查匿名 GitHub latest API 和 `/releases/latest/download/update.json` 都指向同一个版本。需要修正已发布的 APK 时，递增版本并发新 tag。
+5. 用下一节的测试从旧版正式应用点更新。从授权、下载、安装到重新打开全程保留应用数据。首次安装来源授权再单独手动跑一次。有兼容问题的厂商机型，应在其系统安装器上重复确认。保存设备型号、系统版本、测试结果和两个 APK 的身份信息。
+6. 验收通过后按发布时间保留最近三个 Release。清理历史附件前确认当前 latest 可用、上一个正式版仍可下载。验收失败时保留出错包和日志，暂停清理，修正后重新验证。
+
+## 发布后验证命令
+
+在专用模拟器设置 ANDROID_SERIAL 为目标设备。示例测试的是已公开的 0.22.0 → 0.23.0；下次替换下列三个版本参数。目标应用须已是 fromVersion，设备可以访问 GitHub，安装器按钮使用中文或英文。下面的 install 命令仅安装测试驱动，正式目标包由旧版应用下载并交给 Android 安装。
+
+```sh
+./gradlew assembleDebug assembleDebugAndroidTest
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell appops set org.streampocket REQUEST_INSTALL_PACKAGES allow
+adb shell am instrument -w -e publishedUpgrade true \
+  -e fromVersion 0.22.0 -e toVersion 0.23.0 -e toCode 29 \
+  -e class org.streampocket.PublishedUpgradeDeviceTest \
+  org.streampocket.devtest.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+要求输出 **OK (1 test)**，再检查系统包信息。测试确认旧版页面显示目标版本、触发实际下载、在系统安装器中点击更新，并断言包管理器返回目标 versionName 和 versionCode、firstInstallTime 未变。最后重新启动正式应用，读取其更新页版本。直接用 ADB 安装新版或只看到系统确认窗口，都没有覆盖完整路径。
+
+## 0.22.0 → 0.23.0 排查记录
+
+用户反馈在系统安装窗口点更新后提示 0.22.0 已安装，而应用显示下载的是 0.23.0。没有原设备当时的安装会话、待安装文件或系统日志，无法确定该安装器当时识别了哪一份文件。
+
+- API 37 独立模拟器上，从公开 0.22.0（28）经真实 GitHub 下载、首次授权、系统确认，包管理器读到 0.23.0（29）。自动回归还验证了首次安装时间和重开后的版本。
+- 连续升级对照中，在隔离设备上为原版 0.21.0 预置真实 0.22.0 的已验证下载夹具，让系统安装 0.22.0。接着由 0.22.0 在线下载 0.23.0。系统确认窗口出现时从更新器共享目录取出实际 APK，与公开附件逐字节一致，哈希为 `c0247505dc8c448564904e598914ba4631554ac3a1268b879caf4bf701bb50e8`。第二次覆盖升级也成功。
+- 两个旧版本都把校验后的文件放在 `updates/ready/update.apk`，因此给安装器的 content URI 完全相同。已验证地址复用；厂商安装器是否因复用而展示旧信息仍待设备证据。现在用版本和完整 SHA-256 构成文件名与 URI，同时兼容旧格式的已验证下载。交付前仍校验 APK 内部版本、递增版本号、摘要与签名。
+- 另行复现了检查阶段的旧状态：同一进程自动检查后，设置入口曾沿用最长 24 小时的检查间隔。现在手动打开立即查询，自动检查仍限频。这个问题发生在下载之前，无法解释上述安装器提示。
+
+再次出现系统版本不符时，应在卸载前记录手机型号、Android/厂商系统版本、应用更新页当前/目标版本、安装器完整提示，以及重新打开后系统应用信息中的版本。能连接 ADB 时，记录操作时间和以下输出；分享日志前请移除其他应用或个人信息。保留这些信息后，可从该 Release 下载同一正式 APK 直接覆盖安装，对比系统安装器的结果。
+
+```sh
+adb shell dumpsys package org.streampocket | grep -E 'versionCode=|versionName=|firstInstallTime|lastUpdateTime'
+adb logcat -d -s PackageManager PackageInstallerSession ActivityManager | grep org.streampocket
+```

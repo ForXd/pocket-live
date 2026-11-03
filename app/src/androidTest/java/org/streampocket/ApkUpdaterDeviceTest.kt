@@ -40,6 +40,9 @@ class ApkUpdaterDeviceTest {
             ui.waitUntil(10000) { updater.state.value.phase in listOf(UpdatePhase.READY,UpdatePhase.ERROR) }
             assertEquals(updater.state.value.error,UpdatePhase.READY,updater.state.value.phase)
             assertEquals(1,server.requestCount)
+            // Simulate a verified download left by 0.22/0.23 before restoring the updater.
+            val readyDir = File(ui.activity.cacheDir, "updates/ready")
+            assertTrue(readyDir.listFiles()!!.single().renameTo(File(readyDir, "update.apk")))
             runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
             scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
             updater=ApkUpdater(ui.activity.application,client,scope)
@@ -49,6 +52,7 @@ class ApkUpdaterDeviceTest {
             assertEquals("${ui.activity.packageName}.updates",intent.data!!.authority)
             assertEquals("application/vnd.android.package-archive",intent.type)
             assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+            assertEquals("pocket-live-${release.version}-${release.sha256}.apk", intent.data!!.lastPathSegment)
             val actual=ui.activity.contentResolver.openInputStream(intent.data!!)!!.use { it.readBytes() }
             assertArrayEquals(bytes,actual)
             val launched=AtomicReference<Intent>()
@@ -86,7 +90,7 @@ class ApkUpdaterDeviceTest {
                 ui.waitForIdle()
             }
             // Tampering after permission/settings return is caught before the installer sees a URI.
-            File(ui.activity.cacheDir,"updates/ready/update.apk").appendText("tampered")
+            File(ui.activity.cacheDir, "updates/ready/${intent.data!!.lastPathSegment}").appendText("tampered")
             try { runBlocking { updater.installIntent() };fail("Modified APK accepted") } catch(_:UserError) {}
             assertEquals(UpdatePhase.ERROR,updater.state.value.phase)
         } finally {
@@ -118,7 +122,7 @@ class ApkUpdaterDeviceTest {
             updater.download(release("abc".toByteArray()).copy(sha256="0".repeat(64)))
             ui.waitUntil(5000) { updater.state.value.phase==UpdatePhase.ERROR && scope.coroutineContext[Job]!!.children.none() }
             assertTrue(updater.state.value.error!!.contains("校验失败"))
-            assertFalse(File(ui.activity.cacheDir,"updates/ready/update.apk").exists())
+            assertTrue(File(ui.activity.cacheDir, "updates/ready").listFiles().isNullOrEmpty())
             assertEquals(0,client.dispatcher.runningCallsCount())
         } finally {
             runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
