@@ -300,9 +300,21 @@ class PlaybackGestureDeviceTest {
             assertTrue(clickStates.last());capture("controls")
             stage("single-toggle-passed")
             } else {
-                instrument.runOnMainSync { playerView().controllerShowTimeoutMs=0;playerView().showController() }
-                stage("remaining-controls-scope-prior-gesture-evidence-retained")
+                instrument.runOnMainSync { playerView().controllerShowTimeoutMs=0 }
+                tap(false)
+                waitFor { playerView().isControllerFullyVisible }
+                stage("single-tap-revealed-controls")
             }
+            instrument.runOnMainSync {
+                val view = playerView()
+                for (id in listOf(androidx.media3.ui.R.id.exo_controls_background, androidx.media3.ui.R.id.exo_bottom_bar)) {
+                    val background = view.findViewById<View>(id).background as android.graphics.drawable.ColorDrawable
+                    assertEquals(android.graphics.Color.TRANSPARENT, background.color)
+                }
+            }
+            ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
+            instrument.waitForIdleSync()
+            capture("transparent-controls")
             nativeTap(androidx.media3.ui.R.id.exo_play_pause)
             stage("native-play-tapped")
             waitFor { playerView().player!!.playWhenReady }
