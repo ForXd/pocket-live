@@ -31,6 +31,8 @@ class QualityUiDeviceTest {
                 }
             }
         }
+        ui.runOnUiThread { ui.activity.viewModelStore.clear() }
+        kotlinx.coroutines.runBlocking { Storage(ui.activity.application).write(Saved()) }
         lateinit var model:AppModel
         ui.runOnUiThread {
             ui.activity.viewModelStore.clear()
@@ -44,6 +46,9 @@ class QualityUiDeviceTest {
         }
         try {
             ui.waitUntil(60000) { !model.state.value.loading }
+            ui.onNodeWithTag("searchInput").performTextReplacement("演示")
+            ui.onNodeWithContentDescription("开始搜索").performClick()
+            ui.onNodeWithText("还没有可搜索的来源").assertIsDisplayed()
             capture("search-empty")
             ui.runOnIdle { model.allowHttp(true) }
             ui.waitUntil(60000) { model.state.value.saved.allowHttp }
@@ -61,7 +66,8 @@ class QualityUiDeviceTest {
             ui.onNodeWithText("1920×1080 · 接口自报").assertIsDisplayed()
             ui.onNodeWithText("720p · 源站自报").assertIsDisplayed()
             capture("quality-results")
-            ui.onNodeWithText("清晰度未知").performScrollTo().assertIsDisplayed()
+            ui.onNodeWithTag("searchResults").performScrollToNode(hasText("清晰度未知"))
+            ui.onNodeWithText("清晰度未知").assertIsDisplayed()
             capture("quality-unknown")
             ui.onNodeWithText("历史").performClick()
             capture("history-empty")

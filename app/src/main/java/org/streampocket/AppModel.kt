@@ -33,6 +33,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     val state = _state.asStateFlow()
     private val lock = Mutex()
     val network = Network({ _state.value.saved.allowHttp }, dns=dns, cache = responseCache)
+    private val searchRepository = SearchRepository(network)
     private val updateNetwork=UpdateNetwork()
     val updater=ApkUpdater(application,updateNetwork.client,viewModelScope)
     private var updateJob:Job?=null
@@ -218,28 +219,27 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         cancelSearch()
         searchOrderPinned=false
         val q = query.trim().take(100); if(q.isEmpty()) return
-        val sources = state.value.saved.subscriptions.flatMap { it.sources }.distinctBy { it.key }.filter { it.key !in state.value.saved.disabled }
-        if(sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
-        _state.update { it.copy(results = emptyList(), searching = true, completed = 0, total = sources.size, failures = 0) }
+        val sources = state.value.saved.enabledSources()
+        _state.update { it.copy(results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
+        if (sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
         searchJob = viewModelScope.launch {
+            val merger = SearchResultMerger()
             val semaphore = Semaphore(4)
             try { withTimeout(45_000) { supervisorScope { sources.forEach { source -> launch {
                 semaphore.withPermit {
                     var failed = false
                     try {
-                        val list = withTimeout(22_000) { withContext(Dispatchers.Default) {
-                            if(source.kind == SourceKind.LIVE) CmsParser.playlist(network.text(source.url),source).filter { it.title.contains(q,true) }
-                            else CmsParser.search(network.text(network.api(source,"wd",q), cacheSearch = true),source)
-                        } }
+                        val list = withTimeout(22_000) { searchRepository.search(source, q) }
                         ensureActive()
-                        val known=state.value.saved.history.map { it.playback.video }.filter { it.quality.evidence==QualityEvidence.MEASURED }.asReversed().associateBy { it.source.key+":"+it.id }
-                        val enriched=list.map { v -> known[v.source.key+":"+v.id]?.let { v.copy(quality=it.quality) } ?: v }
-                        _state.update { it.copy(results = QualityRules.merge(it.results,enriched)) }
+                        _state.update { state ->
+                            state.copy(results = merger.append(state.results, list, state.saved.history),
+                                completed = state.completed + 1)
+                        }
                     } catch(e: TimeoutCancellationException) { failed = true }
                     catch(e: CancellationException) { throw e }
                     catch(e: Exception) { failed = true }
                     ensureActive()
-                    _state.update { it.copy(completed = it.completed + 1, failures = it.failures + if(failed) 1 else 0) }
+                    if (failed) _state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1) }
                 }
             } } } } } catch(_: TimeoutCancellationException) { message("搜索达到45秒总时限，已保留返回结果；可换源或重试") } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=if(searchOrderPinned) it.results else QualityRules.sorted(it.results)) } }
         }
@@ -341,16 +341,13 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                             } catch(e:CancellationException) { throw e } catch(_:Exception) { failures++ }
                         }
                         val slots=Semaphore(3)
-                        snapshot.saved.subscriptions.flatMap { it.sources }.distinctBy { it.key }
-                            .filter { it.kind==SourceKind.VOD && it.key !in snapshot.saved.disabled }
+                        snapshot.saved.enabledSources(SourceKind.VOD)
                             .take(PlaybackAlternatives.MAX_SOURCES).forEach { source -> launch {
                                 slots.withPermit {
                                     try {
                                         withTimeout(12_000) {
                                             val known=snapshot.results.filter { it.source.key==source.key && PlaybackAlternatives.title(it.title)==PlaybackAlternatives.title(current.video.title) }
-                                            val videos=if(known.isNotEmpty()) known else withContext(Dispatchers.Default) {
-                                                CmsParser.search(network.text(network.api(source,"wd",current.video.title),true),source)
-                                            }
+                                            val videos=if(known.isNotEmpty()) known else searchRepository.search(source, current.video.title)
                                             for(video in videos.filter { PlaybackAlternatives.title(it.title)==PlaybackAlternatives.title(current.video.title) }
                                                 .filterNot { it.source.key==current.video.source.key && it.id==current.video.id }.take(2)) {
                                                 val d=withContext(Dispatchers.Default) { CmsParser.detail(network.text(network.api(source,"ids",video.id)),video) }

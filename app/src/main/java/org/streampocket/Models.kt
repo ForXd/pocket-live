@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
-import java.security.MessageDigest
+import okio.ByteString.Companion.toByteString
 
 enum class SourceKind { VOD, LIVE }
 data class Source(val name: String, val url: String, val kind: SourceKind = SourceKind.VOD,
@@ -21,7 +21,7 @@ data class Playback(val video: Video, val episode: Episode, val position: Long =
 data class History(val playback: Playback, val updated: Long)
 data class Saved(val subscriptions: List<Subscription> = emptyList(), val disabled: Set<String> = emptySet(), val history: List<History> = emptyList(), val allowHttp: Boolean = false, val adFilter: Boolean = false, val adRules: Map<String,List<String>> = emptyMap())
 class UserError(message: String) : Exception(message)
-fun hash(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+fun hash(text: String): String = text.toByteArray(Charsets.UTF_8).toByteString().sha256().hex()
 fun safeError(e: Throwable): String = when(e) {
     is UserError -> e.message ?: "数据无效"
     is java.net.SocketTimeoutException, is kotlinx.coroutines.TimeoutCancellationException -> "请求超时，可重试或换源"

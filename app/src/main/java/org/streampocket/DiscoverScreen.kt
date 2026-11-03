@@ -28,8 +28,9 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit) {
-    val sources=s.saved.subscriptions.flatMap { it.sources }.distinctBy { it.key }
-        .filter { it.kind==SourceKind.VOD && it.key !in s.saved.disabled }
+    val sources = remember(s.saved.subscriptions, s.saved.disabled) {
+        s.saved.enabledSources(SourceKind.VOD)
+    }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     val catalogVideos=remember(s.catalogVideos,catalogSort) { catalogSort.apply(s.catalogVideos) }

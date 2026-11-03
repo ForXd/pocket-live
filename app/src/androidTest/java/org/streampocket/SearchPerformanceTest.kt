@@ -25,9 +25,11 @@ class SearchPerformanceTest {
         ui.waitUntil(120_000) {
             val text=ui.onAllNodes(hasText("已完成",substring=true)).fetchSemanticsNodes().firstOrNull()
                 ?.config?.getOrNull(SemanticsProperties.Text)?.joinToString { it.text }.orEmpty()
-            val numbers=Regex("已完成 (\\d+)/(\\d+) 个源.*?· (\\d+) 条结果").find(text)
+            val numbers=Regex("已完成 (\\d+)/(\\d+) 个源").find(text)
             if(numbers!=null) {
-                val count=numbers.groupValues[3].toInt()
+                val count = ui.onAllNodes(hasText("条结果", substring = true)).fetchSemanticsNodes()
+                    .firstNotNullOfOrNull { node -> node.config.getOrNull(SemanticsProperties.Text)
+                        ?.firstNotNullOfOrNull { Regex("(\\d+) 条结果").find(it.text)?.groupValues?.get(1)?.toIntOrNull() } } ?: 0
                 if(count>0 && first<0) first=android.os.SystemClock.elapsedRealtime()-start
                 allCompleted=numbers.groupValues[1]==numbers.groupValues[2] && numbers.groupValues[2]!="0"
                 val stopped=ui.onAllNodesWithText("取消搜索").fetchSemanticsNodes().isEmpty()

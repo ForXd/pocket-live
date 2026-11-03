@@ -16,6 +16,7 @@ data class VideoQuality(val width: Int = 0, val height: Int = 0,
     }
 }
 object QualityRules {
+    const val RESULT_LIMIT = 1000
     private val dimensions=Regex("(?i)(?<![0-9])([0-9]{2,5})\\s*[x×]\\s*([0-9]{2,5})(?![0-9])")
     private val progressive=Regex("(?i)(?<![a-z0-9])(2160|1440|1080|720|576|480|360|240)p(?![a-z0-9])")
     fun measured(width:Int,height:Int):VideoQuality =
@@ -50,7 +51,7 @@ object QualityRules {
         return VideoQuality(w,h,e,q.scalar("label").take(12))
     }
     fun merge(current:List<Video>,incoming:List<Video>):List<Video> =
-        (current+sorted(incoming)).distinctBy { it.source.key+":"+it.id }.take(1000)
+        (current+sorted(incoming)).distinctBy { it.source.key+":"+it.id }.take(RESULT_LIMIT)
     fun sorted(videos:List<Video>):List<Video> = videos.sortedWith(
         compareByDescending<Video> { it.quality.pixels }.thenByDescending { it.quality.evidence.ordinal })
 }

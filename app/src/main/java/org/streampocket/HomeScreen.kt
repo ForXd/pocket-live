@@ -63,14 +63,20 @@ import androidx.compose.ui.unit.dp
                     LinearProgressIndicator(progress={progress},modifier=Modifier.fillMaxWidth())
                     TextButton(onClick=model::cancelSearch) { Text("取消搜索") }
                 }
-                if(s.total>0) Text("已完成 ${s.completed}/${s.total} 个源 · ${s.failures} 个失败 · 最多 1000 条",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                if(s.results.isNotEmpty()) TextButton(onClick=model::sortByQuality) { Text("高清优先 ↓") }
+                if (s.total > 0) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    val failureHint = if (s.failures > 0) " · ${s.failures} 个失败" else ""
+                    Text("已完成 ${s.completed}/${s.total} 个源$failureHint", Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (s.results.isNotEmpty()) TextButton(onClick = model::sortByQuality) { Text("高清优先 ↓") }
+                }
+                if (s.results.size == QualityRules.RESULT_LIMIT) Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)
             }
         }
         if(s.results.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
             Column {
-                if(!compact) EmptyPanel(if(s.searching) "正在寻找内容" else "暂未找到结果",
-                    if(s.searching) "结果会陆续显示，你可以随时取消。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
+                if(!compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total == 0) "还没有可搜索的来源" else "暂未找到结果",
+                    if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.total == 0) "添加订阅或启用来源后，再搜索这部影片。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
+                if (compact && !s.searching) Text(if (s.total == 0) "请先添加或启用订阅来源" else "暂无结果，试试其他关键词")
                 if(!s.searching) OutlinedButton(onClick=subscriptions) { Text("管理订阅") }
             }
         }
