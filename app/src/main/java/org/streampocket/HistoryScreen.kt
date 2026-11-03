@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
                 Text("继续观看",Modifier.weight(1f),style=MaterialTheme.typography.headlineSmall)
                 if(groups.isNotEmpty()) TextButton(onClick={clearing=true},modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("清空历史") }
             }
-            Text("按剧集与分集整理 · 各来源独立保存进度",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if(groups.isEmpty()) item { EmptyPanel("继续上次的精彩","每部剧独立保存断点，展开可查看各集记录。",R.drawable.ic_history) }
         groups.forEach { group ->

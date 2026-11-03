@@ -101,6 +101,5 @@ import androidx.compose.ui.unit.dp
                 }
             }
         } }
-        item(span={GridItemSpan(maxLineSpan)}) { Text("网页解析、脚本源和 DRM 解锁不受支持。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(vertical=12.dp)) }
     }
 }
