@@ -2,6 +2,7 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -83,7 +84,7 @@ import androidx.compose.ui.text.style.TextOverflow
             } }
             if(!s.catalogLoading && s.catalogVideos.isEmpty() && s.catalogError==null) item { Text("该来源未返回内容或不支持此分类接口。仍可使用全源搜索。") }
             items(catalogVideos,key={it.source.key+":"+it.id}) { video ->
-                DiscoveryCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth().testTag("catalogVideo:${video.id}")) {
+                DiscoveryCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth().animateItem().testTag("catalogVideo:${video.id}")) {
                     Row(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
                         Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=DiscoverySurface)
                         Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -172,7 +173,7 @@ import androidx.compose.ui.text.style.TextOverflow
             }
         }
         items(videos.drop(1),key={it.id},contentType={"recommendation"}) { video ->
-            DiscoveryCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}")) {
+            DiscoveryCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().animateItem().testTag("recommendation:${video.id}")) {
                 BoxWithConstraints {
                     val artwork:@Composable (Modifier)->Unit = { size ->
                         Box {
@@ -209,7 +210,8 @@ private val DiscoveryAccent=Color(0xff78d8c6)
 
 /** Artwork meets the outer clip; no inset surface or independently rounded poster. */
 @Composable private fun DiscoveryCard(modifier:Modifier=Modifier,onClick:()->Unit,content:@Composable ColumnScope.()->Unit) {
-    Card(onClick=onClick,modifier=modifier,shape=RoundedCornerShape(12.dp),
+    val interactions=remember { MutableInteractionSource() }
+    Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=RoundedCornerShape(12.dp),
         border=BorderStroke(1.dp,Color(0xff26364a)),
         colors=CardDefaults.cardColors(containerColor=DiscoverySurface,contentColor=DiscoveryText),content=content)
 }

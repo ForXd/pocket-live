@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,7 +36,9 @@ import androidx.compose.ui.unit.dp
                     focusedIndicatorColor=Color.Transparent,unfocusedIndicatorColor=Color.Transparent),
                 leadingIcon={Icon(Icons.Default.Search,null)},trailingIcon={
                     Row(verticalAlignment=Alignment.CenterVertically) {
-                        if(query.isNotEmpty() || searchMode) IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空并返回推荐") }
+                        AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
+                            IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空并返回推荐") }
+                        }
                         FilledIconButton(onClick=submit,enabled=query.isNotBlank(),modifier=Modifier.padding(end=4.dp).size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                     }
                 })
@@ -43,6 +47,7 @@ import androidx.compose.ui.unit.dp
 }
 
 @Composable fun SearchResultsScreen(s:UiState,model:AppModel,query:String,compact:Boolean,back:()->Unit,subscriptions:()->Unit) {
+    val progress by animateFloatAsState(if(s.total==0) 0f else s.completed.toFloat()/s.total,tween(180),label="searchProgress")
     LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),contentPadding=PaddingValues(20.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
             awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
@@ -55,7 +60,7 @@ import androidx.compose.ui.unit.dp
                 }
                 Text("“$query” · ${s.results.size} 条结果",style=MaterialTheme.typography.bodyMedium)
                 if(s.searching) {
-                    LinearProgressIndicator(progress={if(s.total==0) 0f else s.completed.toFloat()/s.total},modifier=Modifier.fillMaxWidth())
+                    LinearProgressIndicator(progress={progress},modifier=Modifier.fillMaxWidth())
                     TextButton(onClick=model::cancelSearch) { Text("取消搜索") }
                 }
                 if(s.total>0) Text("已完成 ${s.completed}/${s.total} 个源 · ${s.failures} 个失败 · 最多 1000 条",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)

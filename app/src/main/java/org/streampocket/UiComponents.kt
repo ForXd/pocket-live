@@ -2,6 +2,10 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,15 +42,18 @@ import androidx.compose.ui.unit.sp
 
 @Composable fun SettingsGroup(title:String,summary:String,content:@Composable ColumnScope.()->Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
+    val rotation by animateFloatAsState(if(expanded) 180f else 0f,tween(220),label="settingsChevron")
     Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
         TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth().heightIn(min=64.dp),shape=MaterialTheme.shapes.large,contentPadding=PaddingValues(16.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(title,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)
                 Text(summary,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,if(expanded) "收起$title" else "展开$title")
+            Icon(Icons.Default.KeyboardArrowDown,if(expanded) "收起$title" else "展开$title",Modifier.graphicsLayer { rotationZ=rotation })
         }
-        if(expanded) Column(Modifier.padding(start=16.dp,end=16.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp),content=content)
+        AnimatedVisibility(expanded,enter=expandVertically(tween(220))+fadeIn(tween(150)),exit=shrinkVertically(tween(180))+fadeOut(tween(100))) {
+            Column(Modifier.padding(start=16.dp,end=16.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp),content=content)
+        }
     }
 }
 
@@ -65,7 +72,10 @@ import androidx.compose.ui.unit.sp
 @Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,content:@Composable ColumnScope.()->Unit) {
     val colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)
     if(onClick==null) Card(modifier=modifier,shape=RoundedCornerShape(28.dp),colors=colors,content=content)
-    else Card(onClick=onClick,modifier=modifier,shape=RoundedCornerShape(28.dp),colors=colors,content=content)
+    else {
+        val interactions=remember { MutableInteractionSource() }
+        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=RoundedCornerShape(28.dp),colors=colors,content=content)
+    }
 }
 @Composable fun ContentDivider(modifier:Modifier=Modifier) {
     HorizontalDivider(modifier,color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.35f))

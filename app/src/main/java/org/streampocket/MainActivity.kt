@@ -156,7 +156,13 @@ class MainActivity : ComponentActivity() {
         } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize().imePadding(),contentAlignment=Alignment.TopCenter) {
-        Box(Modifier.widthIn(max=1100.dp).fillMaxSize()) {
+        val destination=when {
+            s.detailLoading -> "detailLoading"
+            s.detail!=null -> "detail"
+            tab==0 && searchMode -> "search"
+            else -> "tab:$tab"
+        }
+        Box(Modifier.widthIn(max=1100.dp).fillMaxSize().destinationArrival(destination)) {
             if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
             if(s.loading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); Text("正在读取本地数据…") }; return@Box }
             if(s.detailLoading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); TextButton(onClick=model::closeDetail) { Text("取消详情请求") } }; return@Box }
