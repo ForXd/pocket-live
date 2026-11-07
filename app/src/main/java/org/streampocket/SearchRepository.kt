@@ -16,7 +16,7 @@ internal class SearchRepository(private val network: Network) {
     suspend fun search(source: Source, query: String): List<Video> = withContext(Dispatchers.Default) {
         when (source.kind) {
             SourceKind.LIVE -> CmsParser.playlist(network.text(source.url), source)
-                .filter { it.title.contains(query, ignoreCase = true) }
+                .filter { SearchRules.relevance(it, query) > 0 }
             SourceKind.VOD -> CmsParser.search(
                 network.text(network.api(source, "wd", query), cacheSearch = true), source
             )
@@ -29,8 +29,9 @@ internal class SearchResultMerger {
     private var indexedHistory: List<History>? = null
     private var measured = emptyMap<String, VideoQuality>()
 
-    fun append(current: List<Video>, incoming: List<Video>, history: List<History>): List<Video> {
-        if (current.size >= QualityRules.RESULT_LIMIT || incoming.isEmpty()) return current
+    fun append(current: List<Video>, incoming: List<Video>, history: List<History>,
+        rank: ((List<Video>) -> List<Video>)? = null): List<Video> {
+        if ((rank == null && current.size >= QualityRules.RESULT_LIMIT) || incoming.isEmpty()) return current
         if (history !== indexedHistory) {
             measured = history.asReversed().asSequence().map { it.playback.video }
                 .filter { it.quality.evidence == QualityEvidence.MEASURED }
@@ -40,6 +41,7 @@ internal class SearchResultMerger {
         val enriched = if (measured.isEmpty()) incoming else incoming.map { video ->
             measured[video.source.key + ":" + video.id]?.let { video.copy(quality = it) } ?: video
         }
-        return QualityRules.merge(current, enriched)
+        return if (rank == null) QualityRules.merge(current, enriched)
+        else rank((current + enriched).distinctBy { it.source.key + ":" + it.id }).take(QualityRules.RESULT_LIMIT)
     }
 }

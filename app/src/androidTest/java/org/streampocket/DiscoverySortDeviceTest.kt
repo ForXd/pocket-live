@@ -45,14 +45,14 @@ class DiscoverySortDeviceTest {
             ui.onNodeWithText("默认顺序").performClick()
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("featured:a"))
             choose("评分最高",true)
-            ui.onNodeWithText("订阅分类").performClick()
+            ui.onNodeWithText("分类搜索").performClick()
             choose("最近更新",false)
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:b"))
             val b=ui.onNodeWithTag("catalogVideo:b").getUnclippedBoundsInRoot().top
             val a=ui.onNodeWithTag("catalogVideo:a").getUnclippedBoundsInRoot().top
             assertTrue(b<a)
             captureUi(ui,"discovery-sort-updated")
-            ui.onNodeWithText("剧集推荐").performClick()
+            ui.onNodeWithText("推荐").performClick()
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("discoverySort"))
             ui.onNodeWithTag("discoverySort").assertTextContains("评分最高",substring=true)
             captureUi(ui,"discovery-sort-rating")

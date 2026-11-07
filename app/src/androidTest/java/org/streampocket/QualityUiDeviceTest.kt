@@ -63,6 +63,7 @@ class QualityUiDeviceTest {
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(60000) { !model.state.value.searching && model.state.value.results.size==3 }
             assertEquals(listOf("1080","720","unknown"),model.state.value.results.map { it.id })
+            ui.onNodeWithTag("showOtherResults").performClick()
             ui.onNodeWithText("1920×1080 · 接口自报").assertIsDisplayed()
             ui.onNodeWithText("720p · 源站自报").assertIsDisplayed()
             capture("quality-results")

@@ -2,6 +2,10 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.ui.platform.testTag
@@ -11,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,15 +47,16 @@ import androidx.compose.ui.text.style.TextOverflow
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
+    val keyboard = LocalSoftwareKeyboardController.current
     var query by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(sources.map { it.key }) { if(sources.isNotEmpty() && s.catalogSource==null) model.browse(sources.first()) }
     Column(Modifier.fillMaxSize()) {
         PrimaryTabRow(selectedTabIndex=if(recommendations) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
-            Tab(selected=recommendations,onClick={recommendations=true},text={Text("剧集推荐")})
-            Tab(selected=!recommendations,onClick={recommendations=false},text={Text("订阅分类")})
+            Tab(selected=recommendations,onClick={recommendations=true},text={Text("推荐")})
+            Tab(selected=!recommendations,onClick={recommendations=false},text={Text("分类搜索")})
         }
         if(recommendations) { RecommendationList(s,model,searchTitle,recommendationSort) { recommendationSort=it }; return@Column }
-    LazyColumn(Modifier.fillMaxSize().testTag("catalogList"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("catalogList"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         if(sources.isEmpty()) item {
             EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
             Button(onClick=addSource) { Text("添加订阅") }
@@ -66,11 +72,13 @@ import androidx.compose.ui.text.style.TextOverflow
                     onClick={model.browse(source,category.id,query)},label={Text(category.name)}) }
             } }
             item {
-                OutlinedTextField(query,{query=it.take(100)},label={Text("在当前来源和分类中搜索")},singleLine=true,modifier=Modifier.fillMaxWidth())
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Button(onClick={model.browse(source,s.catalogCategory,query)}) { Text("分类搜索") }
-                    if(s.catalogLoading) TextButton(onClick=model::cancelCatalog) { Text("取消") }
-                }
+                OutlinedTextField(query,{query=it.take(100)},label={Text("分类内搜索")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("catalogSearchInput"),
+                    trailingIcon={IconButton(onClick={keyboard?.hide();model.browse(source,s.catalogCategory,query.trim())},modifier=Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Search,"搜索当前分类",tint=MaterialTheme.colorScheme.primary)
+                    }},
+                    keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),
+                    keyboardActions=KeyboardActions(onSearch={keyboard?.hide();model.browse(source,s.catalogCategory,query.trim())}))
+                if(s.catalogLoading) TextButton(onClick=model::cancelCatalog) { Text("取消") }
             }
             item { DiscoverySortControl(catalogSort,{catalogSort=it},s.catalogVideos,false) }
             if(s.catalogLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
@@ -85,7 +93,7 @@ import androidx.compose.ui.text.style.TextOverflow
                         Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
                         Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             CardTextSlot(video.title,style=MaterialTheme.typography.titleMedium)
-                            CardTextSlot(video.subtitle.ifBlank { "暂无剧集说明" },style=MaterialTheme.typography.bodySmall)
+                            if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                             if(video.rating!=null) Text("来源评分 ${video.rating}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             video.updatedAt?.let { Text("更新 ${updatedDate(it)}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                         }

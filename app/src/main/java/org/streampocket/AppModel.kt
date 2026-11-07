@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.withPermit
 import java.util.UUID
 
 data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false, val saved: Saved = Saved(), val results: List<Video> = emptyList(),
+    val searchQuery: String = "", val searchOrder: SearchOrder = SearchOrder.RELEVANCE,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
     val detail: Detail? = null, val detailLoading: Boolean = false, val detailError:String? = null, val playback: Playback? = null,
     val catalogSource: Source? = null, val categories: List<Category> = emptyList(), val catalogVideos: List<Video> = emptyList(),
@@ -79,7 +80,11 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private var searchJob: Job? = null
     private var searchOrderPinned=false
     fun pinSearchOrder() { searchOrderPinned=true }
-    fun sortByQuality() { searchOrderPinned=false;_state.update { it.copy(results=QualityRules.sorted(it.results)) } }
+    fun sortByQuality() = sortSearch(SearchOrder.QUALITY)
+    fun sortSearch(order: SearchOrder) {
+        searchOrderPinned = false
+        _state.update { it.copy(searchOrder = order, results = SearchRules.sorted(it.results, it.searchQuery, order)) }
+    }
     private var detailJob: Job? = null
     private var detailOwner:String?=null
     private var detailSession:String?=null
@@ -220,7 +225,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         searchOrderPinned=false
         val q = query.trim().take(100); if(q.isEmpty()) return
         val sources = state.value.saved.enabledSources()
-        _state.update { it.copy(results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
+        _state.update { it.copy(searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
         if (sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
         searchJob = viewModelScope.launch {
             val merger = SearchResultMerger()
@@ -232,7 +237,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                         val list = withTimeout(22_000) { searchRepository.search(source, q) }
                         ensureActive()
                         _state.update { state ->
-                            state.copy(results = merger.append(state.results, list, state.saved.history),
+                            state.copy(results = merger.append(state.results, list, state.saved.history,
+                                if (searchOrderPinned) null else { rows -> SearchRules.sorted(rows, q, state.searchOrder) }),
                                 completed = state.completed + 1)
                         }
                     } catch(e: TimeoutCancellationException) { failed = true }
@@ -241,7 +247,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                     ensureActive()
                     if (failed) _state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1) }
                 }
-            } } } } } catch(_: TimeoutCancellationException) { message("搜索达到45秒总时限，已保留返回结果；可换源或重试") } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=if(searchOrderPinned) it.results else QualityRules.sorted(it.results)) } }
+            } } } } } catch(_: TimeoutCancellationException) { message("搜索达到45秒总时限，已保留返回结果；可换源或重试") } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=if(searchOrderPinned) it.results else SearchRules.sorted(it.results, q, it.searchOrder)) } }
         }
     }
     fun filterAds(enabled: Boolean) = change { it.copy(adFilter=enabled) }

@@ -23,6 +23,8 @@ object Catalog {
                 if(id.isBlank() || name.isBlank()) null else Category(id,name) }
         }.distinctBy { it.id }
         val pages=root.scalar("pagecount").toIntOrNull() ?: page
-        return CatalogPage(videos,categories,page < minOf(pages,MAX_PAGES) && videos.isNotEmpty())
+        val names = categories.associate { it.id to it.name }
+        val enriched = videos.map { if(it.typeName.isBlank()) it.copy(typeName = names[it.typeId].orEmpty()) else it }
+        return CatalogPage(enriched,categories,page < minOf(pages,MAX_PAGES) && videos.isNotEmpty())
     }
 }

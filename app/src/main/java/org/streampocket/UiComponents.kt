@@ -81,8 +81,8 @@ import androidx.compose.ui.unit.sp
     HorizontalDivider(modifier,color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.35f))
 }
 
-@Composable fun ContentFilterChip(selected:Boolean,onClick:()->Unit,label:@Composable ()->Unit) {
-    FilterChip(selected=selected,onClick=onClick,label=label,shape=RoundedCornerShape(28.dp),border=null,
+@Composable fun ContentFilterChip(selected:Boolean,onClick:()->Unit,modifier:Modifier=Modifier,label:@Composable ()->Unit) {
+    FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.heightIn(min=48.dp),shape=RoundedCornerShape(28.dp),border=null,
         colors=FilterChipDefaults.filterChipColors(containerColor=MaterialTheme.colorScheme.surfaceContainer,
             selectedContainerColor=MaterialTheme.colorScheme.primaryContainer))
 }

@@ -65,7 +65,7 @@ private val DayColors=lightColorScheme(
 @Composable fun PocketTheme(mode:ThemeMode?=null,content:@Composable ()->Unit) {
     val stored=rememberThemeMode()
     val dark=when(mode ?: stored) { ThemeMode.SYSTEM->isSystemInDarkTheme();ThemeMode.LIGHT->false;ThemeMode.DARK->true }
-    val activity=LocalContext.current as? androidx.activity.ComponentActivity
+    val activity=androidx.activity.compose.LocalActivity.current as? androidx.activity.ComponentActivity
     SideEffect { activity?.let {
         WindowCompat.getInsetsController(it.window,it.window.decorView).apply { isAppearanceLightStatusBars=!dark;isAppearanceLightNavigationBars=!dark }
     } }

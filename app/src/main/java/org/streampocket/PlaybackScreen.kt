@@ -231,7 +231,7 @@ import kotlinx.coroutines.delay
                 Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            Text("正在播放",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+                            Text("当前剧集",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
                             Text(playback.episode.name,style=MaterialTheme.typography.headlineSmall)
                             Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -377,7 +377,7 @@ import kotlinx.coroutines.delay
                 modifier=Modifier.fillMaxWidth().heightIn(min=64.dp).semantics { this.selected=playing }) {
                 Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text(episode.name,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    if(playing) Text("正在播放",style=MaterialTheme.typography.labelSmall)
+                    if(playing) Text("当前集",style=MaterialTheme.typography.labelSmall)
                 }
             }
         }

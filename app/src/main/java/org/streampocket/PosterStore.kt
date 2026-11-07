@@ -116,7 +116,7 @@ class PosterStore(private val directory: File) {
 }
 @Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp),shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest) {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=model.state.value.posterRefresh)
+    val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=remember(model) { model.state.value.posterRefresh })
     val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle) {
         value=null // A changed URL must never reuse the previous poster bitmap.
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
