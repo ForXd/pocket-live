@@ -76,8 +76,10 @@ class DiscoveryDeviceTest {
             ui.onNodeWithText("电影",useUnmergedTree=true).performClick()
             ui.waitUntil(15000) { model.state.value.recommendations.firstOrNull()?.title=="movie 推荐 1-1" }
             fail.set(true)
-            ui.onNodeWithTag("recommendFilters").performScrollToNode(hasText("最新"))
-            ui.onNodeWithText("最新").performClick()
+            ui.onNodeWithTag("recommendControls").performScrollToNode(hasTestTag("recommendCategoryPicker"))
+            ui.onNodeWithTag("recommendCategoryPicker").performClick()
+            ui.onNodeWithTag("recommendCategory:最新").performClick()
+            ui.onNodeWithTag("applyRecommendCategory").performClick()
             ui.waitUntil(15000) { model.state.value.recommendError!=null }
             ui.onNodeWithText("重试推荐").assertExists()
             fail.set(false);ui.onNodeWithText("重试推荐").performClick()

@@ -67,7 +67,7 @@ class UiLayoutDeviceTest {
             capture("01-search")
             ui.onNodeWithText("星河漫游").performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
-            ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("detailPlay"))
+            ui.onNodeWithTag("detailPlay").assertIsDisplayed()
             ui.onNodeWithTag("detailPlay").assertTextContains("继续观看",substring=true)
             ui.onNodeWithTag("detailGrid").performScrollToIndex(0)
             capture("06-detail")

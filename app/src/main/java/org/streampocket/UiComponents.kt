@@ -90,9 +90,9 @@ import androidx.compose.ui.unit.sp
 }
 
 /** Reserve geometry independently of fallback-font metrics and whether the text wraps. */
-@Composable fun CardTextSlot(text:String,style:androidx.compose.ui.text.TextStyle,modifier:Modifier=Modifier,color:androidx.compose.ui.graphics.Color=LocalContentColor.current) {
-    val height=with(androidx.compose.ui.platform.LocalDensity.current) { style.lineHeight.toDp()*2+8.sp.toDp() }
+@Composable fun CardTextSlot(text:String,style:androidx.compose.ui.text.TextStyle,modifier:Modifier=Modifier,color:androidx.compose.ui.graphics.Color=LocalContentColor.current,lines:Int=2) {
+    val height=with(androidx.compose.ui.platform.LocalDensity.current) { style.lineHeight.toDp()*lines+8.sp.toDp() }
     Box(modifier.fillMaxWidth().height(height)) {
-        Text(text,style=style,color=color,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(text,style=style,color=color,maxLines=lines,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }

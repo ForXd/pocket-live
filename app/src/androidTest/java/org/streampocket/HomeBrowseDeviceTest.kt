@@ -145,4 +145,30 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("searchInput").assertIsDisplayed()
     }
 
+    @Test fun recommendationCategoryUsesDraftSheetAndResetsForType() {
+        val controls=ui.onNodeWithTag("recommendControls")
+        controls.performScrollToNode(hasTestTag("recommendType:movie"))
+        ui.onNodeWithTag("recommendType:movie").performClick()
+        ui.waitUntil(10000) { model.state.value.recommendType=="movie" && !model.state.value.recommendLoading }
+        controls.performScrollToNode(hasTestTag("recommendCategoryPicker"))
+        ui.onNodeWithTag("recommendCategoryPicker").performClick()
+        ui.onNodeWithTag("recommendCategory:经典").performClick()
+        assertEquals("热门",model.state.value.recommendTag)
+        captureUi(ui,"recommend-category-sheet")
+        ui.onNodeWithText("取消").performClick()
+        assertEquals("热门",model.state.value.recommendTag)
+        ui.onNodeWithTag("recommendCategoryPicker").performClick()
+        ui.onNodeWithTag("recommendCategory:经典").performClick()
+        ui.onNodeWithTag("applyRecommendCategory").performClick()
+        ui.waitUntil(10000) { model.state.value.recommendTag=="经典" && !model.state.value.recommendLoading }
+        ui.onNodeWithTag("recommendCategoryPicker").assertContentDescriptionContains("推荐分类：经典")
+        controls.performScrollToNode(hasTestTag("recommendType:tv"))
+        ui.onNodeWithTag("recommendType:tv").performClick()
+        ui.waitUntil(10000) { model.state.value.recommendType=="tv" && model.state.value.recommendTag=="热门" && !model.state.value.recommendLoading }
+        val tv=ui.onNodeWithTag("recommendType:tv").getUnclippedBoundsInRoot()
+        val movie=ui.onNodeWithTag("recommendType:movie").getUnclippedBoundsInRoot()
+        assertEquals(tv.top.value,movie.top.value,1f)
+        captureUi(ui,"recommend-one-row")
+    }
+
 }

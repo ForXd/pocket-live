@@ -245,28 +245,48 @@ import androidx.compose.ui.text.style.TextOverflow
         }
     }
     fun refresh() { if(!s.recommendLoading) { refreshing=true;recommendationDemand=-1;model.recommend() } }
-    Column(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("recommendToolbar")) {
-        Column {
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                Row(Modifier.weight(1f),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                    SingleChoiceSegmentedButtonRow(Modifier.weight(1f).padding(end=12.dp)) {
-                        listOf("tv" to "剧集","movie" to "电影").forEachIndexed { index,(type,label) ->
-                            SegmentedButton(selected=s.recommendType==type,onClick={model.recommend(type)},shape=SegmentedButtonDefaults.itemShape(index,2)) { Text(label) }
-                        }
+    var categoryPicker by rememberSaveable { mutableStateOf(false) }
+    var draftTag by rememberSaveable { mutableStateOf(s.recommendTag) }
+    val focus=androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
+    if(categoryPicker) ModalBottomSheet(onDismissRequest={categoryPicker=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
+        SheetSystemBars()
+        Column(Modifier.fillMaxWidth()) {
+            LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("recommendCategorySheet"),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp)) {
+                item { Row(verticalAlignment=Alignment.CenterVertically) {
+                    Text("推荐分类",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                    TextButton(onClick={categoryPicker=false}) { Text("取消") }
+                } }
+                item { FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Recommendations.tags(s.recommendType).forEach { tag ->
+                        ContentFilterChip(selected=draftTag==tag,onClick={draftTag=tag},reserveSelectionSpace=true,
+                            modifier=Modifier.testTag("recommendCategory:$tag"),label={Text(tag)})
                     }
-                    IconButton(onClick={refresh()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
+                } }
+            }
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                TextButton(onClick={draftTag="热门"}) { Text("重置") }
+                Button(onClick={categoryPicker=false;model.recommend(tag=draftTag)},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("applyRecommendCategory")) { Text("应用") }
+            }
+        }
+    }
+    Column(Modifier.fillMaxSize()) {
+    Row(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("recommendToolbar"),verticalAlignment=Alignment.CenterVertically) {
+        LazyRow(Modifier.weight(1f).testTag("recommendControls"),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+            items(listOf("tv" to "剧集","movie" to "电影")) { (type,label) ->
+                ContentFilterChip(selected=s.recommendType==type,onClick={if(s.recommendType!=type) model.recommend(type)},reserveSelectionSpace=true,
+                    modifier=Modifier.testTag("recommendType:$type"),label={Text(label,maxLines=1)})
+            }
+            item {
+                FilledTonalButton(onClick={focus.clearFocus();keyboard?.hide();draftTag=s.recommendTag;categoryPicker=true},
+                    modifier=Modifier.testTag("recommendCategoryPicker").semantics { contentDescription="推荐分类：${s.recommendTag}" }) {
+                    Text(s.recommendTag,maxLines=1);Icon(Icons.Default.ArrowDropDown,null)
                 }
             }
         }
-        Column {
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                LazyRow(modifier=Modifier.weight(1f).testTag("recommendFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    items(Recommendations.tags(s.recommendType)) { tag -> ContentFilterChip(selected=s.recommendTag==tag,onClick={model.recommend(tag=tag)},label={Text(tag)}) }
-                }
-                DiscoverySortControl(sort,onSort,s.recommendations,true,compact=true)
-            }
-        }
+        DiscoverySortControl(sort,onSort,s.recommendations,true,compact=true)
+        IconButton(onClick={refresh()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
     }
     PullToRefreshBox(isRefreshing=refreshing,onRefresh={refresh()},modifier=Modifier.weight(1f).testTag("recommendRefresh")) {
     LazyVerticalGrid(columns=GridCells.Fixed(2),state=grid,
@@ -308,7 +328,7 @@ import androidx.compose.ui.text.style.TextOverflow
                         }
                     }
                     val title:@Composable ()->Unit = {
-                        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=10.dp,vertical=4.dp).testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=13.sp,lineHeight=17.sp),color=MaterialTheme.colorScheme.onSurface)
+                        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=10.dp,vertical=4.dp).testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=13.sp,lineHeight=17.sp),color=MaterialTheme.colorScheme.onSurface,lines=1)
                     }
                     if(maxWidth>=240.dp) {
                         Row(verticalAlignment=Alignment.CenterVertically) {
@@ -394,7 +414,7 @@ import androidx.compose.ui.text.style.TextOverflow
 }
 
 /** Material 3 1.3 dialogs do not inherit the activity's explicit day/night system-bar appearance. */
-@Composable private fun SheetSystemBars() {
+@Composable internal fun SheetSystemBars() {
     val view=androidx.compose.ui.platform.LocalView.current
     val dark=LocalPocketDark.current
     DisposableEffect(view,dark) {
