@@ -11,3 +11,12 @@
 API 37 模拟器，1080×2400、density 420。正常字号详情与页面操作 2 项、夜间详情 1 项、两倍字号详情 1 项通过；首页浏览、分类搜索、排序与更新器共 13 项设备回归通过。覆盖续播原集数、线路切换、500 集定位、倒序、同名换源、筛选、分页、回顶、键盘贴合与更新文件校验。
 
 目标版本 0.31.0 / versionCode 38。签名及发布后真实应用内升级记录在发布验证后补充。
+
+## 正式发布验证（2026-11-07）
+
+- 源码提交 `c282f292ff2529a4c7bfab9633af4c036975b3e1`，从该提交构建。121 项单元测试通过；release lint 0 错误、46 项警告。最终版本再跑详情、空线路、页面操作和更新器，5 项通过。
+- Oil UI 独立静态视觉评审通过：正常、夜间、两倍字号详情与推荐/分类工具栏无必须修复的层级、遮挡或文字重叠问题；操作结果由设备回归验证。
+- 包名 `org.streampocket`，versionName `0.31.0`，versionCode `38`。签名证书 SHA-256 `7dd2deb1eb4668ae56f830f09ba9c0a5a322763392d8846074c1da2daef02b7f`，与旧版一致。
+- APK SHA-256 `051c236a8dc4ffc618b0d1aa06f6075be5387d51107a5f52d287a97ceb61f8f4`。公开 Release 下载文件与签名构建逐字节一致；公开 latest/update.json 与认证 GitHub latest API 均为 v0.31.0。匿名 API 返回 403，未将其记为验证成功。
+- `PublishedUpgradeDeviceTest` 从正式 0.30.0 经应用内下载、系统更新到 0.31.0（38）：`OK (1 test)`。安装前后 firstInstallTime 均为 `2026-10-28 22:23:52`，未卸载应用；lastUpdateTime 为 `2026-11-07 19:40:25`。已重新打开并核对目标版本。此记录为 API 37 模拟器验证，不代替所有厂商安装器兼容性验证。
+- 发布页 https://github.com/ForXd/pocket-live/releases/tag/v0.31.0 。验收后保留 v0.31.0、v0.30.0、v0.29.0 三个 Release，仅删除 v0.28.0 Release，保留 Git tag。
