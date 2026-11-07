@@ -15,3 +15,13 @@
 - 111 项单元测试通过，Release lint 0 错误。
 - 6 项设备回归通过，覆盖题材搜索、原始分类与关键词请求、无关键词题材浏览、首页/详情布局、推荐分类、排序及更新器校验。
 - 题材流程在日间、夜间及两倍字体下通过；检查实际截图，修正大字体下结果数与排序按钮的宽度分配。
+
+## 升级验收发现的问题与 0.26.1 修正
+
+0.26.0 的题材功能与独立设备上的 0.25.0 → 0.26.0 升级通过，但另一台连续升级设备在重开时退出。检查 crash 日志和 R8 映射后确认：`AppModel.onCleared → UpdateNetwork.close → connectionPool.evictAll → TLS socket.close` 在主线程执行，TLS close_notify 导致 `NetworkOnMainThreadException`。这是既有清理逻辑的问题，不能仅归因于测试时序。
+
+新增 `NetworkShutdownDeviceTest`：通过真实模型连接池持有空闲连接，在主线程清除 ViewModelStore，记录实际 socket.close 所在线程。修复前 0.108 秒内稳定失败，断言为 `Activity destruction must not close sockets on the main thread`。修正将两个网络客户端的清理移到独立 IO 协程，避免使用此时已取消的 ViewModel scope，并用 finally 确保第二个客户端也会清理。
+
+最终发布版本调整为 0.26.1 / 33。更新验收驱动另外清除旧 Activity task（不清应用数据），并在系统安装完成后的页面启动被打断时限次重开，仍检查包版本、首次安装时间及重开后的更新页。
+
+0.26.1 修复后，清理线程回归、题材搜索、页面布局和更新器合计 5 项设备测试通过；111 项单元测试通过，release lint 无错误。升级测试增加重开后的崩溃日志断言，不以启动重试代替无崩溃验收。

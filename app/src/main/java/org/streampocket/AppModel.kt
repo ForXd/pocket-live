@@ -480,5 +480,11 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         }
     }
     fun trimMemory() { if(memoryTrimJob?.isActive != true) memoryTrimJob=viewModelScope.launch(Dispatchers.IO) { responseCache.trimMemory();posters.trimMemory() } }
-    override fun onCleared() { updateNetwork.close();network.close(); super.onCleared() }
+    override fun onCleared() {
+        // TLS close_notify may write to the network. The ViewModel scope is already cancelled here.
+        CoroutineScope(Dispatchers.IO).launch {
+            try { updateNetwork.close() } finally { network.close() }
+        }
+        super.onCleared()
+    }
 }

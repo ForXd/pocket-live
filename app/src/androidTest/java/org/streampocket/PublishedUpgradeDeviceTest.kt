@@ -35,9 +35,24 @@ class PublishedUpgradeDeviceTest {
         val before = identity()
         assertEquals(previous, before.versionName)
         assertTrue(code > before.versionCode)
-        val launch = requireNotNull(context.packageManager.getLaunchIntentForPackage(pkg))
-        context.startActivity(launch)
-        click("设置")
+        val launch = requireNotNull(context.packageManager.getLaunchIntentForPackage(pkg)).apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        fun openSettings() {
+            // Package replacement may finish by closing the first activity launched after install.
+            repeat(3) {
+                context.startActivity(launch)
+                val deadline = android.os.SystemClock.elapsedRealtime() + 5000
+                while(android.os.SystemClock.elapsedRealtime() < deadline) {
+                    if(nodes(instrument.uiAutomation.rootInActiveWindow).any { it.text?.toString()=="设置" }) {
+                        click("设置");return
+                    }
+                    android.os.SystemClock.sleep(200)
+                }
+            }
+            fail("Cannot reopen application: ${texts()}")
+        }
+        openSettings()
         click("应用更新")
         waitText("下载并安装", 60000)
         assertTrue("Unexpected update: ${texts()}", texts().contains("新版 $expected ·"))
@@ -63,10 +78,14 @@ class PublishedUpgradeDeviceTest {
         assertEquals(expected, after.versionName)
         assertEquals(code, after.versionCode)
         assertEquals(before.firstInstallTime, after.firstInstallTime)
+        fun shell(command:String):String = instrument.uiAutomation.executeShellCommand(command).use {
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(it).bufferedReader().readText()
+        }
+        shell("logcat -b crash -c")
         launch.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(launch)
-        click("设置")
+        openSettings()
         click("应用更新")
         waitText("Pocket Live · $expected")
+        assertFalse("Reopening the updated app crashed",shell("logcat -b crash -d").contains("Process: $pkg,"))
     }
 }
