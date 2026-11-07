@@ -17,3 +17,12 @@
 另覆盖分类列表播放返回的位置与请求数、推荐切换页面返回的位置，以及主动改变排序后仍回到顶部。
 
 发布目标 0.32.0 / versionCode 39。构建和正式升级结果在验收后补充。
+
+## 正式发布验证（2026-11-07）
+
+- 源码提交 `8f54f4463040c9e79aa082f792a58c818d32ad71`，从该提交构建；121 项单元测试通过，release lint 0 错误、46 项警告。
+- 最终设备回归 `OK (16 tests)`：HomeBrowse 7、CatalogRegression 5、DiscoverySort 1、UiLayout 1、ApkUpdater 2。新增往返测试验证三次播放后的准确位置、筛选、排序、请求数和播放器/采样器/媒体请求释放；排序变更仍正常回顶。原始失败已被相同路径的新断言覆盖。
+- 正式 APK 包名 `org.streampocket`，版本 0.32.0（39），证书 SHA-256 `7dd2deb1eb4668ae56f830f09ba9c0a5a322763392d8846074c1da2daef02b7f`，沿用原证书。
+- APK SHA-256 `ad0d13623d2ef2a0f6e7497cc794c71dd7b315d2abecb0a1c4fa20d919d2e80e`；公开下载 APK 与本地签名构建逐字节一致。匿名/认证 GitHub latest API 与公开 latest/update.json 均为 v0.32.0。
+- API 37 模拟器从正式 0.31.0 应用内下载并通过系统安装器更新到 0.32.0（39），`PublishedUpgradeDeviceTest: OK (1 test)`。重开版本正确，firstInstallTime 保持 `2026-10-28 22:23:52`，lastUpdateTime 为 `2026-11-07 20:08:09`；未卸载或用 ADB 替代正式升级流程。
+- 公开发布页 https://github.com/ForXd/pocket-live/releases/tag/v0.32.0 。验证上一版附件仍可下载后，只保留 v0.32.0、v0.31.0、v0.30.0 三个 Release；旧 Git tag 保留。
