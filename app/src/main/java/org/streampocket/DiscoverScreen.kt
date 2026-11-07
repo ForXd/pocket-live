@@ -14,6 +14,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -37,7 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit,
-    recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery) {
+    recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery,onTop:()->Unit={}) {
     val sources = remember(s.saved.subscriptions, s.saved.disabled) { s.saved.enabledSources(SourceKind.VOD) }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
@@ -114,19 +121,31 @@ import androidx.compose.ui.text.style.TextOverflow
         }
         }
     }
+    val catalogState=rememberLazyListState()
+    val scope=rememberCoroutineScope()
+    val latest by rememberUpdatedState(s)
+    LaunchedEffect(s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery,catalogSort) { catalogState.scrollToItem(0) }
+    var catalogDemand by remember(s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery) { mutableIntStateOf(-1) }
+    // Request each result boundary once; sparse pages remain manually resumable.
+    LaunchedEffect(recommendations.value,s.catalogVideos.size,s.catalogLoading,s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery) {
+        if(!recommendations.value && s.catalogVideos.isNotEmpty()) snapshotFlow {
+            catalogState.firstVisibleItemIndex>0 && (catalogState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)>=catalogState.layoutInfo.totalItemsCount-3
+        }.distinctUntilChanged().collect { nearEnd ->
+            val current=latest
+            if(nearEnd && current.catalogMore && !current.catalogLoading && current.catalogError==null && catalogDemand!=current.catalogVideos.size) {
+                catalogDemand=current.catalogVideos.size
+                model.browseSources(current.catalogSourceKeys,current.catalogCategory,current.catalogQuery,true,current.catalogGenres)
+            }
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         PrimaryTabRow(selectedTabIndex=if(recommendations.value) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
             Tab(selected=recommendations.value,onClick={recommendations.value=true},text={Text("推荐")})
             Tab(selected=!recommendations.value,onClick={recommendations.value=false},text={Text("分类搜索")})
         }
-        if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort) { recommendationSort=it }; return@Column }
-        LazyColumn(Modifier.fillMaxSize().testTag("catalogList"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(sources.isEmpty()) item {
-                EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
-                Button(onClick=addSource) { Text("添加订阅") }
-            }
-            s.catalogSource?.let { source ->
-                item {
+        if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort,{ recommendationSort=it },onTop); return@Column }
+        if(s.catalogSource!=null) {
+            Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("catalogToolbar")) {
                     FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
                             Text(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
@@ -136,32 +155,33 @@ import androidx.compose.ui.text.style.TextOverflow
                         }
                     }
                     if(s.catalogSourceKeys.isNotEmpty() || s.catalogGenres.isNotEmpty() || s.catalogCategory!=null) {
-                        FlowRow(Modifier.fillMaxWidth().testTag("activeCatalogFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                            sources.filter { it.key in s.catalogSourceKeys }.forEach { selected ->
+                        LazyRow(Modifier.fillMaxWidth().testTag("activeCatalogFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            items(sources.filter { it.key in s.catalogSourceKeys },key={it.key}) { selected ->
                                 InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys-selected.key,query=catalogQuery.trim(),genres=s.catalogGenres)},
                                     label={Text(selected.name,maxLines=1,overflow=TextOverflow.Ellipsis)},trailingIcon={Icon(Icons.Default.Close,"取消${selected.name}",Modifier.size(16.dp))},
                                     modifier=Modifier.widthIn(max=200.dp).testTag("activeSource:${selected.key}"))
                             }
-                            s.catalogGenres.sortedBy { it.ordinal }.forEach { genre ->
+                            items(s.catalogGenres.sortedBy { it.ordinal },key={it.name}) { genre ->
                                 InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim(),genres=s.catalogGenres-genre)},
                                     label={Text(genre.label)},trailingIcon={Icon(Icons.Default.Close,"取消${genre.label}",Modifier.size(16.dp))},
                                     modifier=Modifier.testTag("activeGenre:${genre.name}"))
                             }
-                            s.categories.find { it.id==s.catalogCategory }?.let { category ->
+                            s.categories.find { it.id==s.catalogCategory }?.let { category -> item {
                                 InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim())},label={Text(category.name)},
                                     trailingIcon={Icon(Icons.Default.Close,"取消${category.name}",Modifier.size(16.dp))})
-                            }
+                            } }
                         }
                     }
                     DiscoverySortControl(catalogSort,{catalogSort=it},catalogVideos,false)
                 }
-                if(s.catalogLoading) item { Row(verticalAlignment=Alignment.CenterVertically) {
-                    LinearProgressIndicator(progress={ if(s.catalogTotal==0) 0f else s.catalogCompleted.toFloat()/s.catalogTotal },modifier=Modifier.weight(1f));TextButton(onClick=model::cancelCatalog) { Text("取消") }
-                } }
-                s.catalogError?.let { message -> item {
-                    Text(message)
-                    TextButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,more=s.catalogMore,genres=s.catalogGenres)}) { Text("重新加载") }
-                } }
+        }
+        Box(Modifier.weight(1f)) {
+        LazyColumn(Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            if(sources.isEmpty()) item {
+                EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
+                Button(onClick=addSource) { Text("添加订阅") }
+            }
+            s.catalogSource?.let { source ->
                 if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item {
                     Column(Modifier.padding(vertical=16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text(if(s.catalogMore) "还没有找到匹配影片" else "当前片库未找到匹配影片",style=MaterialTheme.typography.titleMedium)
@@ -183,6 +203,13 @@ import androidx.compose.ui.text.style.TextOverflow
                         }
                     }
                 }
+                if(s.catalogLoading) item { Row(verticalAlignment=Alignment.CenterVertically) {
+                    LinearProgressIndicator(progress={ if(s.catalogTotal==0) 0f else s.catalogCompleted.toFloat()/s.catalogTotal },modifier=Modifier.weight(1f));TextButton(onClick=model::cancelCatalog) { Text("取消") }
+                } }
+                s.catalogError?.let { message -> item {
+                    Text(message)
+                    TextButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,more=s.catalogMore,genres=s.catalogGenres)}) { Text("重新加载") }
+                } }
                 if(s.catalogMore && !s.catalogLoading) item {
                     OutlinedButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,true,s.catalogGenres)},modifier=Modifier.fillMaxWidth().testTag("catalogMore")) {
                         Text(if(s.catalogGenres.isEmpty()) "加载更多" else "继续查找")
@@ -190,14 +217,59 @@ import androidx.compose.ui.text.style.TextOverflow
                 }
             }
         }
+        val showTop by remember { derivedStateOf { catalogState.firstVisibleItemIndex>2 } }
+        BackToTop(showTop,Modifier.align(Alignment.BottomEnd)) { scope.launch { catalogState.animateScrollToItem(0);onTop() } }
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
-@Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit,sort:DiscoverySort,onSort:(DiscoverySort)->Unit) {
+@Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit,sort:DiscoverySort,onSort:(DiscoverySort)->Unit,onTop:()->Unit) {
     val videos=remember(s.recommendations,sort) { sort.apply(s.recommendations) }
     val recent=remember(s.saved.history) { HistoryGroups.group(s.saved.history).take(5) }
-    LazyVerticalGrid(columns=GridCells.Fixed(2),
+    val grid=rememberLazyGridState()
+    val scope=rememberCoroutineScope()
+    val latest by rememberUpdatedState(s)
+    var refreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(s.recommendLoading) { if(!s.recommendLoading) refreshing=false }
+    LaunchedEffect(s.recommendType,s.recommendTag,sort) { grid.scrollToItem(0) }
+    var recommendationDemand by remember(s.recommendType,s.recommendTag) { mutableIntStateOf(-1) }
+    LaunchedEffect(s.recommendations.size,s.recommendLoading,s.recommendType,s.recommendTag) {
+        if(s.recommendations.isNotEmpty()) snapshotFlow {
+            grid.firstVisibleItemIndex>0 && (grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)>=grid.layoutInfo.totalItemsCount-5
+        }.distinctUntilChanged().collect { nearEnd ->
+            val current=latest
+            if(nearEnd && current.recommendMore && !current.recommendLoading && current.recommendError==null && recommendationDemand!=current.recommendations.size) {
+                recommendationDemand=current.recommendations.size;model.recommend(more=true)
+            }
+        }
+    }
+    fun refresh() { if(!s.recommendLoading) { refreshing=true;recommendationDemand=-1;model.recommend() } }
+    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("recommendToolbar")) {
+        Column {
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                Row(Modifier.weight(1f),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                    SingleChoiceSegmentedButtonRow(Modifier.weight(1f).padding(end=12.dp)) {
+                        listOf("tv" to "剧集","movie" to "电影").forEachIndexed { index,(type,label) ->
+                            SegmentedButton(selected=s.recommendType==type,onClick={model.recommend(type)},shape=SegmentedButtonDefaults.itemShape(index,2)) { Text(label) }
+                        }
+                    }
+                    IconButton(onClick={refresh()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
+                }
+            }
+        }
+        Column {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                LazyRow(modifier=Modifier.weight(1f).testTag("recommendFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    items(Recommendations.tags(s.recommendType)) { tag -> ContentFilterChip(selected=s.recommendTag==tag,onClick={model.recommend(tag=tag)},label={Text(tag)}) }
+                }
+                DiscoverySortControl(sort,onSort,s.recommendations,true,compact=true)
+            }
+        }
+    }
+    PullToRefreshBox(isRefreshing=refreshing,onRefresh={refresh()},modifier=Modifier.weight(1f).testTag("recommendRefresh")) {
+    LazyVerticalGrid(columns=GridCells.Fixed(2),state=grid,
         modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=12.dp,bottom=16.dp),
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(recent.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)},key="continue-watching") {
@@ -225,44 +297,18 @@ import androidx.compose.ui.text.style.TextOverflow
                 }
             }
         }
-        item(span={GridItemSpan(maxLineSpan)}) {
-            FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalArrangement=Arrangement.Center) {
-                Text("豆瓣推荐",Modifier.align(Alignment.CenterVertically),style=MaterialTheme.typography.titleLarge)
-                Row(verticalAlignment=Alignment.CenterVertically) {
-                    SingleChoiceSegmentedButtonRow {
-                        listOf("tv" to "剧集","movie" to "电影").forEachIndexed { index,(type,label) ->
-                            SegmentedButton(selected=s.recommendType==type,onClick={model.recommend(type)},shape=SegmentedButtonDefaults.itemShape(index,2)) { Text(label) }
-                        }
-                    }
-                    IconButton(onClick={model.recommend()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
-                }
-            }
-        }
-        item(span={GridItemSpan(maxLineSpan)}) {
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                LazyRow(modifier=Modifier.weight(1f).testTag("recommendFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    items(Recommendations.tags(s.recommendType)) { tag -> ContentFilterChip(selected=s.recommendTag==tag,onClick={model.recommend(tag=tag)},label={Text(tag)}) }
-                }
-                DiscoverySortControl(sort,onSort,s.recommendations,true,compact=true)
-            }
-        }
-        if(s.recommendLoading) item(span={GridItemSpan(maxLineSpan)}) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        s.recommendError?.let { error -> item(span={GridItemSpan(maxLineSpan)}) {
-            Column { Text("推荐加载失败：$error")
-                TextButton(onClick={model.recommend()}) { Text("重试推荐") } }
-        } }
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
         items(videos,key={it.id},contentType={"recommendation"}) { video ->
             DiscoveryCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().animateItem().testTag("recommendation:${video.id}")) {
                 BoxWithConstraints {
                     val artwork:@Composable (Modifier)->Unit = { size ->
                         Box {
-                            Poster(video,model,size.testTag("recommendPoster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
+                            Poster(video,model,size.testTag("recommendPoster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
                             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp))
                         }
                     }
                     val title:@Composable ()->Unit = {
-                        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=10.dp,vertical=4.dp).testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface)
+                        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=10.dp,vertical=4.dp).testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=13.sp,lineHeight=17.sp),color=MaterialTheme.colorScheme.onSurface)
                     }
                     if(maxWidth>=240.dp) {
                         Row(verticalAlignment=Alignment.CenterVertically) {
@@ -271,7 +317,7 @@ import androidx.compose.ui.text.style.TextOverflow
                         }
                     } else {
                         Column {
-                            artwork(Modifier.fillMaxWidth().aspectRatio(2f))
+                            artwork(Modifier.fillMaxWidth().aspectRatio(0.75f))
                             title()
                         }
                     }
@@ -279,10 +325,27 @@ import androidx.compose.ui.text.style.TextOverflow
             }
         }
 
-        if(s.recommendMore && !s.recommendLoading) item(span={GridItemSpan(maxLineSpan)}) { OutlinedButton(onClick={model.recommend(more=true)}) { Text("更多推荐") } }
+        if(s.recommendLoading && !refreshing) item(span={GridItemSpan(maxLineSpan)}) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        s.recommendError?.let { error -> item(span={GridItemSpan(maxLineSpan)}) {
+            Column { Text("推荐加载失败：$error")
+                TextButton(onClick={model.recommend(more=s.recommendAppending)}) { Text("重试推荐") } }
+        } }
+        if(!s.recommendMore && !s.recommendLoading && videos.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("已显示本次推荐",Modifier.fillMaxWidth().padding(12.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        if(s.recommendMore && !s.recommendLoading && s.recommendError==null) item(span={GridItemSpan(maxLineSpan)}) { OutlinedButton(onClick={model.recommend(more=true)}) { Text("更多推荐") } }
+    }
+    val showTop by remember { derivedStateOf { grid.firstVisibleItemIndex>3 } }
+    BackToTop(showTop,Modifier.align(Alignment.BottomEnd)) { scope.launch { grid.animateScrollToItem(0);onTop() } }
+    }
     }
 }
 
+@Composable internal fun BackToTop(visible:Boolean,modifier:Modifier=Modifier,onClick:()->Unit) {
+    androidx.compose.animation.AnimatedVisibility(visible,modifier.padding(16.dp)) {
+        SmallFloatingActionButton(onClick=onClick,modifier=Modifier.testTag("backToTop"),containerColor=MaterialTheme.colorScheme.secondaryContainer) {
+            Icon(Icons.Default.KeyboardArrowUp,"回到顶部")
+        }
+    }
+}
 
 /** Artwork meets the outer clip; no inset surface or independently rounded poster. */
 @Composable private fun DiscoveryCard(modifier:Modifier=Modifier,onClick:()->Unit,content:@Composable ColumnScope.()->Unit) {

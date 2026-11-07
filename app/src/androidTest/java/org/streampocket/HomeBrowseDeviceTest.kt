@@ -12,57 +12,137 @@ import okhttp3.mockwebserver.*
 import org.junit.*
 import org.junit.Assert.*
 import java.net.InetAddress
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 
 class HomeBrowseDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
-    @Test fun twoColumnsFitSixCardsAndSearchFollowsScrollWhileImeKeepsItVisible() {
-        val server=MockWebServer().apply { start() }
+    private lateinit var server:MockWebServer
+    private lateinit var model:AppModel
+    private val requests=CopyOnWriteArrayList<String>()
+    private val failMore=AtomicBoolean(false)
+    @Before fun setup() {
+        server=MockWebServer().apply { start() }
         val base="http://home.test:${server.port}"
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
-                if(request.requestUrl!!.encodedPath=="/poster") return MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(
+                val url=request.requestUrl!!
+                if(url.encodedPath=="/poster") return MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(
                     InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
-                return MockResponse().setBody("""{"subjects":[${(1..16).joinToString(",") { """{"id":"$it","title":"星河故事 $it","rate":"8.5","cover":"$base/poster"}""" }}]}""")
+                requests+=request.path!!
+                if(url.encodedPath=="/catalog") {
+                    if(url.queryParameter("ac")=="list") return MockResponse().setBody("""{"class":[{"type_id":1,"type_name":"电影"}],"list":[]}""")
+                    val page=url.queryParameter("pg")?.toIntOrNull() ?: 1
+                    return MockResponse().setBody("""{"pagecount":2,"list":[${(1..20).joinToString(",") { val id=(page-1)*20+it;"""{"vod_id":"$id","vod_name":"片库影片 $id","vod_pic":"$base/poster"}""" }}]}""")
+                }
+                val page=url.queryParameter("page")?.toIntOrNull() ?: 1
+                if(page>1 && failMore.get()) return MockResponse().setResponseCode(503)
+                // Third page deliberately repeats the second: must stop without an endless request loop.
+                val offset=if(page==1) 0 else 20
+                return MockResponse().setBody("""{"subjects":[${(1..20).joinToString(",") { val id=offset+it;"""{"id":"$id","title":"${if(id%2==0) "星河深处漫长旅途的故事" else "星河"} $id","rate":"8.5","cover":"$base/poster"}""" }}]}""")
             }
         }
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
-        runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true)) }
-        lateinit var model:AppModel
+        val source=Source("片库","$base/catalog")
+        runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true,subscriptions=listOf(Subscription("home","片库","$base/sub",1,listOf(source))))) }
         ui.runOnUiThread {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
                 override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
-                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
+                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,page->"$base/recommend?page=$page"}) as T
                 }
             })[AppModel::class.java]
-            ThemePreference.write(ui.activity,ThemeMode.LIGHT)
+            ThemePreference.write(ui.activity,if(InstrumentationRegistry.getArguments().getString("appearance")=="dark") ThemeMode.DARK else ThemeMode.LIGHT)
             ui.activity.setContent { PocketTheme { Pocket(model) } }
         }
-        try {
-            ui.waitUntil(10000) { model.state.value.recommendations.size==16 && !model.state.value.recommendLoading }
-            val grid=ui.onNodeWithTag("recommendationGrid")
-            ui.onNodeWithTag("searchInput").assertIsDisplayed()
-            val before=grid.getUnclippedBoundsInRoot().let { (it.bottom-it.top).value }
-            captureUi(ui,"home-expanded")
-            grid.performTouchInput { swipeUp(durationMillis=600) }
-            ui.waitForIdle()
-            ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
-            val viewport=grid.getUnclippedBoundsInRoot()
-            assertTrue("Collapsed search must return its space to content",(viewport.bottom-viewport.top).value>before+40)
-            val visible=(1..16).mapNotNull { id ->
-                if(ui.onAllNodesWithTag("recommendation:$id").fetchSemanticsNodes().isEmpty()) null else ui.onNodeWithTag("recommendation:$id").getUnclippedBoundsInRoot()
-            }.filter { it.top>=viewport.top && it.bottom<=viewport.bottom && (it.bottom-it.top).value>0 }
-            assertTrue("Expected six fully visible cards, got ${visible.size}",visible.size>=6)
-            assertEquals("Portrait layout must remain two columns",2,visible.map { it.left.value.toInt() }.distinct().size)
-            captureUi(ui,"home-six-cards")
-            grid.performTouchInput { swipeDown(durationMillis=600) }
-            ui.waitForIdle();ui.onNodeWithTag("searchInput").assertIsDisplayed()
-            captureUi(ui,"home-search-returned")
-            ui.onNodeWithTag("searchInput").performClick().performTextInput("星河")
-            ui.waitUntil(5000) { androidx.core.view.ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())==true }
-            grid.performTouchInput { swipeUp(durationMillis=600) }
-            ui.onNodeWithTag("searchInput").assertIsDisplayed().assertTextContains("星河")
-            captureUi(ui,"home-keyboard-pinned")
-        } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
+        ui.waitUntil(10000) { model.state.value.recommendations.size==20 && !model.state.value.recommendLoading }
     }
+    @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
+
+    @Test fun stickyControlsAlignedPostersPaginationRefreshAndReturnToTop() {
+        val grid=ui.onNodeWithTag("recommendationGrid")
+        val poster=ui.onNodeWithTag("recommendPoster:1",useUnmergedTree=true).getUnclippedBoundsInRoot()
+        assertEquals((poster.right-poster.left).value/0.75f,(poster.bottom-poster.top).value,1f)
+        val first=ui.onNodeWithTag("recommendation:1").getUnclippedBoundsInRoot()
+        val second=ui.onNodeWithTag("recommendation:2").getUnclippedBoundsInRoot()
+        assertEquals(first.top.value,second.top.value,1f);assertEquals(first.bottom.value,second.bottom.value,1f)
+        captureUi(ui,"home-expanded")
+        grid.performTouchInput { swipeUp(durationMillis=600) }
+        ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
+        ui.onNodeWithTag("recommendToolbar").assertIsDisplayed()
+        ui.onNodeWithTag("discoverySort").assertIsDisplayed()
+        val fixedTop=ui.onNodeWithTag("recommendToolbar").getUnclippedBoundsInRoot().top
+        grid.performScrollToIndex(17)
+        ui.waitUntil(10000) { model.state.value.recommendations.size==40 && !model.state.value.recommendLoading }
+        assertEquals(fixedTop.value,ui.onNodeWithTag("recommendToolbar").getUnclippedBoundsInRoot().top.value,1f)
+        assertEquals(1,requests.count { it=="/recommend?page=2" })
+        captureUi(ui,"home-sticky-paged")
+        grid.performScrollToIndex(37)
+        ui.waitUntil(10000) { !model.state.value.recommendMore && !model.state.value.recommendLoading }
+        assertEquals(40,model.state.value.recommendations.size)
+        assertEquals(1,requests.count { it=="/recommend?page=3" })
+        ui.onNodeWithTag("backToTop").performClick()
+        ui.onNodeWithTag("searchInput").assertIsDisplayed()
+        ui.onNodeWithTag("recommendation:1").assertIsDisplayed()
+        val refreshes=requests.count { it=="/recommend?page=1" }
+        grid.performTouchInput { swipeDown(durationMillis=700) }
+        ui.waitUntil(10000) { requests.count { it=="/recommend?page=1" }>refreshes && !model.state.value.recommendLoading }
+        assertEquals(20,model.state.value.recommendations.size)
+        captureUi(ui,"home-refreshed")
+        ui.onNodeWithTag("searchInput").performClick().performTextInput("星河")
+        ui.waitUntil(5000) { androidx.core.view.ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())==true }
+        grid.performTouchInput { swipeUp(durationMillis=600) }
+        ui.onNodeWithTag("searchInput").assertIsDisplayed().assertTextContains("星河")
+        captureUi(ui,"home-keyboard-pinned")
+    }
+    @Test fun failedAppendRetainsResultsAndRetriesOnlyOnDemand() {
+        failMore.set(true)
+        val grid=ui.onNodeWithTag("recommendationGrid")
+        grid.performScrollToIndex(17)
+        ui.waitUntil(10000) { model.state.value.recommendError!=null }
+        assertEquals(20,model.state.value.recommendations.size)
+        val failures=requests.count { it=="/recommend?page=2" }
+        android.os.SystemClock.sleep(800)
+        assertEquals(failures,requests.count { it=="/recommend?page=2" })
+        failMore.set(false)
+        grid.performScrollToNode(hasText("重试推荐"))
+        ui.onNodeWithText("重试推荐").performClick()
+        ui.waitUntil(10000) { model.state.value.recommendations.size==40 && !model.state.value.recommendLoading }
+        assertNull(model.state.value.recommendError)
+    }
+    @Test fun catalogFiltersStayPinnedWhileNextPageLoadsAndTopReturns() {
+        ui.onNodeWithText("分类搜索").performClick()
+        ui.waitUntil(10000) { model.state.value.catalogVideos.size==20 && !model.state.value.catalogLoading }
+        val list=ui.onNodeWithTag("catalogList")
+        list.performTouchInput { swipeUp(durationMillis=600) }
+        ui.onNodeWithTag("catalogSourcePicker").assertIsDisplayed()
+        ui.onNodeWithTag("catalogGenrePicker").assertIsDisplayed()
+        ui.onNodeWithTag("discoverySort").assertIsDisplayed()
+        val top=ui.onNodeWithTag("catalogToolbar").getUnclippedBoundsInRoot().top
+        list.performScrollToIndex(18)
+        ui.waitUntil(10000) { model.state.value.catalogVideos.size==40 && !model.state.value.catalogLoading }
+        assertFalse(model.state.value.catalogMore)
+        assertEquals(top.value,ui.onNodeWithTag("catalogToolbar").getUnclippedBoundsInRoot().top.value,1f)
+        captureUi(ui,"catalog-sticky-paged")
+        ui.onNodeWithTag("backToTop").performClick()
+        ui.onNodeWithTag("catalogVideo:1").assertIsDisplayed()
+        ui.onNodeWithTag("searchInput").assertIsDisplayed()
+    }
+    @Test fun searchResultSortAndGenresAlsoRemainPinned() {
+        ui.onNodeWithTag("searchInput").performTextInput("片库")
+        ui.onNodeWithTag("searchInput").performImeAction()
+        ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==20 }
+        val results=ui.onNodeWithTag("searchResults")
+        results.performTouchInput { swipeUp(durationMillis=600) }
+        ui.onNodeWithTag("searchSort").assertIsDisplayed()
+        ui.onNodeWithTag("searchCategories").assertIsDisplayed()
+        val top=ui.onNodeWithTag("searchToolbar").getUnclippedBoundsInRoot().top
+        results.performScrollToIndex(15)
+        assertEquals(top.value,ui.onNodeWithTag("searchToolbar").getUnclippedBoundsInRoot().top.value,1f)
+        captureUi(ui,"search-sticky")
+        ui.onNodeWithTag("backToTop").performClick()
+        ui.onNodeWithTag("searchVideo:1").assertIsDisplayed()
+        ui.onNodeWithTag("searchInput").assertIsDisplayed()
+    }
+
 }

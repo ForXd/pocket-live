@@ -193,8 +193,8 @@ class MainActivity : ComponentActivity() {
                 DetailScreen(detail,model) { model.closeDetail();search(detail.video.title) }
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
-                    if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1}) }
-                    else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery)
+                    if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1},onTop={searchScroll.reveal()}) }
+                    else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,onTop={searchScroll.reveal()})
                 }
                 3 -> SettingsScreen(s,model,{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })

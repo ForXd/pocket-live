@@ -114,7 +114,7 @@ class PosterStore(private val directory: File) {
         })
     }
 }
-@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp),shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest) {
+@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp),shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop) {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=remember(model) { model.state.value.posterRefresh })
     val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle) {
@@ -125,7 +125,7 @@ class PosterStore(private val directory: File) {
         }
     }
     Surface(modifier,shape=shape,color=containerColor) {
-        bitmap?.let { Image(it.asImageBitmap(),"${video.title} 封面",contentScale=ContentScale.Crop) }
+        bitmap?.let { Image(it.asImageBitmap(),"${video.title} 封面",contentScale=contentScale) }
             ?: Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) { Icon(painterResource(R.drawable.ic_play),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }

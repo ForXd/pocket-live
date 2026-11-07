@@ -27,7 +27,7 @@ class DiscoverySortDeviceTest {
             ui.activity.setContent { PocketTheme { androidx.compose.material3.Surface(Modifier.safeDrawingPadding()) { DiscoverScreen(snapshot,model,{},{}) } } }
         }
         fun choose(label:String,grid:Boolean) {
-            ui.onNodeWithTag(if(grid) "recommendationGrid" else "catalogList").performScrollToNode(hasTestTag("discoverySort"))
+            ui.onNodeWithTag("discoverySort").assertIsDisplayed()
             ui.onNodeWithTag("discoverySort").performClick()
             ui.onNodeWithText(label).performClick()
         }
@@ -39,7 +39,7 @@ class DiscoverySortDeviceTest {
             ui.runOnIdle { snapshot=snapshot.copy(recommendations=snapshot.recommendations+Video(source,"d","Delta",rating=10.0)) }
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("recommendation:d"))
             ui.onNodeWithTag("recommendation:d").assertExists()
-            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("discoverySort"))
+            ui.onNodeWithTag("discoverySort").assertIsDisplayed()
             ui.onNodeWithTag("discoverySort").performClick()
             ui.onNodeWithText("最近更新").assertIsNotEnabled()
             ui.onNodeWithText("默认顺序").performClick()
@@ -53,7 +53,7 @@ class DiscoverySortDeviceTest {
             assertTrue(b<a)
             captureUi(ui,"discovery-sort-updated")
             ui.onNodeWithText("推荐").performClick()
-            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("discoverySort"))
+            ui.onNodeWithTag("discoverySort").assertIsDisplayed()
             ui.onNodeWithTag("discoverySort").assertContentDescriptionContains("排序：评分最高")
             captureUi(ui,"discovery-sort-rating")
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() } }

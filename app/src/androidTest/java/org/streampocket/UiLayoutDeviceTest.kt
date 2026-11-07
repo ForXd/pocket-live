@@ -124,7 +124,7 @@ class UiLayoutDeviceTest {
                     assertEquals("Title anchor",expectedTitleOffset!!,title.top.value-card.top.value,1f)
                 }
             }
-            grid.performScrollToNode(hasTestTag("recommendation:2"))
+            grid.performTouchInput { swipeUp(durationMillis=600) }
             ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
             capture("08-aligned-grid")
             grid.performScrollToIndex(0)

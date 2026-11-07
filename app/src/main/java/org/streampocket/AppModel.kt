@@ -19,7 +19,7 @@ data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false,
     val catalogSource: Source? = null, val categories: List<Category> = emptyList(), val catalogVideos: List<Video> = emptyList(),
     val catalogSourceKeys: Set<String> = emptySet(), val catalogCompleted:Int=0, val catalogTotal:Int=0, val catalogGenres: Set<Genre> = emptySet(), val catalogScanned: Int = 0, val catalogCategory: String? = null, val catalogQuery: String = "", val catalogMore: Boolean = false, val catalogLoading: Boolean = false, val catalogError: String? = null,
     val recommendations: List<Video> = emptyList(), val recommendType: String = "tv", val recommendTag: String = "热门",
-    val recommendPage: Int = 0, val recommendLoading: Boolean = false, val recommendMore: Boolean = false, val recommendError: String? = null,
+    val recommendAppending:Boolean=false, val recommendPage: Int = 0, val recommendLoading: Boolean = false, val recommendMore: Boolean = false, val recommendError: String? = null,
     val appRelease:AppRelease? = null, val updateChecking:Boolean = false, val updateChecked:Boolean = false, val updateError:String? = null,
     val posterRefresh:Long = 0, val alternativeSession: String? = null, val alternatives: List<PlaybackAlternative> = emptyList(),
     val alternativesLoading: Boolean = false, val alternativesError: String? = null, val smoothPlayback: Boolean = false,
@@ -329,16 +329,16 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         val page = if(more) before.recommendPage + 1 else 1
         if(page > Recommendations.MAX_PAGES) return
         recommendJob?.cancel(); val owner = ++recommendOwner
-        _state.update { it.copy(recommendType=type, recommendTag=tag, recommendLoading=true, recommendError=null,
+        _state.update { it.copy(recommendType=type, recommendTag=tag, recommendLoading=true, recommendAppending=more,recommendError=null,
             recommendations=if(more || (type==before.recommendType && tag==before.recommendTag)) it.recommendations else emptyList(),
-            posterRefresh=it.posterRefresh+1) }
+            posterRefresh=it.posterRefresh+if(more) 0 else 1) }
         recommendJob = viewModelScope.launch {
             try {
                 val result = withTimeout(22_000) { withContext(Dispatchers.Default) { Recommendations.parse(network.text(recommendationUrl(type, tag, page), false), page) } }
                 ensureActive()
                 if(owner == recommendOwner) recommendSuccessAt=android.os.SystemClock.elapsedRealtime()
                 if(owner == recommendOwner) _state.update { it.copy(recommendations=((if(more) it.recommendations else emptyList())+result.videos).distinctBy { v -> v.id },
-                    recommendLoading=false, recommendPage=page, recommendMore=result.more) }
+                    recommendLoading=false, recommendPage=page, recommendMore=result.more && (!more || result.videos.any { v -> it.recommendations.none { old -> old.id==v.id } })) }
             } catch(e: TimeoutCancellationException) { if(owner==recommendOwner) _state.update { it.copy(recommendLoading=false,recommendError="请求超时，请重试") } }
             catch(e: CancellationException) { throw e }
             catch(e: Exception) { if(owner == recommendOwner) _state.update { it.copy(recommendLoading=false, recommendError=safeError(e)) } }
