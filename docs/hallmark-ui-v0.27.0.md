@@ -26,3 +26,11 @@
 - 夜间布局及题材流程 2 项通过；840×1800、两倍字体的题材流程通过。主要文字/表面对比度计算结果为 4.95:1 至 15.91:1。
 - 独立评审 `/root/hallmark_finish_027` 读取 Hallmark finish review、当前/旧版截图及原生边界，结论 `ship`，无必须修复项。结论是原生截图评审，不是浏览器 lint 或完整 TalkBack 验证。
 - 主 Agent 补齐续播海报上下贴边，以及来源规则展开/收起图标，使指示与实际动作一致。保留 Android 系统动画缩放行为。
+
+## 发布验收
+
+- 从提交 `a7e1794604d349ea313516f91369793ad75b2e16` 构建正式 APK，包名 `org.streampocket`，版本 `0.27.0` / `34`，沿用原正式签名。
+- APK SHA-256：`f8ca4b363ed5057c5b4e916f6767f3aa9961477913b16f8807ca4c067ab83ed0`。公开 Release 的 APK、SHA256SUMS、update.json 均重新下载并与本地产物逐字节比对一致；latest/download/update.json 指向本版。
+- 匿名 GitHub latest API 返回该出口 IP 的限流 403；认证 API 确认 latest 为 v0.27.0。独立更新清单可正常下载。
+- API 37 模拟器实际从正式版 0.26.1（33）通过应用内下载、系统安装器覆盖更新到 0.27.0（34），`PublishedUpgradeDeviceTest` 输出 `OK (1 test)`。重开应用及版本页验证通过，首次安装时间仍为 `2026-10-28 22:23:52`，未卸载或清除数据。
+- 验收后按约定仅保留 v0.27.0、v0.26.1、v0.25.0 三个 GitHub Release，旧 Git 标签保留。厂商手机安装器仍需在对应设备上验证。
