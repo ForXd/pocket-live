@@ -244,8 +244,10 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @Composable private fun DiscoverySortControl(selected:DiscoverySort,onSelect:(DiscoverySort)->Unit,videos:List<Video>,recommendation:Boolean) {
     var expanded by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.SpaceBetween) {
-        Text("已加载 ${videos.size} 部", Modifier.weight(1f).padding(end=8.dp), style=MaterialTheme.typography.labelMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
+    val count: @Composable () -> Unit = {
+        Text("已加载 ${videos.size} 部",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    val menu: @Composable () -> Unit = {
         Box {
             OutlinedButton(onClick={expanded=true},modifier=Modifier.heightIn(min=48.dp).testTag("discoverySort")) { Text("排序 · ${selected.label}") }
             DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) {
@@ -256,6 +258,12 @@ import androidx.compose.ui.text.style.TextOverflow
                 }
             }
         }
-
+    }
+    if(LocalDensity.current.fontScale>1.3f) {
+        Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) { count();menu() }
+    } else {
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+            count();menu()
+        }
     }
 }
