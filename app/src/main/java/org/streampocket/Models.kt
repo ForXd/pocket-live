@@ -10,7 +10,7 @@ data class Source(val name: String, val url: String, val kind: SourceKind = Sour
 }
 data class Subscription(val id: String, val name: String, val url: String, val updated: Long, val sources: List<Source>)
 data class ImportResult(val name: String?, val sources: List<Source>, val skipped: Int, val truncated: Int, val format: String, val skippedByReason: Map<String, Int> = emptyMap())
-data class Video(val source: Source, val id: String, val title: String, val subtitle: String = "", val quality: VideoQuality = VideoQuality(), val poster: String? = null, val rating: Double? = null, val updatedAt: Long? = null, val typeId: String = "", val typeName: String = "", val alias: String = "")
+data class Video(val source: Source, val id: String, val title: String, val subtitle: String = "", val quality: VideoQuality = VideoQuality(), val poster: String? = null, val rating: Double? = null, val updatedAt: Long? = null, val typeId: String = "", val typeName: String = "", val alias: String = "", val genreText: String = "")
 data class Episode(val name: String, val url: String, val quality: VideoQuality = VideoQuality())
 data class Line(val name: String, val episodes: List<Episode>)
 data class Detail(val video: Video, val description: String, val lines: List<Line>)

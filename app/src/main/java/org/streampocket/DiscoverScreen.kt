@@ -37,7 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
     }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
-    val catalogVideos=remember(s.catalogVideos,catalogSort) { catalogSort.apply(s.catalogVideos) }
+    var genre by rememberSaveable { mutableStateOf(Genre.ALL) }
+    val catalogVideos=remember(s.catalogVideos,catalogSort,genre) { catalogSort.apply(s.catalogVideos.filter { Genres.matches(it, genre) }) }
     var recommendations by rememberSaveable { mutableStateOf(true) }
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle,model) {
@@ -63,13 +64,18 @@ import androidx.compose.ui.text.style.TextOverflow
         }
         item { LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             items(sources,key={it.key}) { source -> ContentFilterChip(selected=s.catalogSource?.key==source.key,
-                onClick={query="";model.browse(source)},label={Text(source.name)}) }
+                onClick={query="";genre=Genre.ALL;model.browse(source)},label={Text(source.name)}) }
         } }
         s.catalogSource?.let { source ->
+            item { LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("catalogGenres")) {
+                items(Genre.entries) { option -> ContentFilterChip(selected=genre==option,
+                    onClick={genre=option;model.browse(source,Genres.categoryId(s.categories,option),query.trim())},
+                    modifier=Modifier.testTag("catalogGenre:${option.name}"),label={Text(option.label)}) }
+            } }
             item { LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                item { ContentFilterChip(selected=s.catalogCategory==null,onClick={model.browse(source,query=query)},label={Text("全部")}) }
+                item { ContentFilterChip(selected=s.catalogCategory==null,onClick={genre=Genre.ALL;model.browse(source,query=query)},label={Text("全部")}) }
                 items(s.categories,key={it.id}) { category -> ContentFilterChip(selected=s.catalogCategory==category.id,
-                    onClick={model.browse(source,category.id,query)},label={Text(category.name)}) }
+                    onClick={genre=Genre.ALL;model.browse(source,category.id,query)},label={Text(category.name)}) }
             } }
             item {
                 OutlinedTextField(query,{query=it.take(100)},label={Text("分类内搜索")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("catalogSearchInput"),
@@ -80,20 +86,25 @@ import androidx.compose.ui.text.style.TextOverflow
                     keyboardActions=KeyboardActions(onSearch={keyboard?.hide();model.browse(source,s.catalogCategory,query.trim())}))
                 if(s.catalogLoading) TextButton(onClick=model::cancelCatalog) { Text("取消") }
             }
-            item { DiscoverySortControl(catalogSort,{catalogSort=it},s.catalogVideos,false) }
+            item { DiscoverySortControl(catalogSort,{catalogSort=it},catalogVideos,false) }
+            if(genre!=Genre.ALL && s.catalogCategory==null) item {
+                Text("按已加载影片的题材筛选",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             if(s.catalogLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             s.catalogError?.let { message -> item {
                 Text(message)
                 TextButton(onClick={model.browse(source,s.catalogCategory,query)}) { Text("重新加载") }
             } }
-            if(!s.catalogLoading && s.catalogVideos.isEmpty() && s.catalogError==null) item { Text("当前分类暂无内容") }
+            if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item {
+                Text(if(genre==Genre.ALL) "当前分类暂无内容" else "已加载内容中暂无${genre.label}影片")
+            }
             items(catalogVideos,key={it.source.key+":"+it.id}) { video ->
                 DiscoveryCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth().animateItem().testTag("catalogVideo:${video.id}")) {
                     Row(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
                         Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
                         Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             CardTextSlot(video.title,style=MaterialTheme.typography.titleMedium)
-                            if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                            if(SearchRules.metadata(video).isNotBlank()) Text(SearchRules.metadata(video),style=MaterialTheme.typography.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                             if(video.rating!=null) Text("来源评分 ${video.rating}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             video.updatedAt?.let { Text("更新 ${updatedDate(it)}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
@@ -234,7 +245,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable private fun DiscoverySortControl(selected:DiscoverySort,onSelect:(DiscoverySort)->Unit,videos:List<Video>,recommendation:Boolean) {
     var expanded by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.SpaceBetween) {
-        Text("已加载 ${videos.size} 部", style=MaterialTheme.typography.labelMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("已加载 ${videos.size} 部", Modifier.weight(1f).padding(end=8.dp), style=MaterialTheme.typography.labelMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
         Box {
             OutlinedButton(onClick={expanded=true},modifier=Modifier.heightIn(min=48.dp).testTag("discoverySort")) { Text("排序 · ${selected.label}") }
             DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) {

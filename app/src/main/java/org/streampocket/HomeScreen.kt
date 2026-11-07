@@ -51,13 +51,13 @@ import androidx.compose.ui.unit.dp
 }
 
 @Composable fun SearchResultsScreen(s:UiState,model:AppModel,query:String,compact:Boolean,back:()->Unit,subscriptions:()->Unit) {
-    var category by rememberSaveable(query) { mutableStateOf(MediaCategory.ALL) }
+    var category by rememberSaveable(query) { mutableStateOf(Genre.ALL) }
     var showOthers by rememberSaveable(query) { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
     val matches = remember(s.results, query) { s.results.filter { SearchRules.relevance(it, query) > 0 } }
     val candidates = if (showOthers) s.results else matches
-    val counts = remember(candidates) { candidates.groupingBy { SearchRules.category(it) }.eachCount() }
-    val videos = remember(candidates, category) { candidates.filter { category == MediaCategory.ALL || SearchRules.category(it) == category } }
+    val counts = remember(candidates) { candidates.flatMap { Genres.of(it) }.groupingBy { it }.eachCount() }
+    val videos = remember(candidates, category) { candidates.filter { category == Genre.ALL || Genres.matches(it, category) } }
     val progress by animateFloatAsState(if(s.total==0) 0f else s.completed.toFloat()/s.total,tween(180),label="searchProgress")
     LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),contentPadding=PaddingValues(20.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
@@ -91,10 +91,10 @@ import androidx.compose.ui.unit.dp
         if(s.results.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
             Column {
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("searchCategories")) {
-                    items(MediaCategory.entries.filter { it == MediaCategory.ALL || it == category || (counts[it] ?: 0) > 0 }) { option ->
+                    items(Genre.entries.filter { it != Genre.UNKNOWN || it == category || (counts[it] ?: 0) > 0 }) { option ->
                         ContentFilterChip(selected=category==option,onClick={category=option},
                             modifier=Modifier.testTag("searchCategory:${option.name}"),
-                            label={Text("${option.label} ${if(option==MediaCategory.ALL) candidates.size else counts[option] ?: 0}")})
+                            label={Text("${option.label} ${if(option==Genre.ALL) candidates.size else counts[option] ?: 0}")})
                     }
                 }
                 if(matches.size < s.results.size) TextButton(onClick={showOthers=!showOthers},modifier=Modifier.testTag("showOtherResults")) {
@@ -105,7 +105,7 @@ import androidx.compose.ui.unit.dp
         if(videos.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
             Column {
                 if(!compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total == 0) "还没有可搜索的来源" else if(s.results.isNotEmpty()) "没有匹配的影片" else "暂未找到结果",
-                    if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.total == 0) "添加订阅或启用来源后，再搜索这部影片。" else if(s.results.isNotEmpty()) "切换分类或展开其他源站结果。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
+                    if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.total == 0) "添加订阅或启用来源后，再搜索这部影片。" else if(s.results.isNotEmpty()) "当前已加载结果没有该题材，可切换题材或查看其他源站结果。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
                 if (compact && !s.searching) Text(if (s.total == 0) "请先添加或启用订阅来源" else "暂无结果，试试其他关键词")
                 if(!s.searching) OutlinedButton(onClick=subscriptions) { Text("管理订阅") }
             }

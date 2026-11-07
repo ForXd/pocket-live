@@ -272,7 +272,9 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
             try {
                 val result=withTimeout(22_000) { withContext(Dispatchers.Default) { Catalog.parse(network.text(Catalog.url(source,category,query,page),true),source,page) } }
                 ensureActive()
-                if(owner==catalogOwner) _state.update { it.copy(catalogVideos=(it.catalogVideos+result.videos).distinctBy { v -> v.source.key+":"+v.id }.take(1000),
+                val names=((if(before.catalogSource?.key==source.key) before.categories else emptyList())+result.categories).associate { it.id to it.name }
+                val enriched=result.videos.map { if(it.typeName.isBlank()) it.copy(typeName=names[it.typeId].orEmpty()) else it }
+                if(owner==catalogOwner) _state.update { it.copy(catalogVideos=(it.catalogVideos+enriched).distinctBy { v -> v.source.key+":"+v.id }.take(1000),
                     categories=if(result.categories.isEmpty()) it.categories else result.categories,catalogLoading=false,catalogPage=page,catalogMore=result.hasMore) }
             } catch(e: CancellationException) { if(e is TimeoutCancellationException && owner==catalogOwner) _state.update { it.copy(catalogLoading=false,catalogError="请求超时，请重试") } else throw e }
             catch(e: Exception) { if(owner==catalogOwner) _state.update { it.copy(catalogLoading=false,catalogError=safeError(e)) } }

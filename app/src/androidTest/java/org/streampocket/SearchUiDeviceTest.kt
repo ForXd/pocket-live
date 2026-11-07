@@ -31,11 +31,12 @@ class SearchUiDeviceTest {
                     InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
                 if(url.encodedPath=="/recommend") return MockResponse().setBody("""{"subjects":[]}""")
                 if(url.queryParameter("ids")!=null) return MockResponse().setBody("""{"list":[{"vod_content":"星河故事","vod_play_from":"线路一","vod_play_url":"正片${'$'}$base/movie.mp4"}]}""")
-                if(url.queryParameter("t")=="2") return MockResponse().setBody("""{"list":[{"vod_id":"series","vod_name":"星河 第二季","type_id":2,"type_name":"国产剧","vod_pic":"$base/poster"}]}""")
-                return MockResponse().setBody("""{"class":[{"type_id":1,"type_name":"电影"},{"type_id":2,"type_name":"电视剧"}],"list":[
+                if(url.queryParameter("t")=="7") return MockResponse().setBody("""{"list":[{"vod_id":"love","vod_name":"星河之恋","type_id":7,"vod_pic":"$base/poster"}]}""")
+                if(url.queryParameter("t")=="2") return MockResponse().setBody("""{"list":[{"vod_id":"series","vod_name":"星河 第二季","type_id":2,"type_name":"国产剧","vod_class":"悬疑,犯罪","vod_pic":"$base/poster"}]}""")
+                return MockResponse().setBody("""{"class":[{"type_id":1,"type_name":"电影"},{"type_id":2,"type_name":"电视剧"},{"type_id":7,"type_name":"爱情片"}],"list":[
                     {"vod_id":"noise","vod_name":"山海之间","type_name":"动作片","vod_width":3840,"vod_height":2160,"vod_pic":"$base/poster"},
-                    {"vod_id":"series","vod_name":"星河 第二季","type_id":2,"type_name":"国产剧","vod_remarks":"更新至12集","vod_pic":"$base/poster"},
-                    {"vod_id":"exact","vod_name":"星河","type_id":1,"type_name":"科幻片","vod_year":"2026","vod_remarks":"1080p","vod_pic":"$base/poster"},
+                    {"vod_id":"series","vod_name":"星河 第二季","type_id":2,"type_name":"国产剧","vod_class":"悬疑,犯罪","vod_remarks":"更新至12集","vod_pic":"$base/poster"},
+                    {"vod_id":"exact","vod_name":"星河","type_id":1,"type_name":"电影","vod_class":"爱情","vod_year":"2026","vod_remarks":"1080p","vod_pic":"$base/poster"},
                     {"vod_id":"alias","vod_name":"Galaxy","vod_sub":"星河","vod_pic":"$base/poster"}]}""")
             }
         }
@@ -53,7 +54,7 @@ class SearchUiDeviceTest {
         fun capture(name:String) {
             ui.waitForIdle(); android.os.SystemClock.sleep(400)
             val instrument=InstrumentationRegistry.getInstrumentation()
-            val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"search-v025-${InstrumentationRegistry.getArguments().getString("appearance","light")}").apply { mkdirs() }
+            val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"search-v026-${InstrumentationRegistry.getArguments().getString("appearance","light")}").apply { mkdirs() }
             instrument.uiAutomation.takeScreenshot()?.let { b -> try { java.io.File(dir,"$name.png").outputStream().use { b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { b.recycle() } }
         }
         fun top() { ui.onNodeWithTag("searchResults").performScrollToIndex(0) }
@@ -66,14 +67,16 @@ class SearchUiDeviceTest {
             ui.onNodeWithTag("searchVideo:noise").assertDoesNotExist()
             ui.onNodeWithTag("searchVideo:exact").assertExists()
             capture("01-results")
-            ui.onNodeWithTag("searchCategory:SERIES").performClick()
+            ui.onNodeWithTag("searchCategories").performScrollToNode(hasTestTag("searchCategory:MYSTERY"))
+            ui.onNodeWithTag("searchCategory:MYSTERY").performClick()
             ui.onNodeWithTag("searchVideo:exact").assertDoesNotExist()
             ui.onNodeWithTag("searchVideo:series").assertExists()
-            capture("02-series")
+            capture("02-mystery")
             ui.onNodeWithTag("searchVideo:series").performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
             ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
-            ui.onNodeWithTag("searchCategory:SERIES").assertIsSelected()
+            ui.onNodeWithTag("searchCategory:MYSTERY").assertIsSelected()
+            ui.onNodeWithTag("searchCategories").performScrollToNode(hasTestTag("searchCategory:ALL"))
             ui.onNodeWithTag("searchCategory:ALL").performClick()
             ui.onNodeWithTag("searchResults").performScrollToNode(hasTestTag("searchVideo:alias"))
             ui.onNodeWithTag("searchVideo:alias").assertExists()
@@ -93,6 +96,25 @@ class SearchUiDeviceTest {
             assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="2" && it.requestUrl?.queryParameter("wd")=="星河" })
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:series"))
             capture("03-catalog")
+            ui.onNodeWithTag("catalogList").performScrollToIndex(0)
+            ui.onNodeWithTag("catalogGenre:ROMANCE").performClick()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogCategory=="7" }
+            assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="7" && it.requestUrl?.queryParameter("wd")=="星河" })
+            ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:love"))
+            ui.onNodeWithTag("catalogVideo:series").assertDoesNotExist()
+            capture("04-romance")
+            ui.onNodeWithTag("catalogList").performScrollToIndex(0)
+            ui.onNodeWithTag("catalogSearchInput").performTextReplacement("")
+            ui.onNodeWithTag("catalogSearchInput").performImeAction()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogQuery.isEmpty() }
+            assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="7" && it.requestUrl?.queryParameter("wd")==null })
+            ui.onNodeWithTag("catalogList").performScrollToIndex(0)
+            ui.onNodeWithTag("catalogGenres").performScrollToNode(hasTestTag("catalogGenre:MYSTERY"))
+            ui.onNodeWithTag("catalogGenre:MYSTERY").performClick()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogCategory==null }
+            ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:series"))
+            ui.onNodeWithTag("catalogVideo:exact").assertDoesNotExist()
+            capture("05-mystery-catalog")
             if(InstrumentationRegistry.getArguments().getString("reviewSession")=="true") {
                 // Optional manual review keeps the controlled source reachable; ordinary tests never wait here.
                 val done=java.io.File(ui.activity.filesDir,"search-review-done").apply { delete() }
