@@ -15,12 +15,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -95,13 +98,21 @@ import kotlinx.coroutines.launch
                                     Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
                                     if(showTop) IconButton(onClick={scope.launch { list.animateScrollToItem(0) }},modifier=Modifier.testTag("detailBackToTop")) { Icon(Icons.Default.KeyboardArrowUp,"回到详情顶部") }
                                     Text("${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                    if(episodes.size>50) TextButton(onClick={sheet="range"},modifier=Modifier.testTag("episodeJump")) { Text("定位集数") }
-                                }
-                                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                                    FilledTonalButton(onClick={sheet="line"},enabled=detail.lines.size>1,modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("detailLinePicker")) {
-                                        Text(line?.name ?: "暂无线路",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f));Icon(Icons.Default.ArrowDropDown,null)
+                                    if(episodes.size>50) TextButton(onClick={sheet="range"},modifier=Modifier.testTag("episodeJump").semantics { contentDescription="定位集数" }) { Text("定位") }
+                                    IconToggleButton(checked=descending,onCheckedChange={descending=it;showEpisodes()},modifier=Modifier.testTag("episodeOrder")) {
+                                        Icon(painterResource(R.drawable.ic_sort),if(descending) "当前倒序，切换正序" else "当前正序，切换倒序",Modifier.rotate(if(descending) 180f else 0f))
                                     }
-                                    TextButton(onClick={descending=!descending;showEpisodes()},modifier=Modifier.heightIn(min=48.dp).testTag("episodeOrder")) { Text(if(descending) "倒序" else "正序") }
+                                }
+                                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+                                    TextButton(onClick={sheet="line"},enabled=detail.lines.size>1,shape=MaterialTheme.shapes.medium,
+                                        contentPadding=PaddingValues(horizontal=12.dp,vertical=10.dp),
+                                        modifier=Modifier.weight(1f,false).heightIn(min=48.dp).testTag("detailLinePicker").semantics { contentDescription="播放线路：${line?.name ?: "暂无线路"}" }) {
+                                        Text(line?.name ?: "暂无线路",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false));Icon(Icons.Default.ArrowDropDown,null,Modifier.size(20.dp))
+                                    }
+                                    TextButton(onClick=searchSame,shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(horizontal=12.dp,vertical=10.dp),
+                                        modifier=Modifier.heightIn(min=48.dp).testTag("detailSearchSame")) {
+                                        Text("同名换源",maxLines=1,overflow=TextOverflow.Ellipsis)
+                                    }
                                 }
                             }
                         }
@@ -126,16 +137,26 @@ import kotlinx.coroutines.launch
                     }
                 }
             }
-            Surface(color=MaterialTheme.colorScheme.surfaceContainer,tonalElevation=1.dp) {
-                Column(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=10.dp)) {
-                    latest?.let { Text(HistoryGroups.progress(it),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Surface(color=MaterialTheme.colorScheme.background) {
+                Column {
+                    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+                    Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.CenterVertically) {
                         val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull()
-                        Button(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,modifier=Modifier.weight(1f).heightIn(min=52.dp).testTag("detailPlay")) {
-                            Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp))
-                            Text(if(primary==null) "暂无剧集" else "${if(latest!=null) "继续观看" else "播放"} · ${primary.name}",maxLines=2,overflow=TextOverflow.Ellipsis)
+                        Column(Modifier.weight(1f).testTag("detailPlaybackSummary"),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                            primary?.let { episode ->
+                                Text(episode.name,style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
+                                latest?.let { entry ->
+                                    val time=android.text.format.DateUtils.formatElapsedTime((entry.playback.position/1000).coerceAtLeast(0))
+                                    Text("已观看 $time",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier=Modifier.semantics { contentDescription="上次播放位置 $time" })
+                                }
+                            }
                         }
-                        TextButton(onClick=searchSame,modifier=Modifier.heightIn(min=48.dp).testTag("detailSearchSame")) { Text("同名换源") }
+                        Button(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=MaterialTheme.shapes.medium,
+                            modifier=Modifier.widthIn(max=220.dp).heightIn(min=48.dp).testTag("detailPlay")) {
+                            Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp))
+                            Text(if(primary==null) "暂无剧集" else if(latest!=null) "继续观看" else "立即播放")
+                        }
                     }
                 }
             }

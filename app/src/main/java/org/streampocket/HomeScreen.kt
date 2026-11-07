@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.dp
 @Composable fun HomeSearchBar(query:String,onQuery:(String)->Unit,searchMode:Boolean,submit:()->Unit,clear:()->Unit,placeholder:String="搜索影片、剧集或频道",clearLabel:String="清空并返回推荐",allowEmpty:Boolean=false) {
     Surface(color=MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center) {
-            TextField(query,onQuery,modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp)
+            TextField(query,onQuery,modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=4.dp)
                 .testTag("searchInput").semantics { contentDescription="影片或频道名称" },singleLine=true,
                 keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={if(allowEmpty || query.isNotBlank()) submit()}),
                 placeholder={Text(placeholder,maxLines=1,overflow=TextOverflow.Ellipsis)},shape=MaterialTheme.shapes.medium,

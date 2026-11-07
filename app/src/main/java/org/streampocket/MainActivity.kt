@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
@@ -166,16 +167,16 @@ class MainActivity : ComponentActivity() {
                     clearLabel=if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog)
                 }
             }
-            else TopAppBar(colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title={
+            else TopAppBar(expandedHeight=56.dp,colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title={
                 Text(if(s.detail!=null || s.detailLoading) "详情与选集" else when(tab) { 1 -> "订阅管理";2 -> "观看历史";else -> "设置" },style=MaterialTheme.typography.titleLarge)
             },navigationIcon={if(s.detail!=null || s.detailLoading) IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }})
         },
-        bottomBar = { if(!imeVisible) NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainer,tonalElevation=0.dp,modifier=Modifier.testTag("mainNavigation")) {
+        bottomBar = { if(!imeVisible) Surface(color=MaterialTheme.colorScheme.surfaceContainer) { Row(Modifier.fillMaxWidth().selectableGroup().windowInsetsPadding(NavigationBarDefaults.windowInsets).heightIn(min=64.dp).testTag("mainNavigation"),verticalAlignment=Alignment.CenterVertically) {
             destinations.forEachIndexed { i,title ->
                 NavigationBarItem(selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
-                    modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(title)})
+                    modifier=Modifier.height(if(androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 80.dp else 64.dp).testTag("nav:$i"),icon={navIcon(i)},label={Text(title)})
             }
-        } },snackbarHost={SnackbarHost(snack)}
+        } } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->
         Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize().imePadding(),contentAlignment=Alignment.TopCenter) {
         val destination=when {

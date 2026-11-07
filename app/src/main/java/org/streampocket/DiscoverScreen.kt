@@ -146,13 +146,20 @@ import androidx.compose.ui.text.style.TextOverflow
         if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort,{ recommendationSort=it },onTop); return@Column }
         if(s.catalogSource!=null) {
             Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("catalogToolbar")) {
-                    FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+                    item {
+                        FilledTonalButton(onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
                             Text(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
                         }
+                    }
+                    item {
                         FilledTonalButton(onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
                             Text(s.categories.find { it.id==s.catalogCategory }?.name ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}");Icon(Icons.Default.ArrowDropDown,null)
                         }
+                    }
+                    }
+                    DiscoverySortControl(catalogSort,{catalogSort=it},catalogVideos,false,compact=true)
                     }
                     if(s.catalogSourceKeys.isNotEmpty() || s.catalogGenres.isNotEmpty() || s.catalogCategory!=null) {
                         LazyRow(Modifier.fillMaxWidth().testTag("activeCatalogFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -172,7 +179,6 @@ import androidx.compose.ui.text.style.TextOverflow
                             } }
                         }
                     }
-                    DiscoverySortControl(catalogSort,{catalogSort=it},catalogVideos,false)
                 }
         }
         Box(Modifier.weight(1f)) {
