@@ -29,11 +29,14 @@ class HomeBrowseDeviceTest {
                 val url=request.requestUrl!!
                 if(url.encodedPath=="/poster") return MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(
                     InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
+                if(url.encodedPath=="/test.mp4") return MockResponse().setHeader("Content-Type","video/mp4").setBody(okio.Buffer().write(
+                    InstrumentationRegistry.getInstrumentation().context.assets.open("test.mp4").use { it.readBytes() }))
                 requests+=request.path!!
                 if(url.encodedPath=="/catalog") {
+                    if(url.queryParameter("ids")!=null) return MockResponse().setBody("""{"list":[{"vod_id":"${url.queryParameter("ids")}","vod_name":"片库影片 ${url.queryParameter("ids")}","vod_play_from":"主线路","vod_play_url":"第1集${'$'}$base/test.mp4"}]}""")
                     if(url.queryParameter("ac")=="list") return MockResponse().setBody("""{"class":[{"type_id":1,"type_name":"电影"}],"list":[]}""")
                     val page=url.queryParameter("pg")?.toIntOrNull() ?: 1
-                    return MockResponse().setBody("""{"pagecount":2,"list":[${(1..20).joinToString(",") { val id=(page-1)*20+it;"""{"vod_id":"$id","vod_name":"片库影片 $id","vod_pic":"$base/poster"}""" }}]}""")
+                    return MockResponse().setBody("""{"pagecount":2,"list":[${(1..20).joinToString(",") { val id=(page-1)*20+it;"""{"vod_id":"$id","vod_name":"片库影片 $id","type_name":"悬疑","vod_pic":"$base/poster"}""" }}]}""")
                 }
                 val page=url.queryParameter("page")?.toIntOrNull() ?: 1
                 if(page>1 && failMore.get()) return MockResponse().setResponseCode(503)
@@ -143,6 +146,76 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("backToTop").performClick()
         ui.onNodeWithTag("searchVideo:1").assertIsDisplayed()
         ui.onNodeWithTag("searchInput").assertIsDisplayed()
+    }
+
+    @Test fun searchPositionSurvivesDetailPlaybackAndReturnWithoutRefetch() {
+        ui.onNodeWithTag("searchInput").performTextInput("片库")
+        ui.onNodeWithTag("searchInput").performImeAction()
+        ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==20 }
+        ui.onNodeWithTag("searchCategories").performScrollToNode(hasTestTag("searchCategory:MYSTERY"))
+        ui.onNodeWithTag("searchCategory:MYSTERY").performClick()
+        ui.onNodeWithTag("searchSort").performClick()
+        ui.onNodeWithText("高清优先").performClick()
+        val results=ui.onNodeWithTag("searchResults")
+        results.performTouchInput { swipeUp(durationMillis=600) }
+        results.performScrollToIndex(12)
+        val anchor=ui.onNodeWithTag("searchVideo:12")
+        anchor.assertIsDisplayed()
+        val before=anchor.getUnclippedBoundsInRoot().top
+        val searches=requests.count { it.contains("wd=") }
+        repeat(3) {
+            anchor.performClick()
+            ui.waitUntil(10000) { model.state.value.detail!=null }
+            ui.onNodeWithTag("detailPlay").performClick()
+            ui.waitUntil(10000) { model.state.value.playback!=null && PlaybackMetrics.created-PlaybackMetrics.released==1L }
+            ui.onNodeWithContentDescription("返回选集").performClick()
+            ui.waitUntil(10000) { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released && PlaybackMetrics.samplers==0 && MediaCallOwner.active.get()==0 }
+            ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
+            anchor.assertIsDisplayed()
+            assertEquals(before.value,anchor.getUnclippedBoundsInRoot().top.value,1f)
+            ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
+            assertEquals(searches,requests.count { it.contains("wd=") })
+            ui.onNodeWithTag("searchCategory:MYSTERY").assertIsSelected()
+            assertEquals(SearchOrder.QUALITY,model.state.value.searchOrder)
+        }
+        ui.onNodeWithTag("searchSort").performClick()
+        ui.onNodeWithText("相关度").performClick()
+        ui.onNodeWithTag("searchVideo:1").assertIsDisplayed()
+    }
+
+    @Test fun catalogPositionSurvivesPlaybackAndRecommendationPositionSurvivesTabReturn() {
+        val recommendations=ui.onNodeWithTag("recommendationGrid")
+        recommendations.performTouchInput { swipeUp(durationMillis=600) }
+        recommendations.performScrollToIndex(8)
+        val recommendation=ui.onNodeWithTag("recommendation:9")
+        val recommendationOffset=recommendation.getUnclippedBoundsInRoot().top-recommendations.getUnclippedBoundsInRoot().top
+        ui.onNodeWithTag("nav:1").performClick()
+        ui.onNodeWithTag("nav:0").performClick()
+        recommendation.assertIsDisplayed()
+        // Tab switching intentionally reveals search; compare offset relative to the grid.
+        assertEquals(recommendationOffset.value,(recommendation.getUnclippedBoundsInRoot().top-recommendations.getUnclippedBoundsInRoot().top).value,1f)
+        assertEquals(1,requests.count { it=="/recommend?page=1" })
+        ui.onNodeWithText("分类搜索").performClick()
+        ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogVideos.size==20 }
+        val catalog=ui.onNodeWithTag("catalogList")
+        catalog.performTouchInput { swipeUp(durationMillis=600) }
+        catalog.performScrollToIndex(8)
+        val anchor=ui.onNodeWithTag("catalogVideo:9")
+        anchor.assertIsDisplayed()
+        val before=anchor.getUnclippedBoundsInRoot().top
+        val calls=requests.count { it.startsWith("/catalog") && !it.contains("ids=") }
+        anchor.performClick()
+        ui.waitUntil(10000) { model.state.value.detail!=null }
+        ui.onNodeWithTag("detailPlay").performClick()
+        ui.waitUntil(10000) { model.state.value.playback!=null && PlaybackMetrics.created-PlaybackMetrics.released==1L }
+        ui.onNodeWithContentDescription("返回选集").performClick()
+        ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
+        anchor.assertIsDisplayed()
+        assertEquals(before.value,anchor.getUnclippedBoundsInRoot().top.value,1f)
+        assertEquals(calls,requests.count { it.startsWith("/catalog") && !it.contains("ids=") })
+        ui.onNodeWithTag("discoverySort").performClick()
+        ui.onNodeWithText("评分最高").performClick()
+        ui.onNodeWithTag("catalogVideo:1").assertIsDisplayed()
     }
 
     @Test fun recommendationCategoryUsesDraftSheetAndResetsForType() {

@@ -124,7 +124,7 @@ import androidx.compose.ui.text.style.TextOverflow
     val catalogState=rememberLazyListState()
     val scope=rememberCoroutineScope()
     val latest by rememberUpdatedState(s)
-    LaunchedEffect(s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery,catalogSort) { catalogState.scrollToItem(0) }
+    ScrollToTopOnChange(s.catalogSourceKeys.sorted().toString(),s.catalogCategory.orEmpty(),s.catalogGenres.sortedBy { it.ordinal }.toString(),s.catalogQuery,catalogSort.name) { catalogState.scrollToItem(0) }
     var catalogDemand by remember(s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery) { mutableIntStateOf(-1) }
     // Request each result boundary once; sparse pages remain manually resumable.
     LaunchedEffect(recommendations.value,s.catalogVideos.size,s.catalogLoading,s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery) {
@@ -238,7 +238,7 @@ import androidx.compose.ui.text.style.TextOverflow
     val latest by rememberUpdatedState(s)
     var refreshing by remember { mutableStateOf(false) }
     LaunchedEffect(s.recommendLoading) { if(!s.recommendLoading) refreshing=false }
-    LaunchedEffect(s.recommendType,s.recommendTag,sort) { grid.scrollToItem(0) }
+    ScrollToTopOnChange(s.recommendType,s.recommendTag,sort.name) { grid.scrollToItem(0) }
     var recommendationDemand by remember(s.recommendType,s.recommendTag) { mutableIntStateOf(-1) }
     LaunchedEffect(s.recommendations.size,s.recommendLoading,s.recommendType,s.recommendTag) {
         if(s.recommendations.isNotEmpty()) snapshotFlow {

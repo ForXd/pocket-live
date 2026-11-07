@@ -133,6 +133,9 @@ class MainActivity : ComponentActivity() {
     }
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(s.message) { s.message?.let { snack.showSnackbar(it); model.message(null) } }
+    // Keep only collapse scalars alive while playback replaces the screen.
+    val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
+    LaunchedEffect(tab,searchMode,recommendations.value,imeVisible) { searchScroll.reveal() }
     val playback = s.playback
     if(playback != null) { PlaybackScreen(playback, model); return }
     if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
@@ -144,11 +147,9 @@ class MainActivity : ComponentActivity() {
             else -> showRecommendations()
         }
     }
-    val searchScroll=remember { HomeSearchScroll() }
     val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
     val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
-    LaunchedEffect(tab,searchMode,recommendations.value,s.detail?.video?.id,imeVisible) { searchScroll.reveal() }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> if(i==3) Icon(Icons.Default.Settings,null) else Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history)[i]),null) }
     Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),

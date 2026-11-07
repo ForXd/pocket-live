@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -14,6 +15,11 @@ import androidx.compose.ui.unit.Velocity
 import kotlin.math.roundToInt
 
 @Stable internal class HomeSearchScroll {
+    companion object {
+        val Saver=listSaver<HomeSearchScroll,Float>(
+            save={listOf(it.hidden,it.height)},
+            restore={HomeSearchScroll().apply { hidden=it[0];height=it[1] }})
+    }
     var hidden by mutableFloatStateOf(0f)
     var height by mutableFloatStateOf(0f)
     fun reveal() { hidden=0f }

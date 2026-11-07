@@ -64,7 +64,7 @@ import androidx.compose.ui.unit.dp
     val progress by animateFloatAsState(if(s.total==0) 0f else s.completed.toFloat()/s.total,tween(180),label="searchProgress")
     val grid=rememberLazyGridState()
     val scope=rememberCoroutineScope()
-    LaunchedEffect(category,showOthers,s.searchOrder) { grid.scrollToItem(0) }
+    ScrollToTopOnChange(category.name,showOthers.toString(),s.searchOrder.name) { grid.scrollToItem(0) }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("searchToolbar")) {
                 if (s.total > 0) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
