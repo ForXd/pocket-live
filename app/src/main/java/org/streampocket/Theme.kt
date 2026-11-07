@@ -52,13 +52,13 @@ internal val NightColors=darkColorScheme(
     surfaceContainerLowest=Color(0xff090f14),surfaceContainerLow=Color(0xff151a18),surfaceContainer=Color(0xff1c2220),
     surfaceContainerHigh=Color(0xff252e2a),surfaceContainerHighest=Color(0xff303b35),surfaceDim=Color(0xff101313),surfaceBright=Color(0xff34424c),
     outline=Color(0xff81929b),outlineVariant=Color(0xff35423b))
-private val DayColors=lightColorScheme(
+internal val DayColors=lightColorScheme(
     primary=Color(0xff006b5e),onPrimary=Color.White,primaryContainer=Color(0xffd4f3e9),onPrimaryContainer=Color(0xff004e42),
     secondary=Color(0xff50635e),onSecondary=Color.White,secondaryContainer=Color(0xffe0ebe6),onSecondaryContainer=Color(0xff203831),
     tertiary=Color(0xff435e86),onTertiary=Color.White,tertiaryContainer=Color(0xffdbe7ff),onTertiaryContainer=Color(0xff223c60),
-    background=Color(0xfff1f2f4),onBackground=Color(0xff202525),surface=Color(0xfff1f2f4),onSurface=Color(0xff202525),
+    background=Color(0xfff3f5f2),onBackground=Color(0xff202525),surface=Color(0xfff3f5f2),onSurface=Color(0xff202525),
     surfaceVariant=Color(0xffdfe7eb),onSurfaceVariant=Color(0xff5c685f),surfaceTint=Color(0xff006b5e),
-    surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xfff0f2ec),surfaceContainer=Color.White,
+    surfaceContainerLowest=Color(0xfffcfdf9),surfaceContainerLow=Color(0xffeef2ed),surfaceContainer=Color(0xffe8eee8),
     surfaceContainerHigh=Color(0xffe9ede4),surfaceContainerHighest=Color(0xffe0e6dc),surfaceDim=Color(0xffdce4eb),surfaceBright=Color(0xfff9fbfd),
     outline=Color(0xff71828c),outlineVariant=Color(0xffc9d5dd))
 

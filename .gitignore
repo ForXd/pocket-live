@@ -17,3 +17,5 @@ artifacts/
 store-password
 
 *.apk.idsig
+
+.hallmark/

@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.ui.Modifier
@@ -47,7 +48,7 @@ import androidx.compose.ui.unit.sp
         TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth().heightIn(min=64.dp),shape=MaterialTheme.shapes.large,contentPadding=PaddingValues(16.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(title,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)
-                Text(summary,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(summary.replace(" · "," / "),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Icon(Icons.Default.KeyboardArrowDown,if(expanded) "收起$title" else "展开$title",Modifier.graphicsLayer { rotationZ=rotation })
         }
@@ -71,10 +72,10 @@ import androidx.compose.ui.unit.sp
 /** Shared quiet surface for discovery, search and viewing history. */
 @Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,content:@Composable ColumnScope.()->Unit) {
     val colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)
-    if(onClick==null) Card(modifier=modifier,shape=RoundedCornerShape(28.dp),colors=colors,content=content)
+    if(onClick==null) Card(modifier=modifier,shape=MaterialTheme.shapes.medium,colors=colors,content=content)
     else {
         val interactions=remember { MutableInteractionSource() }
-        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=RoundedCornerShape(28.dp),colors=colors,content=content)
+        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=MaterialTheme.shapes.medium,colors=colors,content=content)
     }
 }
 @Composable fun ContentDivider(modifier:Modifier=Modifier) {
@@ -82,7 +83,8 @@ import androidx.compose.ui.unit.sp
 }
 
 @Composable fun ContentFilterChip(selected:Boolean,onClick:()->Unit,modifier:Modifier=Modifier,label:@Composable ()->Unit) {
-    FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.heightIn(min=48.dp),shape=RoundedCornerShape(28.dp),border=null,
+    FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.minimumInteractiveComponentSize(),shape=MaterialTheme.shapes.small,border=null,
+        leadingIcon=if(selected) { { Icon(Icons.Default.Check,null,Modifier.size(16.dp)) } } else null,
         colors=FilterChipDefaults.filterChipColors(containerColor=MaterialTheme.colorScheme.surfaceContainer,
             selectedContainerColor=MaterialTheme.colorScheme.primaryContainer))
 }

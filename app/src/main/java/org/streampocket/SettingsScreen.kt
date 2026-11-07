@@ -2,6 +2,11 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -46,7 +51,7 @@ import androidx.compose.ui.unit.dp
                 TextButton(onClick=model::refreshStorage,modifier=Modifier.heightIn(min=48.dp)) { Text("刷新用量") }
             }
         } }
-        item { SettingsEntry("来源广告规则","为点播来源配置精确路径 · ${sources.size} 个来源",{rulesExpanded=!rulesExpanded},"settingsSourceRules") }
+        item { SettingsEntry("来源广告规则","为点播来源配置精确路径 · ${sources.size} 个来源",{rulesExpanded=!rulesExpanded},"settingsSourceRules",expanded=rulesExpanded) }
         if(rulesExpanded) {
             if(sources.isEmpty()) item { Text("在订阅页添加点播来源后，可在这里配置规则。") }
             items(sources,key={"rules:${it.key}"}) { source ->
@@ -56,11 +61,18 @@ import androidx.compose.ui.unit.dp
         item { Text("Pocket Live · AGPL-3.0-or-later\n参考 LibreTV deb72fa01f；完整源码和许可证随项目提供。",style=MaterialTheme.typography.bodySmall) }
     }
 }
-@Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String) {
-    ContentCard(onClick=action,modifier=Modifier.fillMaxWidth().testTag(tag).semantics { contentDescription=title }) {
-        Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-            Text(title,style=MaterialTheme.typography.titleMedium)
-            Text(summary,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+@Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,expanded:Boolean?=null) {
+    Surface(onClick=action,color=MaterialTheme.colorScheme.background,
+        modifier=Modifier.fillMaxWidth().heightIn(min=72.dp).testTag(tag).semantics { contentDescription=title }) {
+        Column {
+            Row(Modifier.fillMaxWidth().padding(vertical=16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    Text(title,style=MaterialTheme.typography.titleMedium)
+                    Text(summary.replace(" · ","，"),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(if(expanded==null) Icons.AutoMirrored.Filled.KeyboardArrowRight else if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            ContentDivider()
         }
     }
 }

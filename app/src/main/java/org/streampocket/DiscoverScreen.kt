@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
@@ -104,7 +105,7 @@ import androidx.compose.ui.text.style.TextOverflow
                         Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
                         Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             CardTextSlot(video.title,style=MaterialTheme.typography.titleMedium)
-                            if(SearchRules.metadata(video).isNotBlank()) Text(SearchRules.metadata(video),style=MaterialTheme.typography.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                            if(SearchRules.metadata(video).isNotBlank()) Text(SearchRules.metadata(video).replace(" · ","  "),style=MaterialTheme.typography.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                             if(video.rating!=null) Text("来源评分 ${video.rating}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             video.updatedAt?.let { Text("更新 ${updatedDate(it)}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
@@ -127,12 +128,6 @@ import androidx.compose.ui.text.style.TextOverflow
     LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 176.dp else 140.dp),
         modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(20.dp),
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item(span={GridItemSpan(maxLineSpan)}) {
-            Row(verticalAlignment=Alignment.CenterVertically) {
-                Text("豆瓣推荐", Modifier.weight(1f), style=MaterialTheme.typography.titleLarge)
-                IconButton(onClick={model.recommend()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
-            }
-        }
         if(recent.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)},key="continue-watching") {
             Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("继续观看",style=MaterialTheme.typography.titleMedium)
@@ -142,9 +137,9 @@ import androidx.compose.ui.text.style.TextOverflow
                         items(recent,key={it.key.stableKey}) { group ->
                             val entry=group.latest
                             DiscoveryCard(onClick={model.resume(entry)},modifier=Modifier.width(cardWidth).testTag("discoverContinue:${group.key.stableKey}")) {
-                                Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
-                                    Poster(entry.playback.video,model,Modifier.size(80.dp,120.dp),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
-                                    Column(Modifier.weight(1f).padding(vertical=12.dp).padding(end=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                Row(Modifier.height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                                    Poster(entry.playback.video,model,Modifier.width(64.dp).heightIn(min=96.dp).fillMaxHeight(),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
+                                    Column(Modifier.weight(1f).padding(vertical=12.dp).padding(end=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                                         Text(entry.playback.video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                                         Text(entry.playback.episode.name,style=MaterialTheme.typography.bodySmall,maxLines=1,overflow=TextOverflow.Ellipsis)
                                         Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -155,6 +150,12 @@ import androidx.compose.ui.text.style.TextOverflow
                         }
                     }
                 }
+            }
+        }
+        item(span={GridItemSpan(maxLineSpan)}) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Text("豆瓣推荐", Modifier.weight(1f), style=MaterialTheme.typography.titleLarge)
+                IconButton(onClick={model.recommend()},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
             }
         }
         item(span={GridItemSpan(maxLineSpan)}) { LazyRow(modifier=Modifier.testTag("recommendFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -249,7 +250,7 @@ import androidx.compose.ui.text.style.TextOverflow
     }
     val menu: @Composable () -> Unit = {
         Box {
-            OutlinedButton(onClick={expanded=true},modifier=Modifier.heightIn(min=48.dp).testTag("discoverySort")) { Text("排序 · ${selected.label}") }
+            TextButton(onClick={expanded=true},modifier=Modifier.heightIn(min=48.dp).testTag("discoverySort")) { Text("排序：${selected.label}");Icon(Icons.Default.ArrowDropDown,null) }
             DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) {
                 DiscoverySort.entries.forEach { option ->
                     DropdownMenuItem(text={Text(option.label)},onClick={onSelect(option);expanded=false},

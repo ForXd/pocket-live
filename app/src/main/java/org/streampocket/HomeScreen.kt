@@ -15,7 +15,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,7 +37,7 @@ import androidx.compose.ui.unit.dp
             TextField(query,onQuery,modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp)
                 .testTag("searchInput").semantics { contentDescription="影片或频道名称" },singleLine=true,
                 keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={if(query.isNotBlank()) submit()}),
-                placeholder={Text("搜索影片、剧集或频道")},shape=RoundedCornerShape(28.dp),
+                placeholder={Text("搜索影片、剧集或频道")},shape=MaterialTheme.shapes.medium,
                 colors=TextFieldDefaults.colors(focusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,
                     focusedIndicatorColor=Color.Transparent,unfocusedIndicatorColor=Color.Transparent),
                 leadingIcon={Icon(Icons.Default.Search,null)},trailingIcon={
@@ -78,7 +80,7 @@ import androidx.compose.ui.unit.dp
                     Text((if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源")+failureHint, Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (s.results.isNotEmpty()) Box {
-                        TextButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("searchSort")) { Text("${s.searchOrder.label} ↓") }
+                        TextButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("searchSort")) { Text(s.searchOrder.label); Icon(Icons.Default.ArrowDropDown,null) }
                         DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                             SearchOrder.entries.forEach { order -> DropdownMenuItem(text = { Text(order.label) },
                                 onClick = { model.sortSearch(order); sortMenu = false }, trailingIcon = { if (order == s.searchOrder) Text("已选") }) }
@@ -112,12 +114,12 @@ import androidx.compose.ui.unit.dp
         }
         items(videos,key={it.source.key+":"+it.id}) { video ->
             ContentCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth().testTag("searchVideo:${video.id}").animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
-                Row(Modifier.padding(12.dp),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    Poster(video,model,Modifier.size(80.dp,120.dp))
-                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                    Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
+                    Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                         val metadata = SearchRules.metadata(video)
-                        if(metadata.isNotEmpty()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
+                        if(metadata.isNotEmpty()) Text(metadata.replace(" · ","  "),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
                         Text(video.source.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
                         if(video.quality.evidence==QualityEvidence.UNKNOWN) Text("清晰度未知",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         else QualityBadge(video.quality,lastPlayback=true)
