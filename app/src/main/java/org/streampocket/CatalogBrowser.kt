@@ -2,10 +2,11 @@
 package org.streampocket
 
 /** A bounded batch can be resumed without discarding pages already searched. */
-internal data class CatalogCursor(val categories:List<String?>, val index:Int=0, val page:Int=1)
+internal data class CatalogRequest(val category:String?,val page:Int=1)
+internal data class CatalogCursor(val pending:List<CatalogRequest>)
 internal data class CatalogBatch(val videos:List<Video>,val categories:List<Category>,val next:CatalogCursor?,val pages:Int)
 internal class CatalogBrowser(private val fetch:suspend (String)->String) {
-    suspend fun load(source:Source,category:String?,genre:Genre,query:String,known:List<Category>,cursor:CatalogCursor?=null):CatalogBatch {
+    suspend fun load(source:Source,category:String?,genres:Set<Genre>,query:String,known:List<Category>,cursor:CatalogCursor?=null):CatalogBatch {
         var categories=known
         var current=cursor
         var pages=0
@@ -24,28 +25,29 @@ internal class CatalogBrowser(private val fetch:suspend (String)->String) {
                 // Some compatible APIs include their classes only in the detailed response.
                 if(categories.isEmpty()) first=page(null,1)
             }
-            val ids=if(category!=null) listOf(category) else Genres.categoryIds(categories,genre)
+            val ids=if(category!=null) listOf(category) else genres.flatMap { Genres.categoryIds(categories,it) }.distinct()
             // Dedicated movie categories do not cover tagged series in generic TV categories.
             // Search them first, then continue through the general catalog without losing either.
-            current=CatalogCursor(if(category==null && ids.isNotEmpty()) ids+listOf(null) else ids.ifEmpty { listOf(null) })
+            current=CatalogCursor((if(category==null && ids.isNotEmpty()) ids+listOf(null) else ids.ifEmpty { listOf(null) }).map { CatalogRequest(it) })
         }
+        val branchesInBatch=minOf(BATCH_PAGES,current.pending.size)
+        var requests=0
         while(current!=null && pages< BATCH_PAGES) {
-            val c=current
-            val id=c.categories[c.index]
+            val c=current.pending.first()
+            val id=c.category
             val result=if(id==null && c.page==1 && first!=null) first else page(id,c.page)
+            requests++
             first=null
             val names=categories.associate { it.id to it.name }
             result.videos.forEach { v ->
                 val type=v.typeId.ifBlank { id.orEmpty() }
                 val enriched=v.copy(typeId=type,typeName=names[type] ?: v.typeName)
-                if(Genres.matches(enriched,genre)) videos.putIfAbsent(enriched.id,enriched)
+                if(Genres.matchesAny(enriched,genres)) videos.putIfAbsent(enriched.id,enriched)
             }
-            current=when {
-                result.hasMore -> c.copy(page=c.page+1)
-                c.index+1<c.categories.size -> c.copy(index=c.index+1,page=1)
-                else -> null
-            }
-            if(genre==Genre.ALL || videos.size>=20) break
+            // Rotate unfinished categories so one large genre cannot starve the other choices.
+            val pending=current.pending.drop(1) + if(result.hasMore) listOf(c.copy(page=c.page+1)) else emptyList()
+            current=pending.takeIf { it.isNotEmpty() }?.let { CatalogCursor(it) }
+            if(genres.isEmpty() || (videos.size>=20 && requests>=branchesInBatch)) break
         }
         return CatalogBatch(videos.values.toList(),categories,current,pages)
     }

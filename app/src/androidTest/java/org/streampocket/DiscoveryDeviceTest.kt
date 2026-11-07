@@ -92,6 +92,7 @@ class DiscoveryDeviceTest {
             ui.onNodeWithTag("catalogGenrePicker").performClick()
             ui.onNodeWithTag("catalogPicker").performScrollToNode(hasTestTag("sourceCategory:1"))
             ui.onNodeWithTag("sourceCategory:1").performClick()
+            ui.onNodeWithTag("applyCatalogFilters").performClick()
             ui.waitUntil(15000) { model.state.value.catalogCategory=="1" && !model.state.value.catalogLoading }
             ui.onNodeWithTag("searchInput").performTextInput("测试")
             androidx.test.espresso.Espresso.closeSoftKeyboard()

@@ -30,10 +30,10 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 
-/** Outside the scroll container so search is always reachable above recommendations/results. */
+/** Search remains a single input while its parent handles scroll-driven visibility. */
 @Composable fun HomeSearchBar(query:String,onQuery:(String)->Unit,searchMode:Boolean,submit:()->Unit,clear:()->Unit,placeholder:String="搜索影片、剧集或频道",clearLabel:String="清空并返回推荐",allowEmpty:Boolean=false) {
     Surface(color=MaterialTheme.colorScheme.background) {
-        Box(Modifier.fillMaxWidth().statusBarsPadding(),contentAlignment=Alignment.Center) {
+        Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center) {
             TextField(query,onQuery,modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp)
                 .testTag("searchInput").semantics { contentDescription="影片或频道名称" },singleLine=true,
                 keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={if(allowEmpty || query.isNotBlank()) submit()}),

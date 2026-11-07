@@ -3,7 +3,9 @@ package org.streampocket
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
@@ -41,6 +43,9 @@ import androidx.compose.ui.text.style.TextOverflow
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     val catalogVideos=remember(s.catalogVideos,catalogSort) { catalogSort.apply(s.catalogVideos) }
     var picker by rememberSaveable { mutableStateOf<String?>(null) }
+    var draftGenres by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var draftSources by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var draftCategory by rememberSaveable { mutableStateOf<String?>(null) }
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle,model) {
         val observer=androidx.lifecycle.LifecycleEventObserver { _,event ->
@@ -51,23 +56,36 @@ import androidx.compose.ui.text.style.TextOverflow
     }
     val keyboard=LocalSoftwareKeyboardController.current
     val focus=androidx.compose.ui.platform.LocalFocusManager.current
-    fun openPicker(value:String) { focus.clearFocus();keyboard?.hide();picker=value }
-    LaunchedEffect(sources.map { it.key }) { if(sources.isNotEmpty() && s.catalogSource==null) model.browse(sources.first()) }
+    fun openPicker(value:String) {
+        focus.clearFocus();keyboard?.hide()
+        draftGenres=s.catalogGenres.map { it.name };draftCategory=s.catalogCategory;draftSources=s.catalogSourceKeys.toList();picker=value
+    }
+    LaunchedEffect(sources.map { it.key }) { if(sources.isNotEmpty() && s.catalogSource==null) model.browseSources(emptySet()) }
     if(picker!=null) ModalBottomSheet(onDismissRequest={picker=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
         SheetSystemBars()
-        LazyColumn(Modifier.fillMaxWidth().testTag("catalogPicker"),contentPadding=PaddingValues(start=20.dp,end=20.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+        LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("catalogPicker"),contentPadding=PaddingValues(start=20.dp,end=20.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             item { Row(verticalAlignment=Alignment.CenterVertically) {
-                Text(if(picker=="source") "选择片库" else "选择题材",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                TextButton(onClick={picker=null}) { Text("关闭") }
+                Text(if(picker=="source") "选择片库" else "筛选题材",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                TextButton(onClick={picker=null}) { Text("取消") }
             } }
-            if(picker=="source") items(sources,key={it.key}) { source ->
-                ListItem(headlineContent={Text(source.name)},trailingContent={if(source.key==s.catalogSource?.key) Icon(Icons.Default.Check,"已选")},
-                    modifier=Modifier.fillMaxWidth().clickable { model.browse(source,query=catalogQuery.trim());picker=null }.testTag("catalogSource:${source.key}"))
+            if(picker=="source") {
+                item { Text("不选即搜索所有来源",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                items(sources,key={it.key}) { source ->
+                    ListItem(headlineContent={Text(source.name)},leadingContent={Checkbox(checked=source.key in draftSources,onCheckedChange=null)},
+                        modifier=Modifier.fillMaxWidth().toggleable(value=source.key in draftSources,role=androidx.compose.ui.semantics.Role.Checkbox) {
+                            draftSources=if(source.key in draftSources) draftSources-source.key else draftSources+source.key
+                        }.testTag("catalogSource:${source.key}"))
+                }
             } else {
+                item { Text("多选取并集，不选即不限",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                 item { FlowRow(Modifier.fillMaxWidth().testTag("catalogGenres"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     Genre.entries.filter { it!=Genre.UNKNOWN }.forEach { option ->
-                        ContentFilterChip(selected=s.catalogGenre==option && s.catalogCategory==null,
-                            onClick={s.catalogSource?.let { model.browse(it,query=catalogQuery.trim(),genre=option) };picker=null},
+                        ContentFilterChip(selected=if(option==Genre.ALL) draftGenres.isEmpty() && draftCategory==null else option.name in draftGenres,
+                            onClick={
+                                draftCategory=null
+                                draftGenres=if(option==Genre.ALL) emptyList() else if(option.name in draftGenres) draftGenres-option.name else draftGenres+option.name
+                            },
                             modifier=Modifier.testTag("catalogGenre:${option.name}"),reserveSelectionSpace=true,label={Text(option.label)})
                     }
                 } }
@@ -75,13 +93,25 @@ import androidx.compose.ui.text.style.TextOverflow
                     item { Text("片库分类",style=MaterialTheme.typography.titleSmall) }
                     item { FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         s.categories.forEach { category ->
-                            ContentFilterChip(selected=s.catalogCategory==category.id,
-                                onClick={s.catalogSource?.let { model.browse(it,category.id,catalogQuery.trim()) };picker=null},
+                            ContentFilterChip(selected=draftCategory==category.id,
+                                onClick={draftGenres=emptyList();draftCategory=if(draftCategory==category.id) null else category.id},
                                 modifier=Modifier.testTag("sourceCategory:${category.id}"),reserveSelectionSpace=true,label={Text(category.name)})
                         }
                     } }
                 }
             }
+        }
+        run {
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                TextButton(onClick={if(picker=="source") draftSources=emptyList() else { draftGenres=emptyList();draftCategory=null }},modifier=Modifier.testTag("clearCatalogFilters")) { Text("重置") }
+                Button(onClick={
+                    if(picker=="source") model.browseSources(draftSources.toSet(),query=catalogQuery.trim(),genres=s.catalogGenres)
+                    else model.browseSources(s.catalogSourceKeys,draftCategory,catalogQuery.trim(),genres=draftGenres.map { Genre.valueOf(it) }.toSet())
+                    picker=null
+                },modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("applyCatalogFilters")) { Text("应用") }
+            }
+        }
         }
     }
     Column(Modifier.fillMaxSize()) {
@@ -99,20 +129,38 @@ import androidx.compose.ui.text.style.TextOverflow
                 item {
                     FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
-                            Text(source.name,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
+                            Text(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
                         }
                         FilledTonalButton(onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
-                            Text(s.categories.find { it.id==s.catalogCategory }?.name ?: s.catalogGenre.label);Icon(Icons.Default.ArrowDropDown,null)
+                            Text(s.categories.find { it.id==s.catalogCategory }?.name ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}");Icon(Icons.Default.ArrowDropDown,null)
+                        }
+                    }
+                    if(s.catalogSourceKeys.isNotEmpty() || s.catalogGenres.isNotEmpty() || s.catalogCategory!=null) {
+                        FlowRow(Modifier.fillMaxWidth().testTag("activeCatalogFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            sources.filter { it.key in s.catalogSourceKeys }.forEach { selected ->
+                                InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys-selected.key,query=catalogQuery.trim(),genres=s.catalogGenres)},
+                                    label={Text(selected.name,maxLines=1,overflow=TextOverflow.Ellipsis)},trailingIcon={Icon(Icons.Default.Close,"取消${selected.name}",Modifier.size(16.dp))},
+                                    modifier=Modifier.widthIn(max=200.dp).testTag("activeSource:${selected.key}"))
+                            }
+                            s.catalogGenres.sortedBy { it.ordinal }.forEach { genre ->
+                                InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim(),genres=s.catalogGenres-genre)},
+                                    label={Text(genre.label)},trailingIcon={Icon(Icons.Default.Close,"取消${genre.label}",Modifier.size(16.dp))},
+                                    modifier=Modifier.testTag("activeGenre:${genre.name}"))
+                            }
+                            s.categories.find { it.id==s.catalogCategory }?.let { category ->
+                                InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim())},label={Text(category.name)},
+                                    trailingIcon={Icon(Icons.Default.Close,"取消${category.name}",Modifier.size(16.dp))})
+                            }
                         }
                     }
                     DiscoverySortControl(catalogSort,{catalogSort=it},catalogVideos,false)
                 }
                 if(s.catalogLoading) item { Row(verticalAlignment=Alignment.CenterVertically) {
-                    LinearProgressIndicator(Modifier.weight(1f));TextButton(onClick=model::cancelCatalog) { Text("取消") }
+                    LinearProgressIndicator(progress={ if(s.catalogTotal==0) 0f else s.catalogCompleted.toFloat()/s.catalogTotal },modifier=Modifier.weight(1f));TextButton(onClick=model::cancelCatalog) { Text("取消") }
                 } }
                 s.catalogError?.let { message -> item {
                     Text(message)
-                    TextButton(onClick={model.browse(source,s.catalogCategory,s.catalogQuery,more=s.catalogMore,genre=s.catalogGenre)}) { Text("重新加载") }
+                    TextButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,more=s.catalogMore,genres=s.catalogGenres)}) { Text("重新加载") }
                 } }
                 if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item {
                     Column(Modifier.padding(vertical=16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -128,6 +176,7 @@ import androidx.compose.ui.text.style.TextOverflow
                             Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                                 CardTextSlot(video.title,style=MaterialTheme.typography.titleMedium)
                                 if(SearchRules.metadata(video).isNotBlank()) Text(SearchRules.metadata(video).replace(" · ","  "),style=MaterialTheme.typography.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                if(s.catalogSourceKeys.size!=1) Text(video.source.name,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
                                 if(video.rating!=null) Text("来源评分 ${video.rating}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 video.updatedAt?.let { Text("更新 ${updatedDate(it)}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                             }
@@ -135,8 +184,8 @@ import androidx.compose.ui.text.style.TextOverflow
                     }
                 }
                 if(s.catalogMore && !s.catalogLoading) item {
-                    OutlinedButton(onClick={model.browse(source,s.catalogCategory,s.catalogQuery,true,s.catalogGenre)},modifier=Modifier.fillMaxWidth().testTag("catalogMore")) {
-                        Text(if(s.catalogGenre==Genre.ALL) "加载更多" else "继续查找${s.catalogGenre.label}")
+                    OutlinedButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,true,s.catalogGenres)},modifier=Modifier.fillMaxWidth().testTag("catalogMore")) {
+                        Text(if(s.catalogGenres.isEmpty()) "加载更多" else "继续查找")
                     }
                 }
             }
@@ -148,7 +197,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit,sort:DiscoverySort,onSort:(DiscoverySort)->Unit) {
     val videos=remember(s.recommendations,sort) { sort.apply(s.recommendations) }
     val recent=remember(s.saved.history) { HistoryGroups.group(s.saved.history).take(5) }
-    LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 176.dp else 140.dp),
+    LazyVerticalGrid(columns=GridCells.Fixed(2),
         modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=12.dp,bottom=16.dp),
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(recent.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)},key="continue-watching") {
@@ -213,7 +262,7 @@ import androidx.compose.ui.text.style.TextOverflow
                         }
                     }
                     val title:@Composable ()->Unit = {
-                        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp).testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface)
+                        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=10.dp,vertical=4.dp).testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface)
                     }
                     if(maxWidth>=240.dp) {
                         Row(verticalAlignment=Alignment.CenterVertically) {
@@ -222,7 +271,7 @@ import androidx.compose.ui.text.style.TextOverflow
                         }
                     } else {
                         Column {
-                            artwork(Modifier.fillMaxWidth().aspectRatio(2f/3f))
+                            artwork(Modifier.fillMaxWidth().aspectRatio(2f))
                             title()
                         }
                     }

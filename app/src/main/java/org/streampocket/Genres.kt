@@ -29,6 +29,8 @@ internal object Genres {
 
     fun matches(video: Video, genre: Genre) = genre == Genre.ALL || genre in of(video)
 
+    fun matchesAny(video:Video, genres:Set<Genre>) = genres.isEmpty() || Genre.ALL in genres || of(video).any { it in genres }
+
     // Numeric category IDs belong to this source. Do not map a genre to an arbitrary movie/TV ID.
     fun categoryIds(categories: List<Category>, genre: Genre): List<String> =
         if(genre == Genre.ALL || genre == Genre.UNKNOWN) emptyList()

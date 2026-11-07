@@ -17,7 +17,7 @@ data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
     val detail: Detail? = null, val detailLoading: Boolean = false, val detailError:String? = null, val playback: Playback? = null,
     val catalogSource: Source? = null, val categories: List<Category> = emptyList(), val catalogVideos: List<Video> = emptyList(),
-    val catalogGenre: Genre = Genre.ALL, val catalogScanned: Int = 0, val catalogCategory: String? = null, val catalogQuery: String = "", val catalogMore: Boolean = false, val catalogLoading: Boolean = false, val catalogError: String? = null,
+    val catalogSourceKeys: Set<String> = emptySet(), val catalogCompleted:Int=0, val catalogTotal:Int=0, val catalogGenres: Set<Genre> = emptySet(), val catalogScanned: Int = 0, val catalogCategory: String? = null, val catalogQuery: String = "", val catalogMore: Boolean = false, val catalogLoading: Boolean = false, val catalogError: String? = null,
     val recommendations: List<Video> = emptyList(), val recommendType: String = "tv", val recommendTag: String = "热门",
     val recommendPage: Int = 0, val recommendLoading: Boolean = false, val recommendMore: Boolean = false, val recommendError: String? = null,
     val appRelease:AppRelease? = null, val updateChecking:Boolean = false, val updateChecked:Boolean = false, val updateError:String? = null,
@@ -35,6 +35,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private val lock = Mutex()
     val network = Network({ _state.value.saved.allowHttp }, dns=dns, cache = responseCache)
     private val searchRepository = SearchRepository(network)
+    private val sourceHealth=SourceHealth(java.io.File(application.cacheDir,"source-health-v1"),viewModelScope)
     private val updateNetwork=UpdateNetwork()
     val updater=ApkUpdater(application,updateNetwork.client,viewModelScope)
     private var updateJob:Job?=null
@@ -77,7 +78,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private var recommendOwner = 0L
     private var catalogJob: Job? = null
     private var catalogOwner=0L
-    private var catalogCursor:CatalogCursor?=null
+    private val catalogCursors=mutableMapOf<String,CatalogCursor?>()
+    private val catalogClasses=mutableMapOf<String,List<Category>>()
     private val catalogBrowser=CatalogBrowser { network.text(it,true) }
     private var searchJob: Job? = null
     private var searchOrderPinned=false
@@ -107,7 +109,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     init { viewModelScope.launch {
         try {
             withContext(Dispatchers.IO) { try { responseCache.maintain() } catch(_: java.io.IOException) { /* Disposable cache must not block user data. */ } }
-            val saved = store.read(); _state.update { it.copy(loading = false, saved = saved) }
+            val saved = store.read(); sourceHealth.load();sourceHealth.retain(saved.enabledSources().map { it.key }.toSet()); _state.update { it.copy(loading = false, saved = saved) }
             refreshStorage()
         }
         catch(e: CancellationException) { throw e }
@@ -125,6 +127,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         viewModelScope.launch { try { mutate(block); if(clearSourceResults) invalidateSources() } catch(e: CancellationException) { throw e } catch(e: Exception) { message(safeError(e)) } }
     }
     private fun invalidateSources() {
+        sourceHealth.retain(state.value.saved.enabledSources().map { it.key }.toSet())
+        catalogClasses.keys.retainAll(state.value.saved.enabledSources(SourceKind.VOD).map { it.key }.toSet())
         closeAlternatives(); cancelSearch(); cancelCatalog(); closeDetail(); clearCache(silent = true)
         _state.update { it.copy(catalogSource=null,catalogVideos=emptyList(),categories=emptyList(),catalogMore=false,catalogError=null) }
         _state.update { it.copy(results = emptyList(), completed = 0, total = 0, failures = 0) }
@@ -226,7 +230,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         cancelSearch()
         searchOrderPinned=false
         val q = query.trim().take(100); if(q.isEmpty()) return
-        val sources = state.value.saved.enabledSources()
+        val sources = sourceHealth.ordered(state.value.saved.enabledSources(),QueryKind.SEARCH)
         _state.update { it.copy(searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
         if (sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
         searchJob = viewModelScope.launch {
@@ -238,16 +242,17 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                     try {
                         val list = withTimeout(22_000) { searchRepository.search(source, q) }
                         ensureActive()
+                        sourceHealth.record(source.key,QueryKind.SEARCH,true)
                         _state.update { state ->
                             state.copy(results = merger.append(state.results, list, state.saved.history,
                                 if (searchOrderPinned) null else { rows -> SearchRules.sorted(rows, q, state.searchOrder) }),
                                 completed = state.completed + 1)
                         }
-                    } catch(e: TimeoutCancellationException) { failed = true }
+                    } catch(e: TimeoutCancellationException) { ensureActive();failed = true }
                     catch(e: CancellationException) { throw e }
                     catch(e: Exception) { failed = true }
                     ensureActive()
-                    if (failed) _state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1) }
+                    if (failed) { sourceHealth.record(source.key,QueryKind.SEARCH,false);_state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1) } }
                 }
             } } } } } catch(_: TimeoutCancellationException) { message("搜索达到45秒总时限，已保留返回结果；可换源或重试") } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=if(searchOrderPinned) it.results else SearchRules.sorted(it.results, q, it.searchOrder)) } }
         }
@@ -260,33 +265,61 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         }
         change { it.copy(adRules=it.adRules + (source.key to paths)) }
     }
-    fun cancelCatalog() { catalogOwner++;catalogJob?.cancel();catalogJob=null;_state.update { it.copy(catalogLoading=false,catalogError=if(it.catalogLoading) "查找已取消" else it.catalogError) } }
-    fun browse(source: Source, category: String? = null, query: String = "", more: Boolean = false, genre:Genre = Genre.ALL) {
+    fun cancelCatalog() {
+        catalogOwner++;catalogJob?.cancel();catalogJob=null
+        _state.update { it.copy(catalogLoading=false,catalogMore=catalogCursors.isNotEmpty(),catalogError=if(it.catalogLoading) "查找已取消" else it.catalogError) }
+    }
+    fun browse(source:Source,category:String?=null,query:String="",more:Boolean=false,genres:Set<Genre> = emptySet()) =
+        browseSources(setOf(source.key),category,query,more,genres)
+
+    /** Empty source selection means all enabled VOD sources, including sources added later. */
+    fun browseSources(sourceKeys:Set<String> = state.value.catalogSourceKeys, category:String?=null,query:String="",more:Boolean=false,genres:Set<Genre> = emptySet()) {
         val before=state.value
-        if(source.kind!=SourceKind.VOD || source.key in before.saved.disabled || before.saved.subscriptions.none { sub -> sub.sources.any { it.key==source.key } }) return
-        if(more && (before.catalogLoading || !before.catalogMore || before.catalogSource?.key!=source.key || before.catalogCategory!=category || before.catalogQuery!=query || before.catalogGenre!=genre)) return
-        val cursor=if(more) catalogCursor else null
+        val enabled=before.saved.enabledSources(SourceKind.VOD)
+        val sources=sourceHealth.ordered(enabled.filter { sourceKeys.isEmpty() || it.key in sourceKeys },QueryKind.CATALOG)
+        if(sources.isEmpty()) return
+        val rawCategory=category.takeIf { sources.size==1 }
+        if(more && (before.catalogLoading || !before.catalogMore || before.catalogSourceKeys!=sourceKeys || before.catalogCategory!=rawCategory || before.catalogQuery!=query || before.catalogGenres!=genres)) return
         cancelCatalog();val owner=catalogOwner
-        if(!more) catalogCursor=null
-        _state.update { it.copy(catalogSource=source,catalogCategory=category,catalogGenre=genre,catalogQuery=query,catalogLoading=true,catalogError=null,
+        if(!more) { catalogCursors.clear();sources.forEach { catalogCursors[it.key]=null } }
+        val tasks=sources.filter { it.key in catalogCursors }.map { it to catalogCursors[it.key] }
+        _state.update { it.copy(catalogSource=sources.first(),catalogSourceKeys=sourceKeys.toSet(),catalogCategory=rawCategory,catalogGenres=genres.toSet(),catalogQuery=query,
+            catalogLoading=true,catalogError=null,catalogCompleted=0,catalogTotal=tasks.size,
             catalogVideos=if(more) it.catalogVideos else emptyList(),catalogScanned=if(more) it.catalogScanned else 0,
-            categories=if(it.catalogSource?.key==source.key) it.categories else emptyList(),catalogMore=more) }
+            categories=if(sources.size==1) catalogClasses[sources.first().key].orEmpty() else emptyList(),catalogMore=false) }
         catalogJob=viewModelScope.launch {
-            try {
-                val result=withTimeout(25_000) { withContext(Dispatchers.Default) {
-                    catalogBrowser.load(source,category,genre,query,if(before.catalogSource?.key==source.key) before.categories else emptyList(),cursor)
-                } }
-                ensureActive()
-                if(owner==catalogOwner) {
-                    catalogCursor=result.next
-                    _state.update {
-                        val merged=(it.catalogVideos+result.videos).distinctBy { v -> v.source.key+":"+v.id }.take(1000)
-                        it.copy(catalogVideos=merged,categories=result.categories,catalogLoading=false,
-                            catalogScanned=it.catalogScanned+result.pages,catalogMore=result.next!=null && merged.size<1000)
+            var failures=0
+            var timedOut=false
+            val semaphore=Semaphore(4)
+            try { withTimeout(45_000) { supervisorScope {
+                tasks.forEach { (source,cursor) -> launch {
+                    semaphore.withPermit {
+                        try {
+                            val known=catalogClasses[source.key].orEmpty()
+                            val result=withTimeout(25_000) { withContext(Dispatchers.Default) {
+                                catalogBrowser.load(source,rawCategory,genres,query,known,cursor)
+                            } }
+                            ensureActive()
+                            if(owner==catalogOwner) {
+                                sourceHealth.record(source.key,QueryKind.CATALOG,true)
+                                catalogClasses[source.key]=result.categories
+                                if(result.next==null) catalogCursors.remove(source.key) else catalogCursors[source.key]=result.next
+                                _state.update {
+                                    val merged=(it.catalogVideos+result.videos).distinctBy { v -> v.source.key+":"+v.id }.take(1000)
+                                    it.copy(catalogVideos=merged,categories=if(sources.size==1) result.categories else emptyList(),
+                                        catalogScanned=it.catalogScanned+result.pages,catalogCompleted=it.catalogCompleted+1)
+                                }
+                            }
+                        } catch(e:TimeoutCancellationException) { ensureActive();sourceHealth.record(source.key,QueryKind.CATALOG,false);failures++;if(owner==catalogOwner) _state.update { it.copy(catalogCompleted=it.catalogCompleted+1) } }
+                        catch(e:CancellationException) { throw e }
+                        catch(e:Exception) { sourceHealth.record(source.key,QueryKind.CATALOG,false);failures++;if(owner==catalogOwner) _state.update { it.copy(catalogCompleted=it.catalogCompleted+1) } }
                     }
-                }
-            } catch(e: CancellationException) { if(e is TimeoutCancellationException && owner==catalogOwner) _state.update { it.copy(catalogLoading=false,catalogError="请求超时，请重试") } else throw e }
-            catch(e: Exception) { if(owner==catalogOwner) _state.update { it.copy(catalogLoading=false,catalogError=safeError(e)) } }
+                } }
+            } } } catch(_:TimeoutCancellationException) { timedOut=true }
+            finally {
+                if(owner==catalogOwner) _state.update { it.copy(catalogLoading=false,catalogMore=catalogCursors.isNotEmpty() && it.catalogVideos.size<1000,
+                    catalogError=if(timedOut) "查找超时，已保留返回结果，可继续查找" else if(failures>0) "$failures 个来源未完成，已保留返回结果" else null) }
+            }
         }
     }
     fun recommend(type: String = state.value.recommendType, tag: String = if(type == state.value.recommendType) state.value.recommendTag else "热门", more: Boolean = false) {

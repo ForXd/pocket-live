@@ -93,6 +93,7 @@ class SearchUiDeviceTest {
             ui.onNodeWithTag("catalogGenrePicker").performClick()
             ui.onNodeWithTag("catalogPicker").performScrollToNode(hasTestTag("sourceCategory:2"))
             ui.onNodeWithTag("sourceCategory:2").performClick()
+            ui.onNodeWithTag("applyCatalogFilters").performClick()
             ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogQuery=="星河" }
             assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="2" && it.requestUrl?.queryParameter("wd")=="星河" })
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:series"))
@@ -103,16 +104,15 @@ class SearchUiDeviceTest {
             capture("04-genre-picker")
             val genrePositions=Genre.entries.filter { it!=Genre.UNKNOWN }.associateWith { ui.onNodeWithTag("catalogGenre:${it.name}").getUnclippedBoundsInRoot() }
             ui.onNodeWithTag("catalogGenre:ROMANCE").performClick()
-            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenre==Genre.ROMANCE }
-            assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="7" && it.requestUrl?.queryParameter("wd")=="星河" })
-            ui.onNodeWithTag("catalogGenrePicker").performClick()
             ui.waitForIdle()
             genrePositions.forEach { (option,before) ->
                 val after=ui.onNodeWithTag("catalogGenre:${option.name}").getUnclippedBoundsInRoot()
                 assertEquals("Genre selection must not move options horizontally",before.left.value,after.left.value,1f)
                 assertEquals("Genre selection must not reflow rows",before.top.value,after.top.value,1f)
             }
-            ui.onNodeWithText("关闭").performClick()
+            ui.onNodeWithTag("applyCatalogFilters").performClick()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenres==setOf(Genre.ROMANCE) }
+            assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="7" && it.requestUrl?.queryParameter("wd")=="星河" })
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:love"))
             ui.onNodeWithTag("catalogVideo:series").assertDoesNotExist()
             capture("04-romance")
@@ -123,11 +123,41 @@ class SearchUiDeviceTest {
             assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="7" && it.requestUrl?.queryParameter("wd")==null })
             ui.onNodeWithTag("catalogList").performScrollToIndex(0)
             ui.onNodeWithTag("catalogGenrePicker").performClick()
+            ui.onNodeWithTag("catalogGenre:ROMANCE").performClick()
             ui.onNodeWithTag("catalogGenre:MYSTERY").performClick()
-            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenre==Genre.MYSTERY }
+            ui.onNodeWithTag("applyCatalogFilters").performClick()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenres==setOf(Genre.MYSTERY) }
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:series"))
             ui.onNodeWithTag("catalogVideo:exact").assertDoesNotExist()
             capture("05-mystery-catalog")
+            ui.onNodeWithTag("catalogList").performScrollToIndex(0)
+            ui.onNodeWithTag("catalogGenrePicker").performClick()
+            ui.onNodeWithTag("catalogGenre:ROMANCE").performClick()
+            ui.onNodeWithTag("catalogGenre:MYSTERY").assertIsSelected()
+            capture("06-multi-picker")
+            ui.onNodeWithTag("applyCatalogFilters").performClick()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenres.size==2 }
+            assertTrue(model.state.value.catalogVideos.any { it.id=="series" })
+            assertTrue(model.state.value.catalogVideos.any { it.id=="love" })
+            assertTrue(model.state.value.catalogVideos.none { it.id=="noise" })
+            capture("07-multi-results")
+            // Dismissal discards edits; applying no selections means no genre restriction.
+            ui.onNodeWithTag("catalogGenrePicker").performClick()
+            ui.onNodeWithTag("clearCatalogFilters").performClick()
+            ui.onNodeWithText("取消",useUnmergedTree=true).performClick()
+            assertEquals(setOf(Genre.ROMANCE,Genre.MYSTERY),model.state.value.catalogGenres)
+            ui.onNodeWithTag("activeGenre:ROMANCE").performClick()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenres==setOf(Genre.MYSTERY) }
+            ui.onNodeWithTag("activeGenre:MYSTERY").performClick()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenres.isEmpty() }
+            assertTrue(model.state.value.catalogVideos.any { it.id=="noise" })
+            ui.onNodeWithTag("catalogGenrePicker").performClick()
+            ui.onNodeWithTag("catalogGenre:ROMANCE").performClick()
+            ui.onNodeWithTag("catalogGenre:ROMANCE").performClick()
+            ui.onNodeWithTag("applyCatalogFilters").performClick()
+            ui.waitUntil(10000) { !model.state.value.catalogLoading }
+            assertTrue(model.state.value.catalogGenres.isEmpty())
+            capture("08-unrestricted")
             if(InstrumentationRegistry.getArguments().getString("reviewSession")=="true") {
                 // Optional manual review keeps the controlled source reachable; ordinary tests never wait here.
                 val done=java.io.File(ui.activity.filesDir,"search-review-done").apply { delete() }

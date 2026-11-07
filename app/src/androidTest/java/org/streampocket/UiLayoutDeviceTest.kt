@@ -58,7 +58,6 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("recommendationGrid").assertExists()
             ui.onNodeWithContentDescription("外观设置").assertDoesNotExist()
             assertTrue(ui.onNodeWithTag("nav:3").getUnclippedBoundsInRoot().left>ui.onNodeWithTag("nav:2").getUnclippedBoundsInRoot().left)
-            val searchTop=ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot().top.value
             ui.onNodeWithTag("searchInput").performTextInput("星河")
             capture("00-keyboard")
             ui.onNodeWithContentDescription("开始搜索").assertHeightIsAtLeast(48.dp).performClick()
@@ -126,7 +125,7 @@ class UiLayoutDeviceTest {
                 }
             }
             grid.performScrollToNode(hasTestTag("recommendation:2"))
-            assertEquals("Search stays fixed during recommendation scroll",searchTop,ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot().top.value,1f)
+            ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
             capture("08-aligned-grid")
             grid.performScrollToIndex(0)
             ui.onNodeWithContentDescription("刷新推荐").assertHeightIsAtLeast(48.dp).performClick()

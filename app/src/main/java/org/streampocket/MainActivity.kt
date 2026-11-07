@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
@@ -142,21 +143,28 @@ class MainActivity : ComponentActivity() {
             else -> showRecommendations()
         }
     }
+    val searchScroll=remember { HomeSearchScroll() }
+    val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
+    val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
+    val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
+    LaunchedEffect(tab,searchMode,recommendations.value,s.detail?.video?.id,imeVisible) { searchScroll.reveal() }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> if(i==3) Icon(Icons.Default.Settings,null) else Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history)[i]),null) }
-    Scaffold(modifier=Modifier.fillMaxSize(),
+    Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
         topBar = {
             if(tab==0 && s.detail==null && !s.detailLoading) {
                 val inCatalog=!searchMode && !recommendations.value
                 fun browseQuery(value:String) {
                     catalogQuery=value;focusManager.clearFocus();keyboard?.hide()
-                    s.catalogSource?.let { model.browse(it,s.catalogCategory,value.trim(),genre=s.catalogGenre) }
+                    model.browseSources(s.catalogSourceKeys,s.catalogCategory,value.trim(),genres=s.catalogGenres)
                 }
+                CollapsingHomeSearch(searchScroll) {
                 HomeSearchBar(if(inCatalog) catalogQuery else query,{if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
                     {if(inCatalog) browseQuery(catalogQuery) else search(query)},
                     {if(inCatalog) browseQuery("") else showRecommendations()},
-                    placeholder=if(inCatalog) "在当前片库中搜索" else "搜索影片、剧集或频道",
+                    placeholder=if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
                     clearLabel=if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog)
+                }
             }
             else TopAppBar(colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title={
                 Text(if(s.detail!=null || s.detailLoading) "详情与选集" else when(tab) { 1 -> "订阅管理";2 -> "观看历史";else -> "设置" },style=MaterialTheme.typography.titleLarge)
