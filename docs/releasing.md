@@ -9,6 +9,8 @@
 5. 用下一节的测试从旧版正式应用点更新。从授权、下载、安装到重新打开全程保留应用数据。首次安装来源授权再单独手动跑一次。有兼容问题的厂商机型，应在其系统安装器上重复确认。保存设备型号、系统版本、测试结果和两个 APK 的身份信息。
 6. 验收通过后按发布时间保留最近三个 Release。清理历史附件前确认当前 latest 可用、上一个正式版仍可下载。验收失败时保留出错包和日志，暂停清理，修正后重新验证。
 
+更新器设备测试 `ApkUpdaterDeviceTest` 需要在启动 instrumentation **之前**执行 `adb shell appops set org.streampocket.devtest REQUEST_INSTALL_PACKAGES deny`。Android 会在撤销该权限时终止目标 UID；若上轮测试留下 allow，再在测试进程内撤销，会中断测试。该前置步骤只作用于 debug 测试包，正式应用的真实升级仍使用下面的 allow 设置。
+
 ## 发布后验证命令
 
 在专用模拟器设置 ANDROID_SERIAL 为目标设备。示例测试的是已公开的 0.22.0 → 0.23.0；下次替换下列三个版本参数。目标应用须已是 fromVersion，设备可以访问 GitHub，安装器按钮使用中文或英文。下面的 install 命令仅安装测试驱动，正式目标包由旧版应用下载并交给 Android 安装。

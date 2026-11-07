@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun Pocket(model: AppModel) {
     val s by model.state.collectAsStateWithLifecycle()
+    val imeVisible=WindowInsets.isImeVisible
     val compact=LocalConfiguration.current.screenHeightDp<500 || WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -77,6 +78,8 @@ class MainActivity : ComponentActivity() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
     var searchMode by rememberSaveable { mutableStateOf(false) }
+    val recommendations=rememberSaveable { mutableStateOf(true) }
+    var catalogQuery by rememberSaveable { mutableStateOf("") }
     var submittedQuery by rememberSaveable { mutableStateOf("") }
     fun search(text:String) {
         if(text.isBlank()) return
@@ -84,7 +87,7 @@ class MainActivity : ComponentActivity() {
         focusManager.clearFocus();keyboard?.hide();model.search(query)
     }
     fun showRecommendations() {
-        model.cancelSearch();searchMode=false;query="";submittedQuery=""
+        model.cancelSearch();searchMode=false;query="";submittedQuery="";recommendations.value=true
         focusManager.clearFocus();keyboard?.hide()
     }
     // Do not put token-bearing input into saved-instance-state or screen titles.
@@ -143,19 +146,30 @@ class MainActivity : ComponentActivity() {
     val navIcon:@Composable (Int)->Unit = { i -> if(i==3) Icon(Icons.Default.Settings,null) else Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history)[i]),null) }
     Scaffold(modifier=Modifier.fillMaxSize(),
         topBar = {
-            if(tab==0 && s.detail==null && !s.detailLoading) HomeSearchBar(query,{query=it.take(100)},searchMode,{search(query)},::showRecommendations)
+            if(tab==0 && s.detail==null && !s.detailLoading) {
+                val inCatalog=!searchMode && !recommendations.value
+                fun browseQuery(value:String) {
+                    catalogQuery=value;focusManager.clearFocus();keyboard?.hide()
+                    s.catalogSource?.let { model.browse(it,s.catalogCategory,value.trim(),genre=s.catalogGenre) }
+                }
+                HomeSearchBar(if(inCatalog) catalogQuery else query,{if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
+                    {if(inCatalog) browseQuery(catalogQuery) else search(query)},
+                    {if(inCatalog) browseQuery("") else showRecommendations()},
+                    placeholder=if(inCatalog) "在当前片库中搜索" else "搜索影片、剧集或频道",
+                    clearLabel=if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog)
+            }
             else TopAppBar(colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title={
                 Text(if(s.detail!=null || s.detailLoading) "详情与选集" else when(tab) { 1 -> "订阅管理";2 -> "观看历史";else -> "设置" },style=MaterialTheme.typography.titleLarge)
             },navigationIcon={if(s.detail!=null || s.detailLoading) IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }})
         },
-        bottomBar = { NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainer,tonalElevation=0.dp,modifier=Modifier.testTag("mainNavigation")) {
+        bottomBar = { if(!imeVisible) NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainer,tonalElevation=0.dp,modifier=Modifier.testTag("mainNavigation")) {
             destinations.forEachIndexed { i,title ->
                 NavigationBarItem(selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                     modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(title)})
             }
         } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize().imePadding(),contentAlignment=Alignment.TopCenter) {
+        Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize().imePadding(),contentAlignment=Alignment.TopCenter) {
         val destination=when {
             s.detailLoading -> "detailLoading"
             s.detail!=null -> "detail"
@@ -172,7 +186,7 @@ class MainActivity : ComponentActivity() {
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
                     if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1}) }
-                    else DiscoverScreen(s,model,{tab=1},::search)
+                    else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery)
                 }
                 3 -> SettingsScreen(s,model,{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })

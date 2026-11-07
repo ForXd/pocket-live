@@ -23,10 +23,10 @@ class GenresTest {
         val parsed=CmsParser.search("""{"list":[{"vod_id":1,"vod_name":"影片","type_name":"国产剧","vod_class":"爱情,悬疑"}]}""",source).single()
         assertEquals(setOf(Genre.ROMANCE,Genre.MYSTERY),Genres.of(parsed))
     }
-    @Test fun sourceGenreIdsAreNotGuessedAndAmbiguousMappingsStayUnfiltered() {
+    @Test fun sourceGenreIdsAreNotGuessedAndAllMatchingIdsAreKept() {
         val categories=listOf(Category("99","爱情片"),Category("2","电视剧"))
-        assertEquals("99",Genres.categoryId(categories,Genre.ROMANCE))
-        assertNull(Genres.categoryId(categories,Genre.MYSTERY))
-        assertNull(Genres.categoryId(categories+Category("100","爱情剧"),Genre.ROMANCE))
+        assertEquals(listOf("99"),Genres.categoryIds(categories,Genre.ROMANCE))
+        assertTrue(Genres.categoryIds(categories,Genre.MYSTERY).isEmpty())
+        assertEquals(listOf("99","100"),Genres.categoryIds(categories+Category("100","爱情剧"),Genre.ROMANCE))
     }
 }

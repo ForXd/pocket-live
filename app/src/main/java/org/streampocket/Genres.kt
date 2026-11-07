@@ -30,7 +30,7 @@ internal object Genres {
     fun matches(video: Video, genre: Genre) = genre == Genre.ALL || genre in of(video)
 
     // Numeric category IDs belong to this source. Do not map a genre to an arbitrary movie/TV ID.
-    fun categoryId(categories: List<Category>, genre: Genre): String? =
-        if(genre == Genre.ALL || genre == Genre.UNKNOWN) null
-        else categories.filter { genre.matchesLabel(it.name) }.singleOrNull()?.id
+    fun categoryIds(categories: List<Category>, genre: Genre): List<String> =
+        if(genre == Genre.ALL || genre == Genre.UNKNOWN) emptyList()
+        else categories.filter { genre.matchesLabel(it.name) }.map { it.id }.distinct()
 }

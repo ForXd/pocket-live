@@ -17,7 +17,7 @@ data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
     val detail: Detail? = null, val detailLoading: Boolean = false, val detailError:String? = null, val playback: Playback? = null,
     val catalogSource: Source? = null, val categories: List<Category> = emptyList(), val catalogVideos: List<Video> = emptyList(),
-    val catalogCategory: String? = null, val catalogQuery: String = "", val catalogPage: Int = 0, val catalogMore: Boolean = false, val catalogLoading: Boolean = false, val catalogError: String? = null,
+    val catalogGenre: Genre = Genre.ALL, val catalogScanned: Int = 0, val catalogCategory: String? = null, val catalogQuery: String = "", val catalogMore: Boolean = false, val catalogLoading: Boolean = false, val catalogError: String? = null,
     val recommendations: List<Video> = emptyList(), val recommendType: String = "tv", val recommendTag: String = "热门",
     val recommendPage: Int = 0, val recommendLoading: Boolean = false, val recommendMore: Boolean = false, val recommendError: String? = null,
     val appRelease:AppRelease? = null, val updateChecking:Boolean = false, val updateChecked:Boolean = false, val updateError:String? = null,
@@ -77,6 +77,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private var recommendOwner = 0L
     private var catalogJob: Job? = null
     private var catalogOwner=0L
+    private var catalogCursor:CatalogCursor?=null
+    private val catalogBrowser=CatalogBrowser { network.text(it,true) }
     private var searchJob: Job? = null
     private var searchOrderPinned=false
     fun pinSearchOrder() { searchOrderPinned=true }
@@ -124,7 +126,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     }
     private fun invalidateSources() {
         closeAlternatives(); cancelSearch(); cancelCatalog(); closeDetail(); clearCache(silent = true)
-        _state.update { it.copy(catalogSource=null,catalogVideos=emptyList(),categories=emptyList(),catalogMore=false) }
+        _state.update { it.copy(catalogSource=null,catalogVideos=emptyList(),categories=emptyList(),catalogMore=false,catalogError=null) }
         _state.update { it.copy(results = emptyList(), completed = 0, total = 0, failures = 0) }
     }
     fun allowHttp(enabled: Boolean) {
@@ -258,24 +260,31 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         }
         change { it.copy(adRules=it.adRules + (source.key to paths)) }
     }
-    fun cancelCatalog() { catalogOwner++;catalogJob?.cancel();catalogJob=null;_state.update { it.copy(catalogLoading=false) } }
-    fun browse(source: Source, category: String? = null, query: String = "", more: Boolean = false) {
+    fun cancelCatalog() { catalogOwner++;catalogJob?.cancel();catalogJob=null;_state.update { it.copy(catalogLoading=false,catalogError=if(it.catalogLoading) "查找已取消" else it.catalogError) } }
+    fun browse(source: Source, category: String? = null, query: String = "", more: Boolean = false, genre:Genre = Genre.ALL) {
         val before=state.value
         if(source.kind!=SourceKind.VOD || source.key in before.saved.disabled || before.saved.subscriptions.none { sub -> sub.sources.any { it.key==source.key } }) return
-        if(more && (before.catalogLoading || !before.catalogMore || before.catalogSource?.key!=source.key || before.catalogCategory!=category || before.catalogQuery!=query)) return
+        if(more && (before.catalogLoading || !before.catalogMore || before.catalogSource?.key!=source.key || before.catalogCategory!=category || before.catalogQuery!=query || before.catalogGenre!=genre)) return
+        val cursor=if(more) catalogCursor else null
         cancelCatalog();val owner=catalogOwner
-        val page=if(more) before.catalogPage+1 else 1
-        if(page>Catalog.MAX_PAGES) return
-        _state.update { it.copy(catalogSource=source,catalogCategory=category,catalogQuery=query,catalogLoading=true,catalogError=null,
-            catalogVideos=if(more) it.catalogVideos else emptyList(),categories=if(it.catalogSource?.key==source.key) it.categories else emptyList(),catalogMore=false) }
+        if(!more) catalogCursor=null
+        _state.update { it.copy(catalogSource=source,catalogCategory=category,catalogGenre=genre,catalogQuery=query,catalogLoading=true,catalogError=null,
+            catalogVideos=if(more) it.catalogVideos else emptyList(),catalogScanned=if(more) it.catalogScanned else 0,
+            categories=if(it.catalogSource?.key==source.key) it.categories else emptyList(),catalogMore=more) }
         catalogJob=viewModelScope.launch {
             try {
-                val result=withTimeout(22_000) { withContext(Dispatchers.Default) { Catalog.parse(network.text(Catalog.url(source,category,query,page),true),source,page) } }
+                val result=withTimeout(25_000) { withContext(Dispatchers.Default) {
+                    catalogBrowser.load(source,category,genre,query,if(before.catalogSource?.key==source.key) before.categories else emptyList(),cursor)
+                } }
                 ensureActive()
-                val names=((if(before.catalogSource?.key==source.key) before.categories else emptyList())+result.categories).associate { it.id to it.name }
-                val enriched=result.videos.map { if(it.typeName.isBlank()) it.copy(typeName=names[it.typeId].orEmpty()) else it }
-                if(owner==catalogOwner) _state.update { it.copy(catalogVideos=(it.catalogVideos+enriched).distinctBy { v -> v.source.key+":"+v.id }.take(1000),
-                    categories=if(result.categories.isEmpty()) it.categories else result.categories,catalogLoading=false,catalogPage=page,catalogMore=result.hasMore) }
+                if(owner==catalogOwner) {
+                    catalogCursor=result.next
+                    _state.update {
+                        val merged=(it.catalogVideos+result.videos).distinctBy { v -> v.source.key+":"+v.id }.take(1000)
+                        it.copy(catalogVideos=merged,categories=result.categories,catalogLoading=false,
+                            catalogScanned=it.catalogScanned+result.pages,catalogMore=result.next!=null && merged.size<1000)
+                    }
+                }
             } catch(e: CancellationException) { if(e is TimeoutCancellationException && owner==catalogOwner) _state.update { it.copy(catalogLoading=false,catalogError="请求超时，请重试") } else throw e }
             catch(e: Exception) { if(owner==catalogOwner) _state.update { it.copy(catalogLoading=false,catalogError=safeError(e)) } }
         }

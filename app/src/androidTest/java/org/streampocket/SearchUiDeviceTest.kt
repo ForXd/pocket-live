@@ -89,29 +89,42 @@ class SearchUiDeviceTest {
             ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.onNodeWithText("分类搜索").performClick()
             ui.waitUntil(10000) { model.state.value.categories.isNotEmpty() }
-            ui.onNodeWithText("电视剧").performClick()
-            ui.onNodeWithTag("catalogSearchInput").performTextReplacement("星河")
-            ui.onNodeWithTag("catalogSearchInput").performImeAction()
+            ui.onNodeWithTag("searchInput").performTextReplacement("星河")
+            ui.onNodeWithTag("catalogGenrePicker").performClick()
+            ui.onNodeWithTag("catalogPicker").performScrollToNode(hasTestTag("sourceCategory:2"))
+            ui.onNodeWithTag("sourceCategory:2").performClick()
             ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogQuery=="星河" }
             assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="2" && it.requestUrl?.queryParameter("wd")=="星河" })
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:series"))
+            ui.onAllNodes(hasSetTextAction()).assertCountEquals(1)
             capture("03-catalog")
             ui.onNodeWithTag("catalogList").performScrollToIndex(0)
+            ui.onNodeWithTag("catalogGenrePicker").performClick()
+            capture("04-genre-picker")
+            val genrePositions=Genre.entries.filter { it!=Genre.UNKNOWN }.associateWith { ui.onNodeWithTag("catalogGenre:${it.name}").getUnclippedBoundsInRoot() }
             ui.onNodeWithTag("catalogGenre:ROMANCE").performClick()
-            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogCategory=="7" }
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenre==Genre.ROMANCE }
             assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="7" && it.requestUrl?.queryParameter("wd")=="星河" })
+            ui.onNodeWithTag("catalogGenrePicker").performClick()
+            ui.waitForIdle()
+            genrePositions.forEach { (option,before) ->
+                val after=ui.onNodeWithTag("catalogGenre:${option.name}").getUnclippedBoundsInRoot()
+                assertEquals("Genre selection must not move options horizontally",before.left.value,after.left.value,1f)
+                assertEquals("Genre selection must not reflow rows",before.top.value,after.top.value,1f)
+            }
+            ui.onNodeWithText("关闭").performClick()
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:love"))
             ui.onNodeWithTag("catalogVideo:series").assertDoesNotExist()
             capture("04-romance")
             ui.onNodeWithTag("catalogList").performScrollToIndex(0)
-            ui.onNodeWithTag("catalogSearchInput").performTextReplacement("")
-            ui.onNodeWithTag("catalogSearchInput").performImeAction()
+            ui.onNodeWithTag("searchInput").performTextReplacement("")
+            ui.onNodeWithTag("searchInput").performImeAction()
             ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogQuery.isEmpty() }
             assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="7" && it.requestUrl?.queryParameter("wd")==null })
             ui.onNodeWithTag("catalogList").performScrollToIndex(0)
-            ui.onNodeWithTag("catalogGenres").performScrollToNode(hasTestTag("catalogGenre:MYSTERY"))
+            ui.onNodeWithTag("catalogGenrePicker").performClick()
             ui.onNodeWithTag("catalogGenre:MYSTERY").performClick()
-            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogCategory==null }
+            ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenre==Genre.MYSTERY }
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:series"))
             ui.onNodeWithTag("catalogVideo:exact").assertDoesNotExist()
             capture("05-mystery-catalog")

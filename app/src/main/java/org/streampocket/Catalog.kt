@@ -6,7 +6,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 data class Category(val id: String, val name: String)
 data class CatalogPage(val videos: List<Video>, val categories: List<Category>, val hasMore: Boolean)
 object Catalog {
-    const val MAX_PAGES = 10
+    const val MAX_PAGES = 1000
     fun url(source: Source, category: String?, query: String, page: Int): String {
         require(page in 1..MAX_PAGES)
         return source.url.toHttpUrl().newBuilder().setQueryParameter("ac","videolist")
@@ -15,6 +15,9 @@ object Catalog {
                 if(query.isNotBlank()) setQueryParameter("wd",query.take(100)) else removeAllQueryParameters("wd")
             }.build().toString()
     }
+    fun categoriesUrl(source:Source):String = source.url.toHttpUrl().newBuilder()
+        .setQueryParameter("ac","list").removeAllQueryParameters("t").removeAllQueryParameters("wd")
+        .removeAllQueryParameters("pg").removeAllQueryParameters("ids").build().toString()
     fun parse(text: String, source: Source, page: Int): CatalogPage {
         val root=JsonData.parse(text).obj() ?: throw UserError("分类接口需要 JSON 对象")
         val videos=CmsParser.search(text,source).distinctBy { it.source.key+":"+it.id }

@@ -89,11 +89,13 @@ class DiscoveryDeviceTest {
             if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.onNodeWithText("分类搜索").performClick()
             ui.waitUntil(15000) { model.state.value.categories.isNotEmpty() }
-            ui.onNodeWithText("电视剧").performClick()
+            ui.onNodeWithTag("catalogGenrePicker").performClick()
+            ui.onNodeWithTag("catalogPicker").performScrollToNode(hasTestTag("sourceCategory:1"))
+            ui.onNodeWithTag("sourceCategory:1").performClick()
             ui.waitUntil(15000) { model.state.value.catalogCategory=="1" && !model.state.value.catalogLoading }
-            ui.onNodeWithText("分类内搜索").performTextInput("测试")
+            ui.onNodeWithTag("searchInput").performTextInput("测试")
             androidx.test.espresso.Espresso.closeSoftKeyboard()
-            ui.onNodeWithContentDescription("搜索当前分类").performScrollTo().performClick()
+            ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(15000) { model.state.value.catalogQuery=="测试" && !model.state.value.catalogLoading }
             // The keyboard reduces the viewport; scroll the lazy list before selecting its result.
             ui.onNode(hasScrollToIndexAction() and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange))

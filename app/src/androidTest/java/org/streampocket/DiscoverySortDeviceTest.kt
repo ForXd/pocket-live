@@ -33,17 +33,17 @@ class DiscoverySortDeviceTest {
         }
         try {
             choose("评分最高",true)
-            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("featured:b"))
-            ui.onNodeWithTag("featured:b").assertExists()
+            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("recommendation:b"))
+            ui.onNodeWithTag("recommendation:b").assertExists()
             // Another loaded page must participate in the existing sort.
             ui.runOnIdle { snapshot=snapshot.copy(recommendations=snapshot.recommendations+Video(source,"d","Delta",rating=10.0)) }
-            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("featured:d"))
-            ui.onNodeWithTag("featured:d").assertExists()
+            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("recommendation:d"))
+            ui.onNodeWithTag("recommendation:d").assertExists()
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("discoverySort"))
             ui.onNodeWithTag("discoverySort").performClick()
             ui.onNodeWithText("最近更新").assertIsNotEnabled()
             ui.onNodeWithText("默认顺序").performClick()
-            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("featured:a"))
+            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("recommendation:a"))
             choose("评分最高",true)
             ui.onNodeWithText("分类搜索").performClick()
             choose("最近更新",false)
@@ -54,7 +54,7 @@ class DiscoverySortDeviceTest {
             captureUi(ui,"discovery-sort-updated")
             ui.onNodeWithText("推荐").performClick()
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("discoverySort"))
-            ui.onNodeWithTag("discoverySort").assertTextContains("评分最高",substring=true)
+            ui.onNodeWithTag("discoverySort").assertContentDescriptionContains("排序：评分最高")
             captureUi(ui,"discovery-sort-rating")
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() } }
     }

@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+package org.streampocket
+
+/** A bounded batch can be resumed without discarding pages already searched. */
+internal data class CatalogCursor(val categories:List<String?>, val index:Int=0, val page:Int=1)
+internal data class CatalogBatch(val videos:List<Video>,val categories:List<Category>,val next:CatalogCursor?,val pages:Int)
+internal class CatalogBrowser(private val fetch:suspend (String)->String) {
+    suspend fun load(source:Source,category:String?,genre:Genre,query:String,known:List<Category>,cursor:CatalogCursor?=null):CatalogBatch {
+        var categories=known
+        var current=cursor
+        var pages=0
+        val videos=linkedMapOf<String,Video>()
+        suspend fun page(id:String?,number:Int):CatalogPage {
+            val result=Catalog.parse(fetch(Catalog.url(source,id,query,number)),source,number)
+            if(result.categories.isNotEmpty()) categories=(categories+result.categories).distinctBy { it.id }
+            pages++
+            return result
+        }
+        // Discover this source's actual IDs before planning a genre query.
+        var first:CatalogPage?=null
+        if(current==null) {
+            if(categories.isEmpty()) {
+                categories=Catalog.parse(fetch(Catalog.categoriesUrl(source)),source,1).categories
+                // Some compatible APIs include their classes only in the detailed response.
+                if(categories.isEmpty()) first=page(null,1)
+            }
+            val ids=if(category!=null) listOf(category) else Genres.categoryIds(categories,genre)
+            // Dedicated movie categories do not cover tagged series in generic TV categories.
+            // Search them first, then continue through the general catalog without losing either.
+            current=CatalogCursor(if(category==null && ids.isNotEmpty()) ids+listOf(null) else ids.ifEmpty { listOf(null) })
+        }
+        while(current!=null && pages< BATCH_PAGES) {
+            val c=current
+            val id=c.categories[c.index]
+            val result=if(id==null && c.page==1 && first!=null) first else page(id,c.page)
+            first=null
+            val names=categories.associate { it.id to it.name }
+            result.videos.forEach { v ->
+                val type=v.typeId.ifBlank { id.orEmpty() }
+                val enriched=v.copy(typeId=type,typeName=names[type] ?: v.typeName)
+                if(Genres.matches(enriched,genre)) videos.putIfAbsent(enriched.id,enriched)
+            }
+            current=when {
+                result.hasMore -> c.copy(page=c.page+1)
+                c.index+1<c.categories.size -> c.copy(index=c.index+1,page=1)
+                else -> null
+            }
+            if(genre==Genre.ALL || videos.size>=20) break
+        }
+        return CatalogBatch(videos.values.toList(),categories,current,pages)
+    }
+    companion object { const val BATCH_PAGES=4 }
+}

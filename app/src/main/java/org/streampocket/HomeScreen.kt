@@ -31,21 +31,21 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 
 /** Outside the scroll container so search is always reachable above recommendations/results. */
-@Composable fun HomeSearchBar(query:String,onQuery:(String)->Unit,searchMode:Boolean,submit:()->Unit,clear:()->Unit) {
+@Composable fun HomeSearchBar(query:String,onQuery:(String)->Unit,searchMode:Boolean,submit:()->Unit,clear:()->Unit,placeholder:String="搜索影片、剧集或频道",clearLabel:String="清空并返回推荐",allowEmpty:Boolean=false) {
     Surface(color=MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxWidth().statusBarsPadding(),contentAlignment=Alignment.Center) {
-            TextField(query,onQuery,modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp)
+            TextField(query,onQuery,modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp)
                 .testTag("searchInput").semantics { contentDescription="影片或频道名称" },singleLine=true,
-                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={if(query.isNotBlank()) submit()}),
-                placeholder={Text("搜索影片、剧集或频道")},shape=MaterialTheme.shapes.medium,
+                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={if(allowEmpty || query.isNotBlank()) submit()}),
+                placeholder={Text(placeholder)},shape=MaterialTheme.shapes.medium,
                 colors=TextFieldDefaults.colors(focusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,
                     focusedIndicatorColor=Color.Transparent,unfocusedIndicatorColor=Color.Transparent),
                 leadingIcon={Icon(Icons.Default.Search,null)},trailingIcon={
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
-                            IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空并返回推荐") }
+                            IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
                         }
-                        FilledIconButton(onClick=submit,enabled=query.isNotBlank(),modifier=Modifier.padding(end=4.dp).size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
+                        FilledIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),modifier=Modifier.padding(end=4.dp).size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                     }
                 })
         }
