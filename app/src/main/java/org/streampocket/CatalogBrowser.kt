@@ -51,5 +51,17 @@ internal class CatalogBrowser(private val fetch:suspend (String)->String) {
         }
         return CatalogBatch(videos.values.toList(),categories,current,pages)
     }
+    suspend fun random(source:Source,category:String?,genres:Set<Genre>,query:String,known:List<Category>):CatalogBatch {
+        val classes=if(known.isEmpty()) Catalog.parse(fetch(Catalog.categoriesUrl(source)),source,1).categories else known
+        val ids=genres.flatMap { Genres.categoryIds(classes,it) }.distinct()
+        val id=category ?: ids.randomOrNull()
+        val first=Catalog.parse(fetch(Catalog.url(source,id,query,1)),source,1)
+        val total=first.totalPages ?: 1
+        val chosen=if(total>1) kotlin.random.Random.nextInt(2,total+1) else 1
+        val page=if(chosen==1) first else Catalog.parse(fetch(Catalog.url(source,id,query,chosen)),source,chosen)
+        val names=(classes+page.categories).associate { it.id to it.name }
+        val rows=page.videos.map { it.copy(typeName=names[it.typeId.ifBlank { id.orEmpty() }] ?: it.typeName) }.filter { Genres.matchesAny(it,genres) }
+        return CatalogBatch(rows.shuffled(),classes,if(page.hasMore) CatalogCursor(listOf(CatalogRequest(id,chosen+1))) else null,if(chosen==1) 1 else 2)
+    }
     companion object { const val BATCH_PAGES=4 }
 }

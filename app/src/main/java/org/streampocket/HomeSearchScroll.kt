@@ -48,8 +48,8 @@ import kotlin.math.roundToInt
 }
 
 /** Collapse actual layout space, not just opacity, while keeping status-bar insets outside. */
-@Composable internal fun CollapsingHomeSearch(state:HomeSearchScroll,content:@Composable ()->Unit) {
-    Box(Modifier.fillMaxWidth().statusBarsPadding()) {
+@Composable internal fun CollapsingHomeSearch(state:HomeSearchScroll,statusBars:Boolean=true,content:@Composable ()->Unit) {
+    Box(if(statusBars) Modifier.fillMaxWidth().statusBarsPadding() else Modifier.fillMaxWidth()) {
         Layout(content=content,modifier=Modifier.fillMaxWidth().clipToBounds()) { measurables,constraints ->
             val child=measurables.single().measure(constraints.copy(minHeight=0))
             state.height=child.height.toFloat()

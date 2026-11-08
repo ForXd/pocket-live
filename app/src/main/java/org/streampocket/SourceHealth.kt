@@ -28,6 +28,10 @@ internal class SourceHealth(private val file:File,private val scope:CoroutineSco
         prune()
         return sources.sortedBy { source -> entries[id(source.key,kind)]?.let { if(it.success) 0 else 2 } ?: 1 }
     }
+    @Synchronized fun snapshot():Map<String,Boolean> {
+        prune()
+        return entries.values.filter { it.kind==QueryKind.SEARCH }.associate { it.key to it.success }
+    }
     @Synchronized fun record(sourceKey:String,kind:QueryKind,success:Boolean) {
         val id=id(sourceKey,kind)
         entries.remove(id);entries[id]=SourceHealthEntry(sourceKey,kind,success,now());prune()

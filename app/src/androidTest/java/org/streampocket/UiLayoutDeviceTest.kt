@@ -102,6 +102,12 @@ class UiLayoutDeviceTest {
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             ui.onNodeWithText("观看历史").assertDoesNotExist()
             capture("04-history")
+            ui.onNodeWithTag("historyGroups").performTouchInput { swipeUp(durationMillis=600) }
+            ui.onNodeWithTag("historySearch").assertIsNotDisplayed()
+            capture("history-search-collapsed")
+            ui.onNodeWithTag("historyGroups").performTouchInput { swipeDown(durationMillis=600) }
+            ui.onNodeWithTag("historySearch").assertIsDisplayed()
+
             ui.onNodeWithTag("nav:0").performClick()
             if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.waitUntil(10000) { !model.state.value.recommendLoading && model.state.value.recommendations.size==5 }

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -46,13 +47,15 @@ import androidx.compose.ui.unit.dp
     }
 }
 
-@Composable internal fun SubscriptionSourceRow(source:Source,enabled:Boolean,onToggle:()->Unit,onRules:(()->Unit)?=null) {
+@Composable internal fun SubscriptionSourceRow(source:Source,enabled:Boolean,onToggle:()->Unit,onRules:(()->Unit)?=null,availability:Boolean?=null) {
     var menuOpen by remember(source.key) { mutableStateOf(false) }
     Surface(Modifier.fillMaxWidth().padding(start=16.dp),shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
             Row(Modifier.weight(1f).toggleable(value=enabled,role=Role.Switch,onValueChange={onToggle()}).semantics { contentDescription="启用或停用 ${source.name}" }.padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text(source.name,style=MaterialTheme.typography.bodyLarge)
+                    Text(when(availability) { true->"● 最近搜索成功";false->"● 最近搜索失败";null->"● 待验证" },
+                        style=MaterialTheme.typography.labelMedium,color=when(availability) { true->androidx.compose.ui.graphics.Color(if(MaterialTheme.colorScheme.background.luminance()<0.5f) 0xff79d69b else 0xff26864b);false->MaterialTheme.colorScheme.error;null->androidx.compose.ui.graphics.Color(if(MaterialTheme.colorScheme.background.luminance()<0.5f) 0xffe4bf60 else 0xff966a00) })
                     Text(if(source.kind==SourceKind.LIVE) "直播 M3U" else "点播 API",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(checked=enabled,onCheckedChange=null)

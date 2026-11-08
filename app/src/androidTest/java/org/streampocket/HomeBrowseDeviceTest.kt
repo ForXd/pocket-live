@@ -239,6 +239,20 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("catalogPicker").assertDoesNotExist()
     }
 
+    @Test fun catalogPullRefreshRequestsAnotherPageAndPreservesQuery() {
+        ui.onNodeWithText("分类搜索").performClick()
+        ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogVideos.size==20 }
+        ui.onNodeWithTag("searchInput").performTextInput("片库")
+        ui.onNodeWithTag("searchInput").performImeAction()
+        ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogQuery=="片库" }
+        ui.onNodeWithTag("catalogList").performTouchInput { swipeDown(durationMillis=800) }
+        ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogVideos.any { it.id=="21" } }
+        assertEquals("片库",model.state.value.catalogQuery)
+        assertEquals(20,model.state.value.catalogVideos.size)
+        assertTrue(requests.any { it.contains("pg=2") && it.contains("wd=") })
+        captureUi(ui,"catalog-random")
+    }
+
     @Test fun recommendationCategoryUsesDraftSheetAndResetsForType() {
         val controls=ui.onNodeWithTag("recommendControls")
         controls.performScrollToNode(hasTestTag("recommendType:movie"))

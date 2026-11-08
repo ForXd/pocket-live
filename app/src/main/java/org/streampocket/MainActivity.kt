@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle,model) {
         val observer=androidx.lifecycle.LifecycleEventObserver { _,event ->
+            if(event==androidx.lifecycle.Lifecycle.Event.ON_START) model.refreshSourceAvailability()
             if(event==androidx.lifecycle.Lifecycle.Event.ON_START && !BuildConfig.DEBUG) model.checkUpdates()
         }
         lifecycle.addObserver(observer)
@@ -137,6 +138,7 @@ class MainActivity : ComponentActivity() {
     // Keep only collapse scalars alive while playback replaces the screen.
     val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
     LaunchedEffect(tab,searchMode,recommendations.value,imeVisible) { searchScroll.reveal() }
+    LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val playback = s.playback
     if(playback != null) { PlaybackScreen(playback, model); return }
     if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
@@ -229,8 +231,8 @@ class MainActivity : ComponentActivity() {
                                 onUpdate={if(sub.isLocalJson) chooseJson(sub) else model.importSubscription(sub.url,sub)},onCancel={model.cancelImport(sub.id)},onDelete={delete=sub})
                         }
                         // Keep source rows lazy: even a 300-source subscription composes only the viewport.
-                        if(expandedSubscription==sub.id) items(sub.sources,key={"source:${sub.id}:${it.key}"}) { source ->
-                            SubscriptionSourceRow(source,source.key !in s.saved.disabled,onToggle={model.toggle(source)})
+                        if(expandedSubscription==sub.id) items(sub.sources.sortedBy { when(s.sourceAvailability[it.key]) { true->0;null->1;false->2 } },key={"source:${sub.id}:${it.key}"}) { source ->
+                            SubscriptionSourceRow(source,source.key !in s.saved.disabled,onToggle={model.toggle(source)},availability=s.sourceAvailability[source.key])
                         }
                     }
 

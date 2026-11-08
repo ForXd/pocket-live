@@ -181,7 +181,7 @@ import androidx.compose.ui.text.style.TextOverflow
                     }
                 }
         }
-        Box(Modifier.weight(1f)) {
+        PullToRefreshBox(isRefreshing=s.catalogLoading,onRefresh={catalogSort=DiscoverySort.DEFAULT;model.shuffleCatalog();scope.launch { catalogState.scrollToItem(0) }},modifier=Modifier.weight(1f).testTag("catalogRefresh")) {
         LazyVerticalGrid(columns=GridCells.Fixed(2),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             if(sources.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
                 EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)

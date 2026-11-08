@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
@@ -35,10 +36,15 @@ import androidx.compose.ui.unit.dp
     var expandedEpisode by rememberSaveable { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<HistoryGroupKey?>(null) }
     var clearing by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize()) {
+    val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
+    LaunchedEffect(imeVisible) { if(imeVisible) searchScroll.reveal() }
+    val scrollConnection=rememberSearchScrollConnection(searchScroll,!imeVisible && groups.isNotEmpty())
+    Column(Modifier.fillMaxSize().nestedScroll(scrollConnection)) {
     Column(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        CollapsingHomeSearch(searchScroll,statusBars=false) {
         ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
             if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
+        }
         }
         if(!imeVisible) {
         LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {

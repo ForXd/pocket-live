@@ -82,4 +82,16 @@ class CatalogBrowserTest {
         assertNotNull(result.next)
     }
 
+    @Test fun randomPageUsesAdvertisedBoundAndPreservesGenreAndQuery()=runBlocking {
+        val calls=mutableListOf<String>()
+        val browser=CatalogBrowser { url ->
+            calls+=url
+            """{"pagecount":2,"list":[{"vod_id":"${url.toHttpUrl().queryParameter("pg")}","vod_name":"星河","vod_class":"悬疑"}]}"""
+        }
+        val result=browser.random(source,null,setOf(Genre.MYSTERY),"星河",listOf(Category("2","悬疑片")))
+        assertEquals(listOf("1","2"),calls.map { it.toHttpUrl().queryParameter("pg") })
+        assertTrue(calls.all { it.toHttpUrl().queryParameter("wd")=="星河" && it.toHttpUrl().queryParameter("t")=="2" })
+        assertEquals(listOf("2"),result.videos.map { it.id })
+    }
+
 }

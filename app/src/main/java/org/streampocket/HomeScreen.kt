@@ -52,6 +52,16 @@ import androidx.compose.ui.unit.dp
 @Composable fun SearchResultsScreen(s:UiState,model:AppModel,query:String,compact:Boolean,back:()->Unit,subscriptions:()->Unit,onTop:()->Unit={}) {
     var category by rememberSaveable(query) { mutableStateOf(Genre.ALL) }
     var showOthers by rememberSaveable(query) { mutableStateOf(false) }
+    val probeLifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(model,query,probeLifecycle) {
+        val observer=androidx.lifecycle.LifecycleEventObserver { _,event ->
+            if(event==androidx.lifecycle.Lifecycle.Event.ON_START) model.setSearchProbeActive(true)
+            if(event==androidx.lifecycle.Lifecycle.Event.ON_STOP) model.setSearchProbeActive(false)
+        }
+        probeLifecycle.addObserver(observer)
+        if(probeLifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) model.setSearchProbeActive(true)
+        onDispose { probeLifecycle.removeObserver(observer);model.setSearchProbeActive(false) }
+    }
     var sortMenu by remember { mutableStateOf(false) }
     val matches = remember(s.results, query) { s.results.filter { SearchRules.relevance(it, query) > 0 } }
     val candidates = if (showOthers) s.results else matches
@@ -76,6 +86,9 @@ import androidx.compose.ui.unit.dp
                         }
                     }
                 }
+        if(s.probeRunning || s.probes.isNotEmpty()) Text(
+            if(s.probeRunning) "正在探测播放资源 · 已找到 ${s.probes.values.count { it==ProbeStatus.READY }}/2" else if(s.probes.values.count { it==ProbeStatus.READY }>=2) "已找到 2 个媒体可用结果 · 已停止探测" else "探测完成 · 可用结果优先",
+            style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeSummary"))
         if(s.results.isNotEmpty()) Column {
             Column {
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("searchCategories")) {
@@ -122,6 +135,9 @@ import androidx.compose.ui.unit.dp
                         val metadata = SearchRules.metadata(video)
                         if(metadata.isNotEmpty()) Text(metadata.replace(" · ","  "),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
                         Text(video.source.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
+                        Text(s.probes[video.probeKey()]?.label ?: "未探测",style=MaterialTheme.typography.labelMedium,
+                            color=if(s.probes[video.probeKey()]==ProbeStatus.READY) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier=Modifier.testTag("probe:${video.id}"))
                         if(video.quality.evidence==QualityEvidence.UNKNOWN) Text("清晰度未知",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         else QualityBadge(video.quality,lastPlayback=true)
                     }

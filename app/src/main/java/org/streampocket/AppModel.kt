@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.withPermit
 import java.util.UUID
 
 data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false, val saved: Saved = Saved(), val results: List<Video> = emptyList(),
+    val sourceAvailability:Map<String,Boolean> = emptyMap(), val probes:Map<String,ProbeStatus> = emptyMap(), val probeRunning:Boolean=false,
     val searchQuery: String = "", val searchOrder: SearchOrder = SearchOrder.RELEVANCE,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
     val detail: Detail? = null, val detailLoading: Boolean = false, val detailError:String? = null, val playback: Playback? = null,
@@ -87,7 +88,51 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     fun sortByQuality() = sortSearch(SearchOrder.QUALITY)
     fun sortSearch(order: SearchOrder) {
         searchOrderPinned = false
-        _state.update { it.copy(searchOrder = order, results = SearchRules.sorted(it.results, it.searchQuery, order)) }
+        _state.update { it.copy(searchOrder = order, results = probeSorted(SearchRules.sorted(it.results, it.searchQuery, order),it.probes)) }
+    }
+    fun refreshSourceAvailability() { _state.update { it.copy(sourceAvailability=sourceHealth.snapshot()) } }
+    private var probeJob:Job?=null
+    private var probeActive=false
+    private var probeGeneration=0L
+    private val probeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,maxRequests=1)
+    private val playbackProbe=PlaybackProbe(probeNetwork)
+    internal fun activeProbeCalls()=probeNetwork.client.dispatcher.runningCallsCount()+probeNetwork.client.dispatcher.queuedCallsCount()
+    private val probeCache=linkedMapOf<String,Pair<Long,ProbeStatus>>()
+    fun setSearchProbeActive(active:Boolean) {
+        probeActive=active
+        if(active) startProbes() else cancelProbes()
+    }
+    private fun cancelProbes() {
+        probeGeneration++;probeJob?.cancel();probeJob=null
+        _state.update { it.copy(probeRunning=false,probes=it.probes.filterValues { status->status!=ProbeStatus.CHECKING }) }
+    }
+    private fun probeSorted(rows:List<Video>,statuses:Map<String,ProbeStatus>)=rows.sortedBy { if(statuses[it.probeKey()]==ProbeStatus.READY) 0 else 1 }
+    private fun startProbes() {
+        if(!probeActive || probeJob?.isActive==true || state.value.searchQuery.isBlank()) return
+        val owner=++probeGeneration
+        probeJob=viewModelScope.launch {
+            val attempted=mutableSetOf<String>()
+            try { withTimeout(30_000) {
+                while(isActive && owner==probeGeneration && state.value.probes.values.count { it==ProbeStatus.READY }<2 && attempted.size<12 && state.value.probes.size<12) {
+                    val snapshot=state.first { st -> !st.searching || st.results.any { it.source.kind==SourceKind.VOD && SearchRules.relevance(it,st.searchQuery)>0 && it.probeKey() !in attempted && it.probeKey() !in st.probes } }
+                    val video=snapshot.results.firstOrNull { it.source.kind==SourceKind.VOD && SearchRules.relevance(it,snapshot.searchQuery)>0 && it.probeKey() !in attempted && it.probeKey() !in snapshot.probes } ?: break
+                    val key=video.probeKey();attempted+=key
+                    _state.update { it.copy(probeRunning=true,probes=it.probes+(key to ProbeStatus.CHECKING)) }
+                    val now=System.currentTimeMillis()
+                    probeCache.entries.removeAll { now-it.value.first !in 0..300_000L }
+                    val status=probeCache[key]?.second ?: try { withTimeout(5_000) { playbackProbe.check(video) } }
+                        catch(e:TimeoutCancellationException) { ensureActive();ProbeStatus.FAILED }
+                        catch(e:CancellationException) { throw e }
+                        catch(_:Exception) { ProbeStatus.FAILED }
+                    ensureActive()
+                    if(owner!=probeGeneration) break
+                    probeCache.remove(key);probeCache[key]=now to status
+                    while(probeCache.size>100) probeCache.remove(probeCache.keys.first())
+                    _state.update { val statuses=it.probes+(key to status);it.copy(probes=statuses,results=probeSorted(it.results,statuses)) }
+                }
+            } } catch(_:TimeoutCancellationException) { /* bounded automatic work */ }
+            finally { if(owner==probeGeneration) _state.update { it.copy(probeRunning=false,probes=it.probes.filterValues { status->status!=ProbeStatus.CHECKING }) } }
+        }
     }
     private var detailJob: Job? = null
     private var detailOwner:String?=null
@@ -109,7 +154,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     init { viewModelScope.launch {
         try {
             withContext(Dispatchers.IO) { try { responseCache.maintain() } catch(_: java.io.IOException) { /* Disposable cache must not block user data. */ } }
-            val saved = store.read(); sourceHealth.load();sourceHealth.retain(saved.enabledSources().map { it.key }.toSet()); _state.update { it.copy(loading = false, saved = saved) }
+            val saved = store.read(); sourceHealth.load();sourceHealth.retain(saved.enabledSources().map { it.key }.toSet()); _state.update { it.copy(loading = false, saved = saved,sourceAvailability=sourceHealth.snapshot()) }
             refreshStorage()
         }
         catch(e: CancellationException) { throw e }
@@ -225,13 +270,13 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         }
     }
     fun cancelImport(key: String) { importJobs[key]?.cancel() }
-    fun cancelSearch() { searchJob?.cancel(); searchJob = null; _state.update { it.copy(searching = false) } }
+    fun cancelSearch() { cancelProbes();searchJob?.cancel(); searchJob = null; _state.update { it.copy(searching = false) } }
     fun search(query: String) {
         cancelSearch()
         searchOrderPinned=false
         val q = query.trim().take(100); if(q.isEmpty()) return
         val sources = sourceHealth.ordered(state.value.saved.enabledSources(),QueryKind.SEARCH)
-        _state.update { it.copy(searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
+        _state.update { it.copy(probes=emptyMap(), searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
         if (sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
         searchJob = viewModelScope.launch {
             val merger = SearchResultMerger()
@@ -245,18 +290,20 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                         sourceHealth.record(source.key,QueryKind.SEARCH,true)
                         _state.update { state ->
                             state.copy(results = merger.append(state.results, list, state.saved.history,
-                                if (searchOrderPinned) null else { rows -> SearchRules.sorted(rows, q, state.searchOrder) }),
-                                completed = state.completed + 1)
+                                { rows -> probeSorted(if(searchOrderPinned) rows else SearchRules.sorted(rows, q, state.searchOrder),state.probes) }),
+                                completed = state.completed + 1,sourceAvailability=sourceHealth.snapshot())
                         }
                     } catch(e: TimeoutCancellationException) { ensureActive();failed = true }
                     catch(e: CancellationException) { throw e }
                     catch(e: Exception) { failed = true }
                     ensureActive()
-                    if (failed) { sourceHealth.record(source.key,QueryKind.SEARCH,false);_state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1) } }
+                    if (failed) { sourceHealth.record(source.key,QueryKind.SEARCH,false);_state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1,sourceAvailability=sourceHealth.snapshot()) } }
                 }
-            } } } } } catch(_: TimeoutCancellationException) { message("搜索达到45秒总时限，已保留返回结果；可换源或重试") } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=if(searchOrderPinned) it.results else SearchRules.sorted(it.results, q, it.searchOrder)) } }
+            } } } } } catch(_: TimeoutCancellationException) { message("搜索达到45秒总时限，已保留返回结果；可换源或重试") } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=probeSorted(if(searchOrderPinned) it.results else SearchRules.sorted(it.results, q, it.searchOrder),it.probes)) } }
         }
+        startProbes()
     }
+        // Probe job is independent from result retrieval and is cancelled by the screen lifecycle.
     fun filterAds(enabled: Boolean) = change { it.copy(adFilter=enabled) }
     fun adPaths(source: Source, text: String) {
         val paths=text.lines().map { it.trim() }.filter { it.isNotBlank() }.distinct()
@@ -320,6 +367,38 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                 if(owner==catalogOwner) _state.update { it.copy(catalogLoading=false,catalogMore=catalogCursors.isNotEmpty() && it.catalogVideos.size<1000,
                     catalogError=if(timedOut) "查找超时，已保留返回结果，可继续查找" else if(failures>0) "$failures 个来源未完成，已保留返回结果" else null) }
             }
+        }
+    }
+    fun shuffleCatalog() {
+        val before=state.value
+        if(before.catalogLoading) return
+        val sources=before.saved.enabledSources(SourceKind.VOD).filter { before.catalogSourceKeys.isEmpty() || it.key in before.catalogSourceKeys }
+        if(sources.isEmpty()) return
+        cancelCatalog();val owner=catalogOwner
+        _state.update { it.copy(catalogLoading=true,catalogError=null,catalogCompleted=0,catalogTotal=sources.size) }
+        catalogJob=viewModelScope.launch {
+            val rows=mutableListOf<Video>();val previousCursors=catalogCursors.toMap();val next=mutableMapOf<String,CatalogCursor?>();var failures=0
+            try { withTimeout(30_000) { val limit=Semaphore(4);supervisorScope { sources.map { source -> async {
+                limit.withPermit {
+                    try {
+                        val known=catalogClasses[source.key].orEmpty()
+                        val result=withTimeout(10_000) { withContext(Dispatchers.Default) { catalogBrowser.random(source,before.catalogCategory,before.catalogGenres,before.catalogQuery,known) } }
+                        ensureActive();rows+=result.videos.take((1000-rows.size).coerceAtLeast(0))
+                        if(result.next!=null) next[source.key]=result.next
+                        catalogClasses[source.key]=result.categories
+                        if(owner==catalogOwner) _state.update { it.copy(catalogCompleted=it.catalogCompleted+1) }
+                    } catch(e:TimeoutCancellationException) { ensureActive();failures++ }
+                    catch(e:CancellationException) { throw e }
+                    catch(_:Exception) { failures++ }
+                }
+            } }.awaitAll() } } }
+            catch(_:TimeoutCancellationException) { failures++ }
+            finally { if(owner==catalogOwner) {
+                if(rows.isEmpty() && failures>0) { next.clear();next.putAll(previousCursors) }
+                catalogCursors.clear();catalogCursors.putAll(next)
+                _state.update { it.copy(catalogLoading=false,catalogVideos=if(rows.isEmpty()) it.catalogVideos.shuffled() else rows.distinctBy { v->v.probeKey() }.shuffled().take(1000),
+                    catalogMore=next.isNotEmpty(),catalogError=if(failures>0) "部分来源未响应，已保留可用推荐" else if(rows.isEmpty()) "没有新的匹配，已随机排列当前结果" else null) }
+            } }
         }
     }
     fun recommend(type: String = state.value.recommendType, tag: String = if(type == state.value.recommendType) state.value.recommendTag else "热门", more: Boolean = false) {
@@ -521,11 +600,11 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
             } catch(e: CancellationException) { throw e } catch(_: Exception) { message("缓存清理失败，请检查存储") }
         }
     }
-    fun trimMemory() { if(memoryTrimJob?.isActive != true) memoryTrimJob=viewModelScope.launch(Dispatchers.IO) { responseCache.trimMemory();posters.trimMemory() } }
+    fun trimMemory() { probeCache.clear();if(memoryTrimJob?.isActive != true) memoryTrimJob=viewModelScope.launch(Dispatchers.IO) { responseCache.trimMemory();posters.trimMemory() } }
     override fun onCleared() {
         // TLS close_notify may write to the network. The ViewModel scope is already cancelled here.
         CoroutineScope(Dispatchers.IO).launch {
-            try { updateNetwork.close() } finally { network.close() }
+            try { updateNetwork.close() } finally { probeNetwork.close();network.close() }
         }
         super.onCleared()
     }

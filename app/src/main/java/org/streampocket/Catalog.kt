@@ -4,7 +4,7 @@ package org.streampocket
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 data class Category(val id: String, val name: String)
-data class CatalogPage(val videos: List<Video>, val categories: List<Category>, val hasMore: Boolean)
+data class CatalogPage(val videos: List<Video>, val categories: List<Category>, val hasMore: Boolean,val totalPages:Int?=null)
 object Catalog {
     const val MAX_PAGES = 1000
     fun url(source: Source, category: String?, query: String, page: Int): String {
@@ -28,6 +28,6 @@ object Catalog {
         val pages=root.scalar("pagecount").toIntOrNull() ?: page
         val names = categories.associate { it.id to it.name }
         val enriched = videos.map { if(it.typeName.isBlank()) it.copy(typeName = names[it.typeId].orEmpty()) else it }
-        return CatalogPage(enriched,categories,page < minOf(pages,MAX_PAGES) && videos.isNotEmpty())
+        return CatalogPage(enriched,categories,page < minOf(pages,MAX_PAGES) && videos.isNotEmpty(),root.scalar("pagecount").toIntOrNull()?.takeIf { it>0 }?.coerceAtMost(MAX_PAGES))
     }
 }
