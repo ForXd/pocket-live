@@ -23,7 +23,7 @@ class HistoryGroupsUiTest {
         val id=HistoryGroups.key(a.playback.video).stableKey
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyGroup:$id"))
         ui.onNodeWithTag("continue:$id").performClick();ui.runOnIdle { assertEquals(sameEpisode,selected) }
-        ui.onNodeWithText("查看分集（3）").performClick()
+        ui.onNodeWithText("分集（3）").performClick()
         val episodeId="$id:${HistoryGroups.episodeKey(a)}"
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continueEpisode:$episodeId"))
         ui.onNodeWithTag("continueEpisode:$episodeId").performClick();ui.runOnIdle { assertEquals(sameEpisode,selected) }
@@ -40,7 +40,7 @@ class HistoryGroupsUiTest {
         ui.onNodeWithText("删除").performClick();ui.runOnIdle { assertEquals(listOf(b),records.value) }
         ui.onNodeWithTag("historyGroups").performScrollToIndex(0)
         ui.onNodeWithText("清空历史").performClick();ui.onNodeWithText("清空").performClick()
-        ui.onNodeWithText("继续上次的精彩").assertExists()
+        ui.onNodeWithText("还没有观看记录").assertExists()
         instrument.sendStatus(0,android.os.Bundle().apply { putString("history_ui_result","grouped latest continue;expanded episode continue;delete one group;clear passed;Compose semantics not OS touch") })
     }
 }
