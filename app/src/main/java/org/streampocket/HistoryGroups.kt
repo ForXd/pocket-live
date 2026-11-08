@@ -39,6 +39,7 @@ object HistoryGroups {
     fun progress(history:History):String {
         if(history.playback.video.source.kind==SourceKind.LIVE) return "直播 · 打开当前直播"
         val seconds=history.playback.position.coerceAtLeast(0)/1000
-        return "已看到 ${seconds/3600}小时${seconds%3600/60}分${seconds%60}秒"
+        val time=if(seconds>=3600) String.format(java.util.Locale.ROOT,"%d:%02d:%02d",seconds/3600,seconds%3600/60,seconds%60) else String.format(java.util.Locale.ROOT,"%02d:%02d",seconds/60,seconds%60)
+        return "已看到 $time"
     }
 }

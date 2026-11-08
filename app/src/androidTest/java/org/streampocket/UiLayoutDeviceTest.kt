@@ -22,7 +22,7 @@ class UiLayoutDeviceTest {
         val base="http://fixture.test:${server.port}"
         val source=Source("示例来源","$base/api")
         val video=Video(source,"1","星河漫游", "更新至第12集",poster="$base/poster.png")
-        val history=History(Playback(video,Episode("第3集","$base/video3.mp4"),72000),1)
+        val history=History(Playback(video,Episode("第3集","$base/video3.mp4"),72000),System.currentTimeMillis())
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
         runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history),allowHttp=true)) }
         server.dispatcher=object:Dispatcher() {
