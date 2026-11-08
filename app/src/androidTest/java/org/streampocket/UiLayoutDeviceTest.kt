@@ -127,7 +127,6 @@ class UiLayoutDeviceTest {
             }
 
             ui.onNodeWithTag("nav:0").performClick()
-            if(ui.activity.resources.configuration.fontScale>1.3f) ui.onNodeWithText("推荐",useUnmergedTree=true).performScrollTo()
             ui.onNodeWithText("推荐",useUnmergedTree=true).performClick()
             val grid=ui.onNodeWithTag("recommendationGrid")
             var expectedHeight:Float?=null
