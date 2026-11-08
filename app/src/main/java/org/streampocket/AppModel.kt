@@ -94,7 +94,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private var probeJob:Job?=null
     private var probeActive=false
     private var probeGeneration=0L
-    private val probeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,maxRequests=1)
+    private val probeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,requestLimit=1)
     private val playbackProbe=PlaybackProbe(probeNetwork)
     internal fun activeProbeCalls()=probeNetwork.client.dispatcher.runningCallsCount()+probeNetwork.client.dispatcher.queuedCallsCount()
     private val probeCache=linkedMapOf<String,Pair<Long,ProbeStatus>>()

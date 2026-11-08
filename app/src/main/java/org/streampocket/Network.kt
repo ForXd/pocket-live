@@ -32,9 +32,9 @@ object PublicNetwork {
         }
     }
 }
-class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns, private val cache: ResponseCache? = null, maxRequests:Int=4) {
+class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns, private val cache: ResponseCache? = null, requestLimit:Int=4) {
     val client: OkHttpClient = OkHttpClient.Builder()
-        .dispatcher(Dispatcher().apply { this.maxRequests = maxRequests; maxRequestsPerHost = maxRequests })
+        .dispatcher(Dispatcher().apply { maxRequests = requestLimit; maxRequestsPerHost = requestLimit })
         .dns(dns).connectTimeout(6, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS)
         .callTimeout(18, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false)
         .retryOnConnectionFailure(false)
