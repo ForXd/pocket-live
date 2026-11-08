@@ -116,6 +116,12 @@ class HomeBrowseDeviceTest {
     @Test fun catalogFiltersStayPinnedWhileNextPageLoadsAndTopReturns() {
         ui.onNodeWithText("分类搜索").performClick()
         ui.waitUntil(10000) { model.state.value.catalogVideos.size==20 && !model.state.value.catalogLoading }
+        val first=ui.onNodeWithTag("catalogVideo:1").getUnclippedBoundsInRoot()
+        val second=ui.onNodeWithTag("catalogVideo:2").getUnclippedBoundsInRoot()
+        assertEquals(first.top.value,second.top.value,1f)
+        assertEquals(first.bottom.value,second.bottom.value,1f)
+        val poster=ui.onNodeWithTag("catalogPoster:1",useUnmergedTree=true).getUnclippedBoundsInRoot()
+        assertEquals((poster.right-poster.left).value/0.75f,(poster.bottom-poster.top).value,1f)
         val list=ui.onNodeWithTag("catalogList")
         list.performTouchInput { swipeUp(durationMillis=600) }
         ui.onNodeWithTag("catalogSourcePicker").assertIsDisplayed()

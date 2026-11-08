@@ -36,8 +36,8 @@ import androidx.compose.ui.unit.dp
         },updates,"settingsUpdates") }
         item(key="networkSettings") { SettingsGroup("播放与网络","HTTP 访问 · 广告过滤") {
             SettingSwitch("允许未加密 HTTP","可能被监听或篡改，仅用于可信源",s.saved.allowHttp,model::allowHttp)
-            HorizontalDivider()
-            SettingSwitch("自动 HLS 广告过滤","默认关闭。可能误判；复杂流保持原样，下次播放生效。",s.saved.adFilter,model::filterAds)
+            ContentDivider()
+            SettingSwitch("自动 HLS 广告过滤","默认关闭，仅识别明确广告路径；不按短片段猜测，复杂流保持原样。",s.saved.adFilter,model::filterAds)
         } }
         item(key="storageSettings") { SettingsGroup("存储与缓存","查看用量与清理缓存") {
             s.storageUsage?.let { u ->
@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
                 Text("响应内存：${u.memoryBytes/1024} KiB / 2 MiB",style=MaterialTheme.typography.bodyMedium)
             }
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
+                FilledTonalButton(onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
                 TextButton(onClick=model::refreshStorage,modifier=Modifier.heightIn(min=48.dp)) { Text("刷新用量") }
             }
         } }
@@ -55,24 +55,23 @@ import androidx.compose.ui.unit.dp
         if(rulesExpanded) {
             if(sources.isEmpty()) item { Text("在订阅页添加点播来源后，可在这里配置规则。") }
             items(sources,key={"rules:${it.key}"}) { source ->
-                OutlinedButton(onClick={sourceRules(source)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("配置规则 · ${source.name}") }
+                SettingsEntry(source.name,"精确路径规则",{sourceRules(source)},"settingsRule:${source.key}")
             }
         }
         item { Text("Pocket Live · AGPL-3.0-or-later\n参考 LibreTV deb72fa01f；完整源码和许可证随项目提供。",style=MaterialTheme.typography.bodySmall) }
     }
 }
 @Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,expanded:Boolean?=null) {
-    Surface(onClick=action,color=MaterialTheme.colorScheme.background,
+    Surface(onClick=action,color=MaterialTheme.colorScheme.surfaceContainer,shape=MaterialTheme.shapes.medium,
         modifier=Modifier.fillMaxWidth().heightIn(min=72.dp).testTag(tag).semantics { contentDescription=title }) {
         Column {
-            Row(Modifier.fillMaxWidth().padding(vertical=16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text(title,style=MaterialTheme.typography.titleMedium)
-                    Text(summary.replace(" · ","，"),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(summary.replace(" · ","，"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Icon(if(expanded==null) Icons.AutoMirrored.Filled.KeyboardArrowRight else if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            ContentDivider()
         }
     }
 }

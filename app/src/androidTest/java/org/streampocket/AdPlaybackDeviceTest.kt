@@ -51,7 +51,9 @@ class AdPlaybackDeviceTest {
             val frames=PlaybackMetrics.frames
             ui.runOnIdle { model.play(Video(Source("广告测试","$base/api"),"ad-test","过滤播放"),Episode("第一集","$base/test.m3u8")) }
             ui.waitUntil(30000) { PlaybackMetrics.frames>frames }
+            ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.waitUntil(30000) { ui.onAllNodes(hasText("已移除 1 个疑似广告切片",substring=true)).fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithText("关闭").performClick()
             ui.waitUntil(30000) { (model.state.value.playback?.position ?: 0)>10_000 }
             assertEquals("Filtered ad must never be downloaded",0,ads.get())
             ui.runOnIdle { model.stopPlayback() }

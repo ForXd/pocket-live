@@ -169,12 +169,14 @@ class MainActivity : ComponentActivity() {
                     clearLabel=if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog)
                 }
             }
-            else TopAppBar(expandedHeight=56.dp,colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title={
+            else if(s.detail!=null || s.detailLoading) TopAppBar(expandedHeight=56.dp,colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title={
                 Text(if(s.detail!=null || s.detailLoading) "详情与选集" else when(tab) { 1 -> "订阅管理";2 -> "观看历史";else -> "设置" },style=MaterialTheme.typography.titleLarge)
             },navigationIcon={if(s.detail!=null || s.detailLoading) IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }})
+            else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
         bottomBar = { if(!imeVisible) Surface(color=MaterialTheme.colorScheme.surfaceContainer) { Row(Modifier.fillMaxWidth().selectableGroup().windowInsetsPadding(NavigationBarDefaults.windowInsets).heightIn(min=64.dp).testTag("mainNavigation"),verticalAlignment=Alignment.CenterVertically) {
-            destinations.forEachIndexed { i,title ->
+            listOf(0,2,1,3).forEach { i ->
+                val title=destinations[i]
                 NavigationBarItem(selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                     modifier=Modifier.height(if(androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 80.dp else 64.dp).testTag("nav:$i"),icon={navIcon(i)},label={Text(title)})
             }

@@ -13,13 +13,11 @@ class AutoHlsTest {
         assertEquals(90_000L,edit.originalPosition(90_000));assertEquals(115_000L,edit.originalPosition(100_000))
         assertEquals(100_000L,edit.filteredPosition(110_000));assertEquals(105_000L,edit.filteredPosition(120_000))
     }
-    @Test fun recognizesLeadAndShortInterstitial() {
+    @Test fun preservesShortScenesAndOpeningEvenAcrossDiscontinuities() {
         val input=playlist("#EXT-X-DISCONTINUITY\n"+group(15,"lead.ts")+"#EXT-X-DISCONTINUITY\n"+group(180,"a.ts")+"#EXT-X-DISCONTINUITY\n"+group(20,"insert.ts")+"#EXT-X-DISCONTINUITY\n"+group(200,"b.ts"))
-        val edit=AutoHls.filter(input,base,emptySet())
-        // Similar small group sizes deliberately suppress the lead heuristic.
-        assertEquals(1,edit.removed);assertFalse(edit.text.contains("insert.ts"))
-        val lead=AutoHls.filter(playlist("#EXT-X-DISCONTINUITY\n"+group(15,"lead.ts")+"#EXT-X-DISCONTINUITY\n"+group(200,"main.ts")),base,emptySet())
-        assertEquals(1,lead.removed);assertTrue(lead.text.contains("#EXT-X-MEDIA-SEQUENCE:11"));assertEquals(15_000L,lead.originalPosition(0))
+        assertEquals(input,AutoHls.filter(input,base,emptySet()).text)
+        val title=playlist(group(10,"/movie/advertising-story.ts")+"#EXT-X-DISCONTINUITY\n"+group(200,"main.ts"))
+        assertEquals(title,AutoHls.filter(title,base,emptySet()).text)
     }
     @Test fun leavesComplexLiveAndOrdinaryGroupingUntouched() {
         val ordinary=playlist((1..5).joinToString("#EXT-X-DISCONTINUITY\n") { group(20,"main$it.ts") })
@@ -34,6 +32,17 @@ class AutoHlsTest {
         assertEquals(input,AutoHls.filter(input,base,emptySet()).text)
         val ads=playlist(group(10,"/ads/a.ts")+"#EXT-X-DISCONTINUITY\n"+group(10,"/ads/b.ts"))
         assertEquals(ads,AutoHls.filter(ads,base,emptySet()).text)
+    }
+    @Test fun retainsMixedGroupsAndLongAdNamedEpisodes() {
+        for(body in listOf(group(100,"/ads/episode.ts")+"#EXT-X-DISCONTINUITY\n"+group(200,"main.ts"),
+            group(10,"/ads/a.ts")+group(20,"scene.ts")+"#EXT-X-DISCONTINUITY\n"+group(200,"main.ts"))) {
+            val input=playlist(body);assertEquals(input,AutoHls.filter(input,base,emptySet()).text)
+        }
+        val dominant=playlist(group(80,"/ads/a.ts")+"#EXT-X-DISCONTINUITY\n"+group(10,"main.ts"))
+        assertEquals(dominant,AutoHls.filter(dominant,base,emptySet()).text)
+        val exact=playlist(group(15,"sponsor.ts")+"#EXT-X-DISCONTINUITY\n"+group(200,"main.ts"))
+        assertEquals(1,AutoHls.filter(exact,base,setOf("/movie/sponsor.ts")).removed)
+        assertEquals(1,AutoHls.filter(dominant,base,setOf("/ads/a.ts")).removed)
     }
     @Test fun multipleCutsMapToOriginalCoordinates() {
         val edit=HlsEdit("",3,35_000,listOf(HlsCut(0,10_000),HlsCut(100_000,15_000),HlsCut(200_000,10_000)))

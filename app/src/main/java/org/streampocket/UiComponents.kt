@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.sp
 @Composable fun SettingsGroup(title:String,summary:String,content:@Composable ColumnScope.()->Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val rotation by animateFloatAsState(if(expanded) 180f else 0f,tween(220),label="settingsChevron")
-    Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
+    Card(Modifier.fillMaxWidth(),shape=MaterialTheme.shapes.medium,colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
         TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth().heightIn(min=64.dp),shape=MaterialTheme.shapes.large,contentPadding=PaddingValues(16.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(title,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)

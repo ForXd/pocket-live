@@ -45,7 +45,6 @@ import androidx.compose.ui.text.style.TextOverflow
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit,
     recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery,onTop:()->Unit={}) {
-    var recentTab by rememberSaveable { mutableStateOf(false) }
     val sources = remember(s.saved.subscriptions, s.saved.disabled) { s.saved.enabledSources(SourceKind.VOD) }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
@@ -122,7 +121,7 @@ import androidx.compose.ui.text.style.TextOverflow
         }
         }
     }
-    val catalogState=rememberLazyListState()
+    val catalogState=rememberLazyGridState()
     val scope=rememberCoroutineScope()
     val latest by rememberUpdatedState(s)
     ScrollToTopOnChange(s.catalogSourceKeys.sorted().toString(),s.catalogCategory.orEmpty(),s.catalogGenres.sortedBy { it.ordinal }.toString(),s.catalogQuery,catalogSort.name) { catalogState.scrollToItem(0) }
@@ -140,16 +139,10 @@ import androidx.compose.ui.text.style.TextOverflow
         }
     }
     Column(Modifier.fillMaxSize()) {
-        if(LocalDensity.current.fontScale>1.3f) PrimaryScrollableTabRow(selectedTabIndex=if(recentTab) 2 else if(recommendations.value) 0 else 1,edgePadding=20.dp,containerColor=MaterialTheme.colorScheme.background) {
-            Tab(selected=!recentTab && recommendations.value,onClick={recentTab=false;recommendations.value=true},text={Text("推荐")})
-            Tab(selected=!recentTab && !recommendations.value,onClick={recentTab=false;recommendations.value=false},text={Text("分类搜索")})
-            Tab(selected=recentTab,onClick={recentTab=true;recommendations.value=true},text={Text("最近观看")})
-        } else PrimaryTabRow(selectedTabIndex=if(recentTab) 2 else if(recommendations.value) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
-            Tab(selected=!recentTab && recommendations.value,onClick={recentTab=false;recommendations.value=true},text={Text("推荐")})
-            Tab(selected=!recentTab && !recommendations.value,onClick={recentTab=false;recommendations.value=false},text={Text("分类搜索")})
-            Tab(selected=recentTab,onClick={recentTab=true;recommendations.value=true},text={Text("最近观看")})
+        PrimaryTabRow(selectedTabIndex=if(recommendations.value) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
+            Tab(selected=recommendations.value,onClick={recommendations.value=true},text={Text("推荐")})
+            Tab(selected=!recommendations.value,onClick={recommendations.value=false},text={Text("分类搜索")})
         }
-        if(recentTab) { RecentWatchingScreen(s.saved.history,model);return@Column }
         if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort,{ recommendationSort=it },onTop); return@Column }
         if(s.catalogSource!=null) {
             Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("catalogToolbar")) {
@@ -189,13 +182,13 @@ import androidx.compose.ui.text.style.TextOverflow
                 }
         }
         Box(Modifier.weight(1f)) {
-        LazyColumn(Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(sources.isEmpty()) item {
+        LazyVerticalGrid(columns=GridCells.Fixed(2),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            if(sources.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
                 EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
                 Button(onClick=addSource) { Text("添加订阅") }
             }
             s.catalogSource?.let { source ->
-                if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item {
+                if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item(span={GridItemSpan(maxLineSpan)}) {
                     Column(Modifier.padding(vertical=16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text(if(s.catalogMore) "还没有找到匹配影片" else "当前片库未找到匹配影片",style=MaterialTheme.typography.titleMedium)
                         Text(if(s.catalogMore) "已查找 ${s.catalogScanned} 页，可继续查找。" else if(sources.size>1) "可切换题材或片库；部分来源不提供题材信息。" else "可更换题材；部分来源不提供题材信息。",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -203,27 +196,17 @@ import androidx.compose.ui.text.style.TextOverflow
                     }
                 }
                 items(catalogVideos,key={it.source.key+":"+it.id}) { video ->
-                    DiscoveryCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth().animateItem().testTag("catalogVideo:${video.id}")) {
-                        Row(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.Top) {
-                            Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
-                            Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                CardTextSlot(video.title,style=MaterialTheme.typography.titleMedium)
-                                if(SearchRules.metadata(video).isNotBlank()) Text(SearchRules.metadata(video).replace(" · ","  "),style=MaterialTheme.typography.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                if(s.catalogSourceKeys.size!=1) Text(video.source.name,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
-                                if(video.rating!=null) Text("来源评分 ${video.rating}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                video.updatedAt?.let { Text("更新 ${updatedDate(it)}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                            }
-                        }
-                    }
+                    PosterGridCard(video,model,Modifier.testTag("catalogVideo:${video.id}"),"catalog") { model.open(video) }
                 }
-                if(s.catalogLoading) item { Row(verticalAlignment=Alignment.CenterVertically) {
+
+                if(s.catalogLoading) item(span={GridItemSpan(maxLineSpan)}) { Row(verticalAlignment=Alignment.CenterVertically) {
                     LinearProgressIndicator(progress={ if(s.catalogTotal==0) 0f else s.catalogCompleted.toFloat()/s.catalogTotal },modifier=Modifier.weight(1f));TextButton(onClick=model::cancelCatalog) { Text("取消") }
                 } }
-                s.catalogError?.let { message -> item {
+                s.catalogError?.let { message -> item(span={GridItemSpan(maxLineSpan)}) {
                     Text(message)
                     TextButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,more=s.catalogMore,genres=s.catalogGenres)}) { Text("重新加载") }
                 } }
-                if(s.catalogMore && !s.catalogLoading) item {
+                if(s.catalogMore && !s.catalogLoading) item(span={GridItemSpan(maxLineSpan)}) {
                     OutlinedButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,true,s.catalogGenres)},modifier=Modifier.fillMaxWidth().testTag("catalogMore")) {
                         Text(if(s.catalogGenres.isEmpty()) "加载更多" else "继续查找")
                     }
@@ -306,30 +289,7 @@ import androidx.compose.ui.text.style.TextOverflow
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
         items(videos,key={it.id},contentType={"recommendation"}) { video ->
-            DiscoveryCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().animateItem().testTag("recommendation:${video.id}")) {
-                BoxWithConstraints {
-                    val artwork:@Composable (Modifier)->Unit = { size ->
-                        Box {
-                            Poster(video,model,size.testTag("recommendPoster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
-                            RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp))
-                        }
-                    }
-                    val title:@Composable ()->Unit = {
-                        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=10.dp,vertical=4.dp).testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=13.sp,lineHeight=17.sp),color=MaterialTheme.colorScheme.onSurface,lines=1)
-                    }
-                    if(maxWidth>=240.dp) {
-                        Row(verticalAlignment=Alignment.CenterVertically) {
-                            artwork(Modifier.size(112.dp,168.dp))
-                            Box(Modifier.weight(1f)) { title() }
-                        }
-                    } else {
-                        Column {
-                            artwork(Modifier.fillMaxWidth().aspectRatio(0.75f))
-                            title()
-                        }
-                    }
-                }
-            }
+            PosterGridCard(video,model,Modifier.testTag("recommendation:${video.id}"),"recommend") { searchTitle(video.title) }
         }
 
         if(s.recommendLoading && !refreshing) item(span={GridItemSpan(maxLineSpan)}) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
@@ -359,9 +319,9 @@ import androidx.compose.ui.text.style.TextOverflow
     ContentCard(modifier=modifier,onClick=onClick,content=content)
 }
 
-@Composable private fun RecommendationRating(video:Video,modifier:Modifier=Modifier) {
+@Composable private fun RecommendationRating(video:Video,modifier:Modifier=Modifier,prefix:String="recommend") {
     val rating=video.rating?.toString()
-    if(rating!=null) Surface(modifier=modifier.testTag("recommendRating:${video.id}").semantics { contentDescription="豆瓣评分 $rating 分" },
+    if(rating!=null) Surface(modifier=modifier.testTag("${prefix}Rating:${video.id}").semantics { contentDescription="${if(prefix=="recommend") "豆瓣" else "来源"}评分 $rating 分" },
         shape=RoundedCornerShape(50),color=Color(0xee12212a),contentColor=Color(0xffffc12b)) {
         Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
             Icon(Icons.Default.Star,null,Modifier.size(16.dp))
@@ -415,5 +375,15 @@ import androidx.compose.ui.text.style.TextOverflow
         }
         view.post(update)
         onDispose { view.removeCallbacks(update) }
+    }
+}
+
+@Composable private fun PosterGridCard(video:Video,model:AppModel,modifier:Modifier,prefix:String,onClick:()->Unit) {
+    DiscoveryCard(onClick=onClick,modifier=modifier.fillMaxWidth()) {
+        Box {
+            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(0.75f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
+            RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)
+        }
+        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=10.dp,vertical=4.dp).testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=13.sp,lineHeight=17.sp),color=MaterialTheme.colorScheme.onSurface,lines=1)
     }
 }

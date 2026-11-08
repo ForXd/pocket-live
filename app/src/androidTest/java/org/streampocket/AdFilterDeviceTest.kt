@@ -20,6 +20,14 @@ class AdFilterDeviceTest {
         val plain=SafeHlsParserFactory(url,emptySet(),false) {}.createPlaylistParser().parse(Uri.parse(url),input.byteInputStream()) as HlsMediaPlaylist
         assertEquals(3,plain.segments.size)
     }
+    @Test fun ordinaryShortScenesPreserveParsedDurationAndSegments() {
+        val url="https://media.example/list.m3u8"
+        val input="#EXTM3U\n#EXT-X-TARGETDURATION:180\n#EXT-X-DISCONTINUITY\n#EXTINF:15,\nopening.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:180,\nmain-a.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:20,\nscene.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:180,\nmain-b.ts\n#EXT-X-ENDLIST\n"
+        val plain=SafeHlsParserFactory(url,emptySet(),false) {}.createPlaylistParser().parse(Uri.parse(url),input.byteInputStream()) as HlsMediaPlaylist
+        val automatic=SafeHlsParserFactory(url,emptySet(),true) { fail("Normal episode must not be edited") }.createPlaylistParser().parse(Uri.parse(url),input.byteInputStream()) as HlsMediaPlaylist
+        assertEquals(plain.durationUs,automatic.durationUs)
+        assertEquals(plain.segments.map { it.url },automatic.segments.map { it.url })
+    }
     @Test fun singleVariantFiltersButAdaptiveVariantsPassThrough() {
         val url="https://media.example/master.m3u8"
         val media="#EXTM3U\n#EXT-X-TARGETDURATION:180\n#EXTINF:180,\na.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:10,\n/ads/x.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:180,\nb.ts\n#EXT-X-ENDLIST\n"

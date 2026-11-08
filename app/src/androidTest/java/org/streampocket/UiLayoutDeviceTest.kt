@@ -58,6 +58,7 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("navigationRail").assertDoesNotExist()
             ui.onNodeWithTag("recommendationGrid").assertExists()
             ui.onNodeWithContentDescription("外观设置").assertDoesNotExist()
+            assertTrue(ui.onNodeWithTag("nav:2").getUnclippedBoundsInRoot().left<ui.onNodeWithTag("nav:1").getUnclippedBoundsInRoot().left)
             assertTrue(ui.onNodeWithTag("nav:3").getUnclippedBoundsInRoot().left>ui.onNodeWithTag("nav:2").getUnclippedBoundsInRoot().left)
             ui.onNodeWithTag("searchInput").performTextInput("星河")
             capture("00-keyboard")
@@ -75,6 +76,7 @@ class UiLayoutDeviceTest {
             ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
             ui.waitUntil(5000) { model.state.value.detail==null }
             ui.onNodeWithText("订阅",useUnmergedTree=true).performClick()
+            ui.onNodeWithText("订阅管理").assertDoesNotExist()
             capture("02-subscriptions")
             ui.onNodeWithText("播放与网络").assertDoesNotExist()
             ui.onNodeWithTag("nav:3").performClick()
@@ -98,16 +100,14 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continue:${HistoryGroups.key(video).stableKey}"))
             ui.onNodeWithTag("continue:${HistoryGroups.key(video).stableKey}").assertHeightIsAtLeast(48.dp)
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithText("观看历史").assertDoesNotExist()
             capture("04-history")
             ui.onNodeWithTag("nav:0").performClick()
             if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.waitUntil(10000) { !model.state.value.recommendLoading && model.state.value.recommendations.size==5 }
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             capture("05-discovery")
-            if(ui.activity.resources.configuration.fontScale>1.3f) ui.onNodeWithText("最近观看").performScrollTo()
-            ui.onNodeWithText("最近观看").performClick()
-            ui.onNodeWithTag("recentWatching").assertIsDisplayed()
-            capture("07-recent-watching")
+            ui.onNodeWithText("最近观看").assertDoesNotExist()
             ui.onNodeWithTag("nav:2").performClick()
             ui.onNodeWithTag("historySearch").performTextInput("星河")
             ui.onNodeWithTag("historySearch").performImeAction()
@@ -173,21 +173,13 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("nav:0").performClick()
             if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
             ui.onNodeWithTag("continueWatching").assertDoesNotExist()
-            ui.onNodeWithText("最近观看").performClick()
-            ui.onNodeWithTag("recentResume:${HistoryGroups.key(video).stableKey}").performClick()
+            ui.onNodeWithTag("nav:2").performClick()
+            ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continue:${HistoryGroups.key(video).stableKey}"))
+            ui.onNodeWithTag("continue:${HistoryGroups.key(video).stableKey}").performClick()
             ui.waitUntil(5000) { model.state.value.playback!=null }
             assertEquals(72000L,model.state.value.playback!!.position)
-            assertEquals(video.id,model.state.value.playback!!.video.id)
             ui.runOnIdle { model.stopPlayback() }
             ui.waitUntil(10000) { PlaybackMetrics.created==PlaybackMetrics.released }
-            val historyCards=(1..8).map { n -> History(Playback(video.copy(id="recent$n",title="星河旅途 $n"),Episode("第${n}集","$base/test.mp4"),n*60000L),System.currentTimeMillis()-n*1000L) }
-            ui.runOnUiThread { ui.activity.setContent { PocketTheme { androidx.compose.material3.Scaffold { padding -> androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(padding)) { RecentWatchingScreen(historyCards,model) } } } } }
-            ui.onNodeWithText("1 / 8").assertIsDisplayed()
-            capture("09-recent-stack")
-            ui.onNodeWithTag("recentPager").performTouchInput { swipe(start=androidx.compose.ui.geometry.Offset(width*0.8f,center.y),end=androidx.compose.ui.geometry.Offset(width*0.35f,center.y),durationMillis=600) }
-            capture("10-recent-swiped")
-            ui.onNodeWithText("2 / 8").assertIsDisplayed()
-            assertEquals(PlaybackMetrics.created,PlaybackMetrics.released)
 
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     }

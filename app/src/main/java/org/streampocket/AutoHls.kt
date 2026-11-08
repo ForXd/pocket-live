@@ -3,13 +3,13 @@ package org.streampocket
 
 import java.net.URI
 
-/** LibreTV-style group heuristics, restricted to complete, unencrypted TS VOD.
+/** Explicit path evidence only, restricted to complete, unencrypted TS VOD.
  * All classification uses original groups; no cascading decisions. */
 object AutoHls {
-    private val adPath = Regex("adjump|advert|/ads?/", RegexOption.IGNORE_CASE)
+    private val adPath = Regex("(?:^|/)(?:ads?|advert|advertisement|adjump)(?:/|$)", RegexOption.IGNORE_CASE)
     private val allowed = setOf("#EXTM3U", "#EXT-X-VERSION", "#EXT-X-TARGETDURATION", "#EXT-X-MEDIA-SEQUENCE",
         "#EXT-X-DISCONTINUITY-SEQUENCE", "#EXT-X-DISCONTINUITY", "#EXTINF", "#EXT-X-ENDLIST", "#EXT-X-PLAYLIST-TYPE")
-    private data class Segment(val ext: String, val url: String, val duration: Long, val marked: Boolean)
+    private data class Segment(val ext: String, val url: String, val duration: Long, val marked: Boolean,val explicit:Boolean)
     private data class Group(val segments: MutableList<Segment> = mutableListOf()) {
         val duration get() = segments.sumOf { it.duration }
     }
@@ -45,7 +45,8 @@ object AutoHls {
                         val uri = baseUri.resolve(line)
                         if(uri.scheme !in listOf("http", "https")) return unchanged
                         val exact = uri.scheme == baseUri.scheme && uri.host == baseUri.host && uri.port == baseUri.port && uri.rawPath in paths
-                        groups.last().segments.add(Segment(ext, line, (seconds*1000).toLong(), exact || adPath.containsMatchIn(uri.path.orEmpty())))
+                        if(!exact && !uri.path.orEmpty().endsWith(".ts",ignoreCase=true)) return unchanged
+                        groups.last().segments.add(Segment(ext, line, (seconds*1000).toLong(), exact || adPath.containsMatchIn(uri.path.orEmpty()),exact))
                         pending = null
                     }
                     line == "#EXT-X-ENDLIST" -> if(pending != null) return unchanged
@@ -56,15 +57,13 @@ object AutoHls {
             val drop = BooleanArray(groups.size)
             groups.forEachIndexed { i, group ->
                 val urlMarked = group.segments.all { it.marked }
-                val middle = i > 0 && i < groups.lastIndex && group.duration in 1..30_000 &&
-                    groups[i-1].duration >= 120_000 && groups[i+1].duration >= 120_000
-                val others = groups.drop(1).map { it.segments.size }.sorted()
-                val median = others[others.size/2]
-                val typical = groups.size >= 4 && kotlin.math.abs(group.segments.size-median) <= maxOf(3.0, median*0.5)
-                val lead = i == 0 && leadingDisc && group.duration in 1..90_000 && group.segments.size <= 20 && !typical
-                drop[i] = urlMarked || middle || lead
+                // Discontinuities and short duration occur in normal scenes and credits.
+                // Never infer ads from timing or position alone; bound automatic cuts.
+                drop[i] = group.segments.all { it.explicit } || (urlMarked && group.duration<=90_000)
+
             }
             if(drop.all { it } || drop.none { it }) return unchanged
+            if(groups.indices.filter { drop[it] && !groups[it].segments.all { segment -> segment.explicit } }.sumOf { groups[it].duration } > groups.sumOf { it.duration } / 3) return unchanged
             fun number(tag: String): Long? {
                 val values = headers.filter { it.startsWith("$tag:") }
                 if(values.size > 1) return null
