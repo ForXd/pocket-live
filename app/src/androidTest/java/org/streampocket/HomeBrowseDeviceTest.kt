@@ -218,6 +218,21 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("catalogVideo:1").assertIsDisplayed()
     }
 
+    @Test fun pickerContentDragDoesNotDismissButHandleDoes() {
+        ui.onNodeWithTag("recommendCategoryPicker").performClick()
+        ui.onNodeWithTag("recommendCategorySheet").performTouchInput { swipeDown() }
+        ui.onNodeWithTag("recommendCategorySheet").assertIsDisplayed()
+        ui.onNodeWithTag("pickerDragHandle").performTouchInput { swipe(start=center,end=center.copy(y=center.y+200f),durationMillis=500) }
+        ui.onNodeWithTag("recommendCategorySheet").assertDoesNotExist()
+        ui.onNodeWithText("分类搜索").performClick()
+        ui.waitUntil(10000) { model.state.value.catalogSource!=null }
+        ui.onNodeWithTag("catalogGenrePicker").performClick()
+        ui.onNodeWithTag("catalogPicker").performTouchInput { swipeDown() }
+        ui.onNodeWithTag("catalogPicker").assertIsDisplayed()
+        ui.onNodeWithTag("pickerDragHandle").performTouchInput { swipe(start=center,end=center.copy(y=center.y+200f),durationMillis=500) }
+        ui.onNodeWithTag("catalogPicker").assertDoesNotExist()
+    }
+
     @Test fun recommendationCategoryUsesDraftSheetAndResetsForType() {
         val controls=ui.onNodeWithTag("recommendControls")
         controls.performScrollToNode(hasTestTag("recommendType:movie"))

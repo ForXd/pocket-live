@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
         onDispose { lifecycle.removeObserver(observer) }
     }
     val homeState=rememberSaveableStateHolder()
+    val historyState=rememberSaveableStateHolder()
     var updatesOpen by rememberSaveable { mutableStateOf(false) }
     var appearanceOpen by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -232,7 +233,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                 }
-                2 -> HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory,model)
+                2 -> historyState.SaveableStateProvider("history") { HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory,model) }
             }
         }
     }

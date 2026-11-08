@@ -1,6 +1,7 @@
 package org.streampocket
 
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
@@ -103,6 +104,31 @@ class UiLayoutDeviceTest {
             ui.waitUntil(10000) { !model.state.value.recommendLoading && model.state.value.recommendations.size==5 }
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             capture("05-discovery")
+            if(ui.activity.resources.configuration.fontScale>1.3f) ui.onNodeWithText("最近观看").performScrollTo()
+            ui.onNodeWithText("最近观看").performClick()
+            ui.onNodeWithTag("recentWatching").assertIsDisplayed()
+            capture("07-recent-watching")
+            ui.onNodeWithTag("nav:2").performClick()
+            ui.onNodeWithTag("historySearch").performTextInput("星河")
+            ui.onNodeWithTag("historySearch").performImeAction()
+            ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continue:${HistoryGroups.key(video).stableKey}"))
+            ui.onNodeWithTag("continue:${HistoryGroups.key(video).stableKey}").assertIsDisplayed()
+            ui.onNodeWithTag("historySearch").performTextReplacement("不存在")
+            ui.onNodeWithText("没有匹配记录").assertIsDisplayed()
+            ui.onNodeWithTag("historySearch").performTextClearance()
+            instrument.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            capture("08-history-query")
+            if(InstrumentationRegistry.getArguments().getString("uxReview")=="true") {
+                val done=java.io.File(ui.activity.filesDir,"history-review-done");done.delete()
+                val deadline=android.os.SystemClock.elapsedRealtime()+180000
+                while(!done.exists() && android.os.SystemClock.elapsedRealtime()<deadline) {
+                    ui.mainClock.advanceTimeBy(100);ui.waitForIdle();android.os.SystemClock.sleep(100)
+                }
+            }
+
+            ui.onNodeWithTag("nav:0").performClick()
+            if(ui.activity.resources.configuration.fontScale>1.3f) ui.onNodeWithText("推荐",useUnmergedTree=true).performScrollTo()
+            ui.onNodeWithText("推荐",useUnmergedTree=true).performClick()
             val grid=ui.onNodeWithTag("recommendationGrid")
             var expectedHeight:Float?=null
             var expectedTitleOffset:Float?=null
@@ -151,6 +177,17 @@ class UiLayoutDeviceTest {
             ui.waitUntil(5000) { model.state.value.playback!=null }
             assertEquals(72000L,model.state.value.playback!!.position)
             assertEquals(video.id,model.state.value.playback!!.video.id)
+            ui.runOnIdle { model.stopPlayback() }
+            ui.waitUntil(10000) { PlaybackMetrics.created==PlaybackMetrics.released }
+            val historyCards=(1..8).map { n -> History(Playback(video.copy(id="recent$n",title="星河旅途 $n"),Episode("第${n}集","$base/test.mp4"),n*60000L),System.currentTimeMillis()-n*1000L) }
+            ui.runOnUiThread { ui.activity.setContent { PocketTheme { androidx.compose.material3.Scaffold { padding -> androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(padding)) { RecentWatchingScreen(historyCards,model) } } } } }
+            ui.onNodeWithText("1 / 8").assertIsDisplayed()
+            capture("09-recent-stack")
+            ui.onNodeWithTag("recentPager").performTouchInput { swipe(start=androidx.compose.ui.geometry.Offset(width*0.8f,center.y),end=androidx.compose.ui.geometry.Offset(width*0.35f,center.y),durationMillis=600) }
+            capture("10-recent-swiped")
+            ui.onNodeWithText("2 / 8").assertIsDisplayed()
+            assertEquals(PlaybackMetrics.created,PlaybackMetrics.released)
+
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     }
 }

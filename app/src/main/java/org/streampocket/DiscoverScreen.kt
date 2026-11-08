@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit,
     recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery,onTop:()->Unit={}) {
+    var recentTab by rememberSaveable { mutableStateOf(false) }
     val sources = remember(s.saved.subscriptions, s.saved.disabled) { s.saved.enabledSources(SourceKind.VOD) }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
@@ -68,7 +69,7 @@ import androidx.compose.ui.text.style.TextOverflow
         draftGenres=s.catalogGenres.map { it.name };draftCategory=s.catalogCategory;draftSources=s.catalogSourceKeys.toList();picker=value
     }
     LaunchedEffect(sources.map { it.key }) { if(sources.isNotEmpty() && s.catalogSource==null) model.browseSources(emptySet()) }
-    if(picker!=null) ModalBottomSheet(onDismissRequest={picker=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
+    if(picker!=null) HandleOnlySheet(onDismissRequest={picker=null}) {
         SheetSystemBars()
         Column(Modifier.fillMaxWidth()) {
         LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("catalogPicker"),contentPadding=PaddingValues(start=20.dp,end=20.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -139,10 +140,16 @@ import androidx.compose.ui.text.style.TextOverflow
         }
     }
     Column(Modifier.fillMaxSize()) {
-        PrimaryTabRow(selectedTabIndex=if(recommendations.value) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
-            Tab(selected=recommendations.value,onClick={recommendations.value=true},text={Text("推荐")})
-            Tab(selected=!recommendations.value,onClick={recommendations.value=false},text={Text("分类搜索")})
+        if(LocalDensity.current.fontScale>1.3f) PrimaryScrollableTabRow(selectedTabIndex=if(recentTab) 2 else if(recommendations.value) 0 else 1,edgePadding=20.dp,containerColor=MaterialTheme.colorScheme.background) {
+            Tab(selected=!recentTab && recommendations.value,onClick={recentTab=false;recommendations.value=true},text={Text("推荐")})
+            Tab(selected=!recentTab && !recommendations.value,onClick={recentTab=false;recommendations.value=false},text={Text("分类搜索")})
+            Tab(selected=recentTab,onClick={recentTab=true;recommendations.value=true},text={Text("最近观看")})
+        } else PrimaryTabRow(selectedTabIndex=if(recentTab) 2 else if(recommendations.value) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
+            Tab(selected=!recentTab && recommendations.value,onClick={recentTab=false;recommendations.value=true},text={Text("推荐")})
+            Tab(selected=!recentTab && !recommendations.value,onClick={recentTab=false;recommendations.value=false},text={Text("分类搜索")})
+            Tab(selected=recentTab,onClick={recentTab=true;recommendations.value=true},text={Text("最近观看")})
         }
+        if(recentTab) { RecentWatchingScreen(s.saved.history,model);return@Column }
         if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort,{ recommendationSort=it },onTop); return@Column }
         if(s.catalogSource!=null) {
             Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("catalogToolbar")) {
@@ -255,7 +262,7 @@ import androidx.compose.ui.text.style.TextOverflow
     var draftTag by rememberSaveable { mutableStateOf(s.recommendTag) }
     val focus=androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard=LocalSoftwareKeyboardController.current
-    if(categoryPicker) ModalBottomSheet(onDismissRequest={categoryPicker=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
+    if(categoryPicker) HandleOnlySheet(onDismissRequest={categoryPicker=false}) {
         SheetSystemBars()
         Column(Modifier.fillMaxWidth()) {
             LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("recommendCategorySheet"),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp)) {
