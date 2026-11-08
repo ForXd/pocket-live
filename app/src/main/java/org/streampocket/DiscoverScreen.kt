@@ -156,12 +156,12 @@ import androidx.compose.ui.text.style.TextOverflow
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                     item {
-                        FilledTonalButton(onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
+                        FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
                             Text(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
                         }
                     }
                     item {
-                        FilledTonalButton(onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
+                        FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
                             Text(s.categories.find { it.id==s.catalogCategory }?.name ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}");Icon(Icons.Default.ArrowDropDown,null)
                         }
                     }
@@ -239,7 +239,6 @@ import androidx.compose.ui.text.style.TextOverflow
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit,sort:DiscoverySort,onSort:(DiscoverySort)->Unit,onTop:()->Unit) {
     val videos=remember(s.recommendations,sort) { sort.apply(s.recommendations) }
-    val recent=remember(s.saved.history) { HistoryGroups.group(s.saved.history).take(5) }
     val grid=rememberLazyGridState()
     val scope=rememberCoroutineScope()
     val latest by rememberUpdatedState(s)
@@ -292,7 +291,7 @@ import androidx.compose.ui.text.style.TextOverflow
                     modifier=Modifier.testTag("recommendType:$type"),label={Text(label,maxLines=1)})
             }
             item {
-                FilledTonalButton(onClick={focus.clearFocus();keyboard?.hide();draftTag=s.recommendTag;categoryPicker=true},
+                FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={focus.clearFocus();keyboard?.hide();draftTag=s.recommendTag;categoryPicker=true},
                     modifier=Modifier.testTag("recommendCategoryPicker").semantics { contentDescription="推荐分类：${s.recommendTag}" }) {
                     Text(s.recommendTag,maxLines=1);Icon(Icons.Default.ArrowDropDown,null)
                 }
@@ -305,31 +304,6 @@ import androidx.compose.ui.text.style.TextOverflow
     LazyVerticalGrid(columns=GridCells.Fixed(2),state=grid,
         modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=12.dp,bottom=16.dp),
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        if(recent.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)},key="continue-watching") {
-            Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                Text("继续观看",style=MaterialTheme.typography.titleMedium)
-                BoxWithConstraints {
-                    val cardWidth=minOf(maxWidth,360.dp)
-                    LazyRow(horizontalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("continueWatching")) {
-                        items(recent,key={it.key.stableKey}) { group ->
-                            val entry=group.latest
-                            DiscoveryCard(onClick={model.resume(entry)},modifier=Modifier.width(cardWidth).testTag("discoverContinue:${group.key.stableKey}")) {
-                                Box {
-                                    Column(Modifier.fillMaxWidth().heightIn(min=88.dp).padding(start=68.dp,end=12.dp,top=10.dp,bottom=10.dp),verticalArrangement=Arrangement.spacedBy(4.dp,Alignment.CenterVertically)) {
-                                        Text(entry.playback.video.title,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                        Text(entry.playback.episode.name,style=MaterialTheme.typography.bodySmall,maxLines=1,overflow=TextOverflow.Ellipsis)
-                                        Text(if(entry.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续播放",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-                                    }
-                                    Box(Modifier.matchParentSize()) {
-                                        Poster(entry.playback.video,model,Modifier.width(56.dp).fillMaxHeight(),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
         items(videos,key={it.id},contentType={"recommendation"}) { video ->
             DiscoveryCard(onClick={searchTitle(video.title)},modifier=Modifier.fillMaxWidth().animateItem().testTag("recommendation:${video.id}")) {
@@ -382,9 +356,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 /** Artwork meets the outer clip; no inset surface or independently rounded poster. */
 @Composable private fun DiscoveryCard(modifier:Modifier=Modifier,onClick:()->Unit,content:@Composable ColumnScope.()->Unit) {
-    val interactions=remember { MutableInteractionSource() }
-    Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=RoundedCornerShape(12.dp),
-        colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer,contentColor=MaterialTheme.colorScheme.onSurface),content=content)
+    ContentCard(modifier=modifier,onClick=onClick,content=content)
 }
 
 @Composable private fun RecommendationRating(video:Video,modifier:Modifier=Modifier) {

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,13 +36,8 @@ import androidx.compose.ui.unit.dp
 @Composable fun HomeSearchBar(query:String,onQuery:(String)->Unit,searchMode:Boolean,submit:()->Unit,clear:()->Unit,placeholder:String="搜索影片、剧集或频道",clearLabel:String="清空并返回推荐",allowEmpty:Boolean=false) {
     Surface(color=MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center) {
-            TextField(query,onQuery,modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=4.dp)
-                .testTag("searchInput").semantics { contentDescription="影片或频道名称" },singleLine=true,
-                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={if(allowEmpty || query.isNotBlank()) submit()}),
-                placeholder={Text(placeholder,maxLines=1,overflow=TextOverflow.Ellipsis)},shape=MaterialTheme.shapes.medium,
-                colors=TextFieldDefaults.colors(focusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,
-                    focusedIndicatorColor=Color.Transparent,unfocusedIndicatorColor=Color.Transparent),
-                leadingIcon={Icon(Icons.Default.Search,null)},trailingIcon={
+            ContentSearchField(query,onQuery,placeholder,onSearch={if(allowEmpty || query.isNotBlank()) submit()},modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=4.dp)
+                .testTag("searchInput").semantics { contentDescription="影片或频道名称" },trailingIcon={
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
                             IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
@@ -67,12 +63,13 @@ import androidx.compose.ui.unit.dp
     ScrollToTopOnChange(category.name,showOthers.toString(),s.searchOrder.name) { grid.scrollToItem(0) }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("searchToolbar")) {
-                if (s.total > 0) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     val failureHint = if (s.failures > 0) " · ${s.failures} 个失败" else ""
-                    Text((if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源")+failureHint, Modifier.weight(1f),
+                    Text("${videos.size} 条结果 · "+(if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源")+failureHint, Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick=back,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回推荐") }
                     if (s.results.isNotEmpty()) Box {
-                        TextButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("searchSort")) { Text(s.searchOrder.label); Icon(Icons.Default.ArrowDropDown,null) }
+                        IconButton(onClick={sortMenu=true},modifier=Modifier.size(48.dp).testTag("searchSort")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"排序：${s.searchOrder.label}") }
                         DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                             SearchOrder.entries.forEach { order -> DropdownMenuItem(text = { Text(order.label) },
                                 onClick = { model.sortSearch(order); sortMenu = false }, trailingIcon = { if (order == s.searchOrder) Text("已选") }) }
@@ -95,16 +92,12 @@ import androidx.compose.ui.unit.dp
         }
         }
         Box(Modifier.weight(1f)) {
-    LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),state=grid,contentPadding=PaddingValues(20.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),
+    LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),state=grid,contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
             awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
         }) {
         item(span={GridItemSpan(maxLineSpan)}) {
             Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    Text("${videos.size} 条结果",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                    TextButton(onClick=back) { Text("返回推荐") }
-                }
                 if(s.searching) {
                     LinearProgressIndicator(progress={progress},modifier=Modifier.fillMaxWidth())
                     TextButton(onClick=model::cancelSearch) { Text("取消搜索") }

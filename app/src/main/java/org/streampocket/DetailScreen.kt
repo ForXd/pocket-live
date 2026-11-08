@@ -139,7 +139,7 @@ import kotlinx.coroutines.launch
             }
             Surface(color=MaterialTheme.colorScheme.background) {
                 Column {
-                    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+                    ContentDivider()
                     Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.CenterVertically) {
                         val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull()
                         Column(Modifier.weight(1f).testTag("detailPlaybackSummary"),verticalArrangement=Arrangement.spacedBy(2.dp)) {

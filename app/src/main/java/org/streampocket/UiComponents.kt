@@ -96,3 +96,21 @@ import androidx.compose.ui.unit.sp
         Text(text,style=style,color=color,maxLines=lines,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
+
+/** Shared filled search surface used by home and history, without a decorative outline. */
+@Composable internal fun contentSearchColors()=TextFieldDefaults.colors(
+    focusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,
+    unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,
+    focusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent,
+    unfocusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent)
+
+/** One search field geometry and keyboard contract; callers supply their own action. */
+@Composable internal fun ContentSearchField(value:String,onValueChange:(String)->Unit,placeholder:String,
+    onSearch:()->Unit,modifier:Modifier=Modifier,trailingIcon:@Composable ()->Unit) {
+    TextField(value,onValueChange,modifier=modifier.heightIn(min=56.dp),singleLine=true,
+        keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),
+        keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
+        placeholder={Text(placeholder,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)},
+        leadingIcon={Icon(painterResource(R.drawable.ic_search),null)},trailingIcon=trailingIcon,
+        shape=MaterialTheme.shapes.medium,colors=contentSearchColors())
+}

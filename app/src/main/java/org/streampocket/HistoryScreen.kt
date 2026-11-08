@@ -6,12 +6,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable fun HistoryScreen(history:List<History>,resume:(History)->Unit,remove:(HistoryGroupKey)->Unit,clear:()->Unit,model:AppModel?=null) {
     // This screen is not composed during playback. At most 100 records are grouped
     // once per changed snapshot, never on the player's position sampling tick.
@@ -33,20 +37,22 @@ import androidx.compose.ui.unit.dp
     var clearing by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-        OutlinedTextField(query,{query=it.take(100)},singleLine=true,keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={keyboard?.hide()}),label={Text("片名、来源或集数")},modifier=Modifier.fillMaxWidth().testTag("historySearch"),shape=MaterialTheme.shapes.medium)
+        ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
+            if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
+        }
         if(!imeVisible) {
         LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            items(HistoryPeriod.entries) { option -> FilterChip(selected=period==option,onClick={period=option},label={Text(option.label)},modifier=Modifier.testTag("historyPeriod:${option.name}")) }
+            items(HistoryPeriod.entries) { option -> ContentFilterChip(selected=period==option,onClick={period=option},label={Text(option.label)},modifier=Modifier.testTag("historyPeriod:${option.name}")) }
         }
-        Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
             Box {
-                TextButton(onClick={sourceMenu=true},modifier=Modifier.widthIn(max=160.dp).testTag("historySource")) { Text(sources.find { it.key==source }?.name ?: "全部来源",maxLines=1) }
+                FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={sourceMenu=true},modifier=Modifier.widthIn(max=180.dp).testTag("historySource")) { Text(sources.find { it.key==source }?.name ?: "全部来源",maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false));Icon(Icons.Default.ArrowDropDown,null) }
                 DropdownMenu(expanded=sourceMenu,onDismissRequest={sourceMenu=false}) {
                     DropdownMenuItem(text={Text("全部来源")},onClick={source=null;sourceMenu=false})
                     sources.forEach { option -> DropdownMenuItem(text={Text(option.name)},onClick={source=option.key;sourceMenu=false}) }
                 }
             }
-            LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(6.dp)) { items(HistoryKind.entries) { option -> FilterChip(selected=kind==option,onClick={kind=option},label={Text(option.label)}) } }
+            LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(6.dp)) { items(HistoryKind.entries) { option -> ContentFilterChip(selected=kind==option,onClick={kind=option},label={Text(option.label)}) } }
         }
         }
         Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
@@ -74,12 +80,12 @@ import androidx.compose.ui.unit.dp
                                 Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                            TextButton(onClick={resume(latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continue:$id")) {
+                        FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                            FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={resume(latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continue:$id")) {
                             Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
                         }
-                            TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.weight(1f)) { Text(if(expanded==id) "收起分集" else "分集（${group.episodes.size}）") }
-                            TextButton(onClick={deleting=group.key},modifier=Modifier.weight(1f),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除记录") }
+                            TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.heightIn(min=48.dp)) { Text(if(expanded==id) "收起分集" else "分集（${group.episodes.size}）") }
+                            TextButton(onClick={deleting=group.key},modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除记录") }
                         }
                     }
                 }

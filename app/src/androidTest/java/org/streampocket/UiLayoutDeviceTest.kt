@@ -172,8 +172,9 @@ class UiLayoutDeviceTest {
             assertFalse(model.state.value.searching)
             ui.onNodeWithTag("nav:0").performClick()
             if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
-            ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("continueWatching"))
-            ui.onNodeWithTag("discoverContinue:${HistoryGroups.key(video).stableKey}").performClick()
+            ui.onNodeWithTag("continueWatching").assertDoesNotExist()
+            ui.onNodeWithText("最近观看").performClick()
+            ui.onNodeWithTag("recentResume:${HistoryGroups.key(video).stableKey}").performClick()
             ui.waitUntil(5000) { model.state.value.playback!=null }
             assertEquals(72000L,model.state.value.playback!!.position)
             assertEquals(video.id,model.state.value.playback!!.video.id)
