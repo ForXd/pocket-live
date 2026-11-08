@@ -38,7 +38,7 @@ class AvailabilityDeviceTest {
                     }
                     "/bad-media" -> MockResponse().setBody("<html>error</html>")
                     "/redirect" -> MockResponse().setResponseCode(302).setHeader("Location","/stream/master.m3u8")
-                    "/stream/master.m3u8" -> MockResponse().setBody("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=10000\nchild.m3u8\n")
+                    "/stream/master.m3u8" -> MockResponse().setBody("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=10000,RESOLUTION=1920x1080\nchild.m3u8\n")
                     "/stream/child.m3u8" -> MockResponse().setBody("#EXTM3U\n#EXTINF:4,\nsegment.ts\n#EXT-X-ENDLIST\n")
                     "/stream/segment.ts" -> { val b=ByteArray(564);b[0]=0x47;b[188]=0x47;b[376]=0x47;MockResponse().setBody(okio.Buffer().write(b)) }
                     else -> MockResponse().setResponseCode(404)
@@ -46,8 +46,8 @@ class AvailabilityDeviceTest {
             }
         }
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
-        val sources=listOf(Source("失败片库","$base/bad"),Source("星河片库","$base/api"),Source("未验证片库","$base/unknown"))
-        runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true,disabled=setOf(sources.last().key),subscriptions=listOf(Subscription("probe","资源测试","$base/sub",1,sources)))) }
+        val sources=listOf(Source("失败片库","http://failure.test:${server.port}/bad"),Source("星河片库","$base/api"),Source("未验证片库","$base/unknown"))
+        runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true,disabled=setOf(sources.last().key),subscriptions=listOf(Subscription("probe","资源测试","$base/sub",1,sources),Subscription("duplicate","重复订阅","$base/sub2",1,listOf(Source("重复片库","$base/duplicate")))))) }
         ui.runOnUiThread {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
                 override fun <T:ViewModel> create(modelClass:Class<T>):T {
@@ -67,8 +67,11 @@ class AvailabilityDeviceTest {
         assertEquals(listOf("1","2","3"),details.toList())
         assertEquals(listOf("2","3"),model.state.value.results.take(2).map { it.id })
         assertEquals(5,model.state.value.results.size)
+        assertEquals(2,model.state.value.total)
+        assertEquals("1920×1080",model.state.value.probeResolutions[model.state.value.results.first().probeKey()])
         assertEquals(created,PlaybackMetrics.created)
         ui.onNodeWithTag("probe:2",useUnmergedTree=true).assertTextEquals("媒体可用")
+        ui.onNodeWithTag("probeResolution:2",useUnmergedTree=true).assertTextEquals("播放清单 · 1920×1080")
         captureUi(ui,"search-probes")
         if(androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("uxReview")=="true") {
             val done=java.io.File(ui.activity.filesDir,"availability-review-done");done.delete()

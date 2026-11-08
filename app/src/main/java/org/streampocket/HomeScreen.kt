@@ -138,7 +138,9 @@ import androidx.compose.ui.unit.dp
                         Text(s.probes[video.probeKey()]?.label ?: "未探测",style=MaterialTheme.typography.labelMedium,
                             color=if(s.probes[video.probeKey()]==ProbeStatus.READY) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier=Modifier.testTag("probe:${video.id}"))
-                        if(video.quality.evidence==QualityEvidence.UNKNOWN) Text("清晰度未知",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        if(s.probes[video.probeKey()]==ProbeStatus.READY) Text(s.probeResolutions[video.probeKey()]?.let { "播放清单 · $it" } ?: "清晰度未确认",
+                            style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeResolution:${video.id}"))
+                        if(video.quality.evidence==QualityEvidence.UNKNOWN) { if(s.probes[video.probeKey()]!=ProbeStatus.READY) Text("清晰度未知",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                         else QualityBadge(video.quality,lastPlayback=true)
                     }
                 }

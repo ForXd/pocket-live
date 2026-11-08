@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.withPermit
 import java.util.UUID
 
 data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false, val saved: Saved = Saved(), val results: List<Video> = emptyList(),
-    val sourceAvailability:Map<String,Boolean> = emptyMap(), val probes:Map<String,ProbeStatus> = emptyMap(), val probeRunning:Boolean=false,
+    val sourceAvailability:Map<String,Boolean> = emptyMap(), val probes:Map<String,ProbeStatus> = emptyMap(), val probeRunning:Boolean=false, val probeResolutions:Map<String,String> = emptyMap(),
     val searchQuery: String = "", val searchOrder: SearchOrder = SearchOrder.RELEVANCE,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
     val detail: Detail? = null, val detailLoading: Boolean = false, val detailError:String? = null, val playback: Playback? = null,
@@ -96,8 +96,9 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private var probeGeneration=0L
     private val probeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,requestLimit=1)
     private val playbackProbe=PlaybackProbe(probeNetwork)
+    internal fun activeSearchCalls()=network.client.dispatcher.runningCallsCount()+network.client.dispatcher.queuedCallsCount()
     internal fun activeProbeCalls()=probeNetwork.client.dispatcher.runningCallsCount()+probeNetwork.client.dispatcher.queuedCallsCount()
-    private val probeCache=linkedMapOf<String,Pair<Long,ProbeStatus>>()
+    private val probeCache=linkedMapOf<String,Pair<Long,ProbeResult>>()
     fun setSearchProbeActive(active:Boolean) {
         probeActive=active
         if(active) startProbes() else cancelProbes()
@@ -120,15 +121,15 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                     _state.update { it.copy(probeRunning=true,probes=it.probes+(key to ProbeStatus.CHECKING)) }
                     val now=System.currentTimeMillis()
                     probeCache.entries.removeAll { now-it.value.first !in 0..300_000L }
-                    val status=probeCache[key]?.second ?: try { withTimeout(5_000) { playbackProbe.check(video) } }
-                        catch(e:TimeoutCancellationException) { ensureActive();ProbeStatus.FAILED }
+                    val result=probeCache[key]?.second ?: try { withTimeout(5_000) { playbackProbe.inspect(video) } }
+                        catch(e:TimeoutCancellationException) { ensureActive();ProbeResult(ProbeStatus.FAILED) }
                         catch(e:CancellationException) { throw e }
-                        catch(_:Exception) { ProbeStatus.FAILED }
+                        catch(_:Exception) { ProbeResult(ProbeStatus.FAILED) }
                     ensureActive()
                     if(owner!=probeGeneration) break
-                    probeCache.remove(key);probeCache[key]=now to status
+                    probeCache.remove(key);probeCache[key]=now to result
                     while(probeCache.size>100) probeCache.remove(probeCache.keys.first())
-                    _state.update { val statuses=it.probes+(key to status);it.copy(probes=statuses,results=probeSorted(it.results,statuses)) }
+                    _state.update { val statuses=it.probes+(key to result.status);it.copy(probes=statuses,probeResolutions=if(result.resolution!=null) it.probeResolutions+(key to result.resolution) else it.probeResolutions-key,results=probeSorted(it.results,statuses)) }
                 }
             } } catch(_:TimeoutCancellationException) { /* bounded automatic work */ }
             finally { if(owner==probeGeneration) _state.update { it.copy(probeRunning=false,probes=it.probes.filterValues { status->status!=ProbeStatus.CHECKING }) } }
@@ -275,8 +276,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         cancelSearch()
         searchOrderPinned=false
         val q = query.trim().take(100); if(q.isEmpty()) return
-        val sources = sourceHealth.ordered(state.value.saved.enabledSources(),QueryKind.SEARCH)
-        _state.update { it.copy(probes=emptyMap(), searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
+        val sources = distinctSearchDomains(sourceHealth.ordered(state.value.saved.enabledSources(),QueryKind.SEARCH),network::actualDomain)
+        _state.update { it.copy(probes=emptyMap(),probeResolutions=emptyMap(), searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
         if (sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
         searchJob = viewModelScope.launch {
             val merger = SearchResultMerger()
@@ -470,7 +471,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                             } catch(e:CancellationException) { throw e } catch(_:Exception) { failures++ }
                         }
                         val slots=Semaphore(3)
-                        snapshot.saved.enabledSources(SourceKind.VOD)
+                        distinctSearchDomains(sourceHealth.ordered(snapshot.saved.enabledSources(SourceKind.VOD),QueryKind.SEARCH),network::actualDomain)
                             .take(PlaybackAlternatives.MAX_SOURCES).forEach { source -> launch {
                                 slots.withPermit {
                                     try {

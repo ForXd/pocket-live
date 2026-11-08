@@ -8,31 +8,40 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 enum class ProbeStatus(val label:String) { CHECKING("探测中"), READY("媒体可用"), FAILED("探测失败"), UNKNOWN("待确认") }
+data class ProbeResult(val status:ProbeStatus,val resolution:String?=null)
+internal fun probeResolution(line:String):String? {
+    val match=Regex("(?:^|,)RESOLUTION=(\\d{2,5})x(\\d{2,5})(?:,|$)").find(line.substringAfter(':')) ?: return null
+    val width=match.groupValues[1].toInt();val height=match.groupValues[2].toInt()
+    return if(width in 16..16384 && height in 16..16384) "${width}×${height}" else null
+}
 internal fun Video.probeKey()=source.key+":"+id
 
 /** Bounded media validation, not a decoder or a background player. Every response is closed. */
 internal class PlaybackProbe(private val network:Network) {
-    suspend fun check(video:Video):ProbeStatus = withContext(Dispatchers.Default) {
+    suspend fun check(video:Video):ProbeStatus = inspect(video).status
+    suspend fun inspect(video:Video):ProbeResult = withContext(Dispatchers.Default) {
         val detail=CmsParser.detail(network.text(network.api(video.source,"ids",video.id)),video)
-        val episode=detail.lines.firstOrNull { it.episodes.isNotEmpty() }?.episodes?.firstOrNull() ?: return@withContext ProbeStatus.UNKNOWN
+        val episode=detail.lines.firstOrNull { it.episodes.isNotEmpty() }?.episodes?.firstOrNull() ?: return@withContext ProbeResult(ProbeStatus.UNKNOWN)
         media(episode.url,0)
     }
-    private suspend fun media(url:String,depth:Int):ProbeStatus {
-        if(depth>2) return ProbeStatus.UNKNOWN
+    private suspend fun media(url:String,depth:Int):ProbeResult {
+        if(depth>2) return ProbeResult(ProbeStatus.UNKNOWN)
         val sample=sample(url)
         val bytes=sample.second
         val text=bytes.toString(Charsets.UTF_8).trimStart('\uFEFF',' ','\n','\r')
         if(text.startsWith("#EXTM3U")) {
-            if(text.lineSequence().any { it.startsWith("#EXT-X-KEY:") && !it.contains("METHOD=NONE") }) return ProbeStatus.UNKNOWN
+            if(text.lineSequence().any { it.startsWith("#EXT-X-KEY:") && !it.contains("METHOD=NONE") }) return ProbeResult(ProbeStatus.UNKNOWN)
             val lines=text.lineSequence().map { it.trim() }.toList()
             val master=lines.any { it.startsWith("#EXT-X-STREAM-INF:") }
-            if(!master && lines.none { it.startsWith("#EXTINF:") }) return ProbeStatus.UNKNOWN
-            val target=lines.firstOrNull { it.isNotBlank() && !it.startsWith('#') } ?: return ProbeStatus.UNKNOWN
-            val resolved=sample.first.resolve(target)?.toString() ?: return ProbeStatus.UNKNOWN
-            return media(resolved,depth+1)
+            if(!master && lines.none { it.startsWith("#EXTINF:") }) return ProbeResult(ProbeStatus.UNKNOWN)
+            val target=lines.firstOrNull { it.isNotBlank() && !it.startsWith('#') } ?: return ProbeResult(ProbeStatus.UNKNOWN)
+            val resolved=sample.first.resolve(target)?.toString() ?: return ProbeResult(ProbeStatus.UNKNOWN)
+            val checked=media(resolved,depth+1)
+            val declaration=if(master) lines.takeWhile { it!=target }.lastOrNull { it.startsWith("#EXT-X-STREAM-INF:") }?.let(::probeResolution) else null
+            return checked.copy(resolution=if(checked.status==ProbeStatus.READY) checked.resolution ?: declaration else null)
         }
-        if(text.startsWith("<?xml") || text.startsWith("<MPD")) return ProbeStatus.UNKNOWN
-        return if(validMediaPrefix(bytes)) ProbeStatus.READY else ProbeStatus.FAILED
+        if(text.startsWith("<?xml") || text.startsWith("<MPD")) return ProbeResult(ProbeStatus.UNKNOWN)
+        return ProbeResult(if(validMediaPrefix(bytes)) ProbeStatus.READY else ProbeStatus.FAILED)
     }
     private suspend fun sample(url:String):Pair<HttpUrl,ByteArray> = suspendCancellableCoroutine { continuation ->
         val normalized=validUrl(url)

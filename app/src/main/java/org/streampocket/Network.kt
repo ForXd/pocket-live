@@ -33,6 +33,19 @@ object PublicNetwork {
     }
 }
 class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns, private val cache: ResponseCache? = null, requestLimit:Int=4) {
+    private val apiDomains=linkedMapOf<String,Pair<Long,String>>()
+    private fun endpointKey(url:HttpUrl)=hash(url.newBuilder().query(null).fragment(null).build().toString())
+    @Synchronized fun actualDomain(url:String):String? {
+        val parsed=url.toHttpUrl()
+        val now=System.currentTimeMillis()
+        apiDomains.entries.removeAll { now-it.value.first !in 0..3_600_000L }
+        return apiDomains[endpointKey(parsed)]?.second ?: parsed.host
+    }
+    @Synchronized private fun rememberApiDomain(initial:HttpUrl,final:HttpUrl) {
+        if(initial.queryParameter("ac")==null || initial.host==final.host) return
+        val key=endpointKey(initial);apiDomains.remove(key);apiDomains[key]=System.currentTimeMillis() to final.host
+        while(apiDomains.size>300) apiDomains.remove(apiDomains.keys.first())
+    }
     val client: OkHttpClient = OkHttpClient.Builder()
         .dispatcher(Dispatcher().apply { maxRequests = requestLimit; maxRequestsPerHost = requestLimit })
         .dns(dns).connectTimeout(6, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS)
@@ -68,6 +81,10 @@ class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns
             catch(e: CancellationException) { throw e } catch(_: IOException) { /* best-effort cache */ }
         }
         val result = download(normalized)
+        if(cacheSearch) withContext(Dispatchers.Default) {
+            val payload=JsonData.parse(result.first).obj()
+            if(payload?.get("list")?.isJsonArray==true) rememberApiDomain(normalized.toHttpUrl(),result.third)
+        }
         if(cacheSearch && result.second > System.currentTimeMillis() && cache != null) {
             // Cache only structurally valid JSON. Subscription, detail and media never use this path.
             withContext(Dispatchers.Default) {
@@ -80,7 +97,7 @@ class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns
         }
         return result.first
     }
-    private suspend fun download(url: String): Pair<String, Long> {
+    private suspend fun download(url: String): Triple<String, Long, HttpUrl> {
         if(validUrl(url) == null) throw UserError("仅支持有效 HTTP(S) 地址，不支持用户名密码")
         return suspendCancellableCoroutine { continuation ->
             val call = client.newCall(Request.Builder().url(validUrl(url)!!).header("Accept", "application/json, application/x-mpegURL, text/plain").build())
@@ -109,7 +126,7 @@ class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns
                             val age = it.header("Age")?.toLongOrNull()?.coerceAtLeast(0) ?: 0
                             val ttl = if(maxAge < 0) StorageBudget.RESPONSE_TTL else (maxAge.toLong()-age).coerceAtLeast(0).coerceAtMost(60)*1000
                             val cacheable = !cc.noStore && !cc.noCache && it.header("Set-Cookie") == null && it.header("Vary")?.trim() != "*"
-                            text to if(cacheable && ttl > 0) it.receivedResponseAtMillis + ttl else 0L
+                            Triple(text,if(cacheable && ttl > 0) it.receivedResponseAtMillis + ttl else 0L,it.request.url)
                         }
                         if(continuation.isActive) continuation.resume(data)
                     } catch(e: Exception) { if(continuation.isActive) continuation.resumeWithException(e) }
@@ -119,5 +136,5 @@ class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns
     }
     fun api(source: Source, key: String, value: String): String = source.url.toHttpUrl().newBuilder()
         .setQueryParameter("ac", if(key == "wd") "videolist" else "detail").setQueryParameter(key, value).build().toString()
-    fun close() { client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdown() }
+    fun close() { synchronized(this) { apiDomains.clear() };client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdown() }
 }

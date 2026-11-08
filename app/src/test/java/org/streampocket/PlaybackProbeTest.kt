@@ -2,6 +2,12 @@ package org.streampocket
 import org.junit.Test
 import org.junit.Assert.*
 class PlaybackProbeTest {
+    @Test fun resolutionRequiresExplicitBoundedVariantDeclaration() {
+        assertEquals("1920×1080",probeResolution("#EXT-X-STREAM-INF:BANDWIDTH=123,RESOLUTION=1920x1080,CODECS=avc1"))
+        assertNull(probeResolution("#EXT-X-STREAM-INF:BANDWIDTH=1080"))
+        assertNull(probeResolution("#EXT-X-STREAM-INF:RESOLUTION=99999x1080"))
+    }
+
     @Test fun rejectsHttpErrorPagesAndChecksContainerSignature() {
         assertFalse(validMediaPrefix("<html>Login required</html>".toByteArray()))
         assertFalse(validMediaPrefix(ByteArray(400)))
