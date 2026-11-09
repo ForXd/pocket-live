@@ -8,4 +8,15 @@ M3U group-title / tvg-logo 可解析，但频道列表采用紧凑文字卡片�
 
 受控 M3U/HLS 设备路径覆盖：首页入口、顶部搜索、分组、真实视频出帧、返回资源释放、同域不同清单、刷新、失败重试入口、停用来源排除和离开取消。测试证明入口与受控媒体正常，不保证第三方频道随时可用。
 
-发布与最终验证记录待验收后补充。
+
+## 最终验证与正式发布（2026-11-09）
+
+- 源码 `a86332fe80166e7c1bc84f2c2cc8ae4862e10cd7`，从该提交构建。130 项单元测试通过；release lint 0 错误、46 项既有警告。
+- 最终设备回归 `OK (22 tests)`：Live 1、Availability 3、HomeBrowse 9、UiLayout 1、CatalogRegression 5、ApkUpdater 2、SearchUi 1。直播测试直接点击真实入口播放受控 HLS 并确认出帧，退出后播放器创建/释放数一致、采样任务及媒体请求归零；慢速清单离开页面后 HTTP 请求归零。没有用模型直接播放代替入口验证。
+- 最终深色两倍字号完整直播路径另 `OK (1 test)`，已实际查看截图：标签不换行、来源箭头可见、频道标题与播放入口完整。正常截图及来源面板保存在本地 `artifacts/v0.38.0/screens`，最终大字号截图在 `final-large`。独立视觉评审通过（存量扩展不打分），操作由设备回归验证。
+- 包名 `org.streampocket`，版本 0.38.0（46），原正式证书 SHA-256 `7dd2deb1eb4668ae56f830f09ba9c0a5a322763392d8846074c1da2daef02b7f`。APK SHA-256 `05447a94b6a9253ee8ea228480cafa8430a3add45a79e2f46c3a03f232c0b3dc`；包内 assets 只有 LICENSE 与 dexopt，不含测试频道或私有订阅。
+- 普通公开 APK 下载成功并与签名构建逐字节一致；公开 latest/update.json 和认证 GitHub latest API 均为 v0.38.0。匿名 API 返回 403，未记为验证成功。
+- 原测试设备保留的是 0.36.0（43），实际经应用内下载、系统更新到 0.38.0（46），`PublishedUpgradeDeviceTest: OK (1 test)`。firstInstallTime 保持 `2026-10-28 22:23:52`，lastUpdateTime 为 `2026-11-09 21:55:17`，重开版本正确。未卸载或用 ADB 安装正式新版替代流程；不将此记录称为 0.37.1 起点升级。
+- 正式发布页 https://github.com/ForXd/pocket-live/releases/tag/v0.38.0 。
+
+验收后按约定保留 v0.38.0、v0.37.1、v0.36.0 三个 Release，删除 v0.35.0、v0.34.0 及未验收 v0.37.0 草稿 Release，保留 Git tags。
