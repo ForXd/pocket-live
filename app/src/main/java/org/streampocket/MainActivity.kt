@@ -82,6 +82,8 @@ class MainActivity : ComponentActivity() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
     var searchMode by rememberSaveable { mutableStateOf(false) }
+    val liveTab=rememberSaveable { mutableStateOf(false) }
+    var liveQuery by rememberSaveable { mutableStateOf("") }
     val recommendations=rememberSaveable { mutableStateOf(true) }
     var catalogQuery by rememberSaveable { mutableStateOf("") }
     var submittedQuery by rememberSaveable { mutableStateOf("") }
@@ -91,7 +93,7 @@ class MainActivity : ComponentActivity() {
         focusManager.clearFocus();keyboard?.hide();model.search(query)
     }
     fun showRecommendations() {
-        model.cancelSearch();searchMode=false;query="";submittedQuery="";recommendations.value=true
+        model.cancelSearch();searchMode=false;query="";submittedQuery="";recommendations.value=true;liveTab.value=false
         focusManager.clearFocus();keyboard?.hide()
     }
     // Do not put token-bearing input into saved-instance-state or screen titles.
@@ -137,7 +139,7 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(s.message) { s.message?.let { snack.showSnackbar(it); model.message(null) } }
     // Keep only collapse scalars alive while playback replaces the screen.
     val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
-    LaunchedEffect(tab,searchMode,recommendations.value,imeVisible) { searchScroll.reveal() }
+    LaunchedEffect(tab,searchMode,recommendations.value,liveTab.value,imeVisible) { searchScroll.reveal() }
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val playback = s.playback
     if(playback != null) { PlaybackScreen(playback, model); return }
@@ -150,7 +152,7 @@ class MainActivity : ComponentActivity() {
             else -> showRecommendations()
         }
     }
-    val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
+    val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(liveTab.value) s.liveChannels.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
     val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
     val destinations=listOf("首页","订阅","历史","设置")
@@ -158,17 +160,18 @@ class MainActivity : ComponentActivity() {
     Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
         topBar = {
             if(tab==0 && s.detail==null && !s.detailLoading) {
-                val inCatalog=!searchMode && !recommendations.value
+                val inLive=!searchMode && liveTab.value
+                val inCatalog=!searchMode && !liveTab.value && !recommendations.value
                 fun browseQuery(value:String) {
                     catalogQuery=value;focusManager.clearFocus();keyboard?.hide()
                     model.browseSources(s.catalogSourceKeys,s.catalogCategory,value.trim(),genres=s.catalogGenres)
                 }
                 CollapsingHomeSearch(searchScroll) {
-                HomeSearchBar(if(inCatalog) catalogQuery else query,{if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
-                    {if(inCatalog) browseQuery(catalogQuery) else search(query)},
-                    {if(inCatalog) browseQuery("") else showRecommendations()},
-                    placeholder=if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
-                    clearLabel=if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog)
+                HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
+                    {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else search(query)},
+                    {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else showRecommendations()},
+                    placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
+                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog || inLive)
                 }
             }
             else if(s.detail!=null || s.detailLoading) TopAppBar(expandedHeight=56.dp,colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title={
@@ -201,7 +204,7 @@ class MainActivity : ComponentActivity() {
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
                     if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1},onTop={searchScroll.reveal()}) }
-                    else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,onTop={searchScroll.reveal()})
+                    else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,liveTab,liveQuery,onTop={searchScroll.reveal()})
                 }
                 3 -> SettingsScreen(s,model,{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })

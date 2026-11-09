@@ -44,7 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit,
-    recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery,onTop:()->Unit={}) {
+    recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery,liveTab:MutableState<Boolean> = rememberSaveable { mutableStateOf(false) },liveQuery:String="",onTop:()->Unit={}) {
     val sources = remember(s.saved.subscriptions, s.saved.disabled) { s.saved.enabledSources(SourceKind.VOD) }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
@@ -139,10 +139,15 @@ import androidx.compose.ui.text.style.TextOverflow
         }
     }
     Column(Modifier.fillMaxSize()) {
-        PrimaryTabRow(selectedTabIndex=if(recommendations.value) 0 else 1,containerColor=MaterialTheme.colorScheme.background) {
-            Tab(selected=recommendations.value,onClick={recommendations.value=true},text={Text("推荐")})
-            Tab(selected=!recommendations.value,onClick={recommendations.value=false},text={Text("分类搜索")})
+        val selectedTab=if(liveTab.value) 2 else if(recommendations.value) 0 else 1
+        val tabs:@Composable ()->Unit = {
+            Tab(selected=!liveTab.value && recommendations.value,onClick={liveTab.value=false;recommendations.value=true},text={Text("推荐")})
+            Tab(selected=!liveTab.value && !recommendations.value,onClick={liveTab.value=false;recommendations.value=false},text={Text("分类搜索")})
+            Tab(selected=liveTab.value,onClick={liveTab.value=true},text={Text("直播")},modifier=Modifier.testTag("liveTab"))
         }
+        if(LocalDensity.current.fontScale>1.3f) PrimaryScrollableTabRow(selectedTabIndex=selectedTab,edgePadding=20.dp,containerColor=MaterialTheme.colorScheme.background,tabs=tabs)
+        else PrimaryTabRow(selectedTabIndex=selectedTab,containerColor=MaterialTheme.colorScheme.background,tabs=tabs)
+        if(liveTab.value) { LiveScreen(s,model,liveQuery,addSource);return@Column }
         if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort,{ recommendationSort=it },onTop); return@Column }
         if(s.catalogSource!=null) {
             Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("catalogToolbar")) {

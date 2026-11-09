@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import java.util.UUID
 
-data class UiState(val loading: Boolean = true, val loadFailed: Boolean = false, val saved: Saved = Saved(), val results: List<Video> = emptyList(),
+data class UiState(val liveSourceKey:String?=null,val liveChannels:List<Video> = emptyList(),val liveLoading:Boolean=false,val liveError:String?=null, val loading: Boolean = true, val loadFailed: Boolean = false, val saved: Saved = Saved(), val results: List<Video> = emptyList(),
     val sourceAvailability:Map<String,Boolean> = emptyMap(), val probes:Map<String,ProbeStatus> = emptyMap(), val probeRunning:Boolean=false, val probeResolutions:Map<String,String> = emptyMap(),
     val searchQuery: String = "", val searchOrder: SearchOrder = SearchOrder.RELEVANCE,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
@@ -82,6 +82,29 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private val catalogCursors=mutableMapOf<String,CatalogCursor?>()
     private val catalogClasses=mutableMapOf<String,List<Category>>()
     private val catalogBrowser=CatalogBrowser { network.text(it,true) }
+    private var liveJob:Job?=null
+    private var liveOwner=0L
+    fun cancelLive() { liveOwner++;liveJob?.cancel();liveJob=null;_state.update { it.copy(liveLoading=false) } }
+    fun loadLive(key:String?=state.value.liveSourceKey,refresh:Boolean=false) {
+        val source=state.value.saved.enabledSources(SourceKind.LIVE).firstOrNull { it.key==key }
+            ?: state.value.saved.enabledSources(SourceKind.LIVE).firstOrNull()
+        if(source==null) { cancelLive();_state.update { it.copy(liveSourceKey=null,liveChannels=emptyList(),liveError=null) };return }
+        if(!refresh && source.key==state.value.liveSourceKey && (state.value.liveLoading || state.value.liveChannels.isNotEmpty())) return
+        cancelLive();val owner=++liveOwner
+        _state.update { it.copy(liveSourceKey=source.key,liveChannels=if(it.liveSourceKey==source.key) it.liveChannels else emptyList(),liveLoading=true,liveError=null) }
+        liveJob=viewModelScope.launch {
+            try {
+                val channels=withTimeout(22_000) { withContext(Dispatchers.Default) { CmsParser.playlist(network.text(source.url),source).distinctBy { it.id } } }
+                ensureActive();if(owner==liveOwner) _state.update { it.copy(liveChannels=channels,liveLoading=false) }
+            } catch(e:TimeoutCancellationException) { if(owner==liveOwner) _state.update { it.copy(liveLoading=false,liveError="频道加载超时，请重试") } }
+            catch(e:CancellationException) { throw e }
+            catch(e:Exception) { if(owner==liveOwner) _state.update { it.copy(liveLoading=false,liveError=safeError(e)) } }
+        }
+    }
+    fun playLive(video:Video) {
+        if(video.source.kind!=SourceKind.LIVE || state.value.saved.enabledSources(SourceKind.LIVE).none { it.key==video.source.key }) return
+        closeDetail();play(video,Episode(video.title,video.id))
+    }
     private var searchJob: Job? = null
     private var searchOrderPinned=false
     fun pinSearchOrder() { searchOrderPinned=true }
@@ -175,6 +198,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private fun invalidateSources() {
         sourceHealth.retain(state.value.saved.enabledSources().map { it.key }.toSet())
         catalogClasses.keys.retainAll(state.value.saved.enabledSources(SourceKind.VOD).map { it.key }.toSet())
+        cancelLive();_state.update { it.copy(liveSourceKey=null,liveChannels=emptyList(),liveError=null) }
         closeAlternatives(); cancelSearch(); cancelCatalog(); closeDetail(); clearCache(silent = true)
         _state.update { it.copy(catalogSource=null,catalogVideos=emptyList(),categories=emptyList(),catalogMore=false,catalogError=null) }
         _state.update { it.copy(results = emptyList(), completed = 0, total = 0, failures = 0) }

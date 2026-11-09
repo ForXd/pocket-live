@@ -167,7 +167,7 @@ import kotlinx.coroutines.delay
                                 try { activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16,9)).build()) } catch(_:Exception) { error="设备当前不允许画中画" }
                             } else error="设备不支持画中画"
                         }) { Text("画中画") }
-                        TextButton(onClick=leavePlayback,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("返回选集") }
+                        TextButton(onClick=leavePlayback,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text(if(playback.video.source.kind==SourceKind.LIVE) "返回频道" else "返回选集") }
                     }
                 }
             }
@@ -273,7 +273,7 @@ import kotlinx.coroutines.delay
         Column(Modifier.weight(1f).fillMaxHeight()) {
             if(!full && !pip) {
                 Row(Modifier.fillMaxWidth().heightIn(min=48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                    IconButton(onClick=leavePlayback,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回选集") }
+                    IconButton(onClick=leavePlayback,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,if(playback.video.source.kind==SourceKind.LIVE) "返回频道" else "返回选集") }
                     Text(playback.video.title,Modifier.weight(1f).padding(horizontal=8.dp),style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
                     IconButton(onClick=openOptions,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"更多播放选项") }
                 }
@@ -346,7 +346,7 @@ import kotlinx.coroutines.delay
                     FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick={error=null; controller.retry()}) { Text("重试播放") }
                         if(playback.video.source.kind==SourceKind.VOD) TextButton(onClick=::showAlternatives) { Text("快速换源") }
-                        TextButton(onClick={playerView?.cancelGestures();model.stopPlayback()}) { Text("返回选集") }
+                        TextButton(onClick={playerView?.cancelGestures();model.stopPlayback()}) { Text(if(playback.video.source.kind==SourceKind.LIVE) "返回频道" else "返回选集") }
                     }
                 }
             }

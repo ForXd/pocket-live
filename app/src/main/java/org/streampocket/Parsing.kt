@@ -180,12 +180,16 @@ object CmsParser {
     fun playlist(text: String, source: Source): List<Video> {
         if(!text.trimStart('\uFEFF',' ','\n','\r').startsWith("#EXTM3U")) throw UserError("直播源不是 M3U 播放列表")
         if(text.contains("#EXT-X-TARGETDURATION") || text.contains("#EXT-X-STREAM-INF")) throw UserError("需要频道列表，不是 HLS 媒体清单")
-        var name: String? = null; val result = mutableListOf<Video>()
+        var name: String? = null; var group=""; var logo:String?=null; val result = mutableListOf<Video>()
         for(line in text.lineSequence()) {
             val s = line.trim()
-            if(s.startsWith("#EXTINF:")) name = s.substringAfter(',', "频道").take(200)
+            if(s.startsWith("#EXTINF:")) {
+                name = s.substringAfter(',', "频道").take(200)
+                group=Regex("group-title=\"([^\"]*)\"").find(s)?.groupValues?.get(1).orEmpty().take(100)
+                logo=Regex("tvg-logo=\"([^\"]*)\"").find(s)?.groupValues?.get(1)?.let { validUrl(it) }
+            }
             else if(s.isNotBlank() && !s.startsWith('#')) {
-                val url = validUrl(s); if(url != null && name != null) result += Video(source, url, name)
+                val url = validUrl(s); if(url != null && name != null) result += Video(source, url, name,subtitle=group,poster=logo,typeName=group)
                 name = null
             }
             if(result.size >= 500) break
