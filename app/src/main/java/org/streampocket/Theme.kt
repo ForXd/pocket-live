@@ -44,23 +44,23 @@ val LocalPocketDark=staticCompositionLocalOf { true }
     return mode
 }
 internal val NightColors=darkColorScheme(
-    primary=Color(0xff78d8c6),onPrimary=Color(0xff00382f),primaryContainer=Color(0xff154d43),onPrimaryContainer=Color(0xffa4f3df),
-    secondary=Color(0xffb5c8c4),onSecondary=Color(0xff203532),secondaryContainer=Color(0xff304741),onSecondaryContainer=Color(0xffd0e7df),
-    tertiary=Color(0xffb2c7f1),onTertiary=Color(0xff1a3152),tertiaryContainer=Color(0xff334969),onTertiaryContainer=Color(0xffd5e3ff),
-    background=Color(0xff101313),onBackground=Color(0xffe9eeeb),surface=Color(0xff101313),onSurface=Color(0xffe9eeeb),
-    surfaceVariant=Color(0xff35444a),onSurfaceVariant=Color(0xffb5c2c9),surfaceTint=Color(0xff78d8c6),
-    surfaceContainerLowest=Color(0xff090f14),surfaceContainerLow=Color(0xff151a18),surfaceContainer=Color(0xff1c2220),
-    surfaceContainerHigh=Color(0xff252e2a),surfaceContainerHighest=Color(0xff303b35),surfaceDim=Color(0xff101313),surfaceBright=Color(0xff34424c),
-    outline=Color(0xff81929b),outlineVariant=Color(0xff35423b))
+    primary=Color(0xffff5364),onPrimary=Color(0xff280008),primaryContainer=Color(0xff49151e),onPrimaryContainer=Color(0xffffd9de),
+    secondary=Color(0xffd5c2c5),onSecondary=Color(0xff372d30),secondaryContainer=Color(0xff35282b),onSecondaryContainer=Color(0xffeedde0),
+    tertiary=Color(0xffe9c178),onTertiary=Color(0xff402d06),tertiaryContainer=Color(0xff58431d),onTertiaryContainer=Color(0xffffe4ac),
+    background=Color(0xff0c0c0e),onBackground=Color(0xfff5f3f4),surface=Color(0xff0c0c0e),onSurface=Color(0xfff5f3f4),
+    surfaceVariant=Color(0xff353135),onSurfaceVariant=Color(0xffbcb5b9),surfaceTint=Color(0xffff5364),
+    surfaceContainerLowest=Color(0xff080809),surfaceContainerLow=Color(0xff141416),surfaceContainer=Color(0xff1b1b1e),
+    surfaceContainerHigh=Color(0xff242427),surfaceContainerHighest=Color(0xff303034),surfaceDim=Color(0xff0c0c0e),surfaceBright=Color(0xff38383c),
+    outline=Color(0xff978d92),outlineVariant=Color(0xff373236))
 internal val DayColors=lightColorScheme(
-    primary=Color(0xff006b5e),onPrimary=Color.White,primaryContainer=Color(0xffd4f3e9),onPrimaryContainer=Color(0xff004e42),
-    secondary=Color(0xff50635e),onSecondary=Color.White,secondaryContainer=Color(0xffe0ebe6),onSecondaryContainer=Color(0xff203831),
-    tertiary=Color(0xff435e86),onTertiary=Color.White,tertiaryContainer=Color(0xffdbe7ff),onTertiaryContainer=Color(0xff223c60),
-    background=Color(0xfff3f5f2),onBackground=Color(0xff202525),surface=Color(0xfff3f5f2),onSurface=Color(0xff202525),
-    surfaceVariant=Color(0xffdfe7eb),onSurfaceVariant=Color(0xff5c685f),surfaceTint=Color(0xff006b5e),
-    surfaceContainerLowest=Color(0xfffcfdf9),surfaceContainerLow=Color(0xffeef2ed),surfaceContainer=Color(0xffe8eee8),
-    surfaceContainerHigh=Color(0xffe9ede4),surfaceContainerHighest=Color(0xffe0e6dc),surfaceDim=Color(0xffdce4eb),surfaceBright=Color(0xfff9fbfd),
-    outline=Color(0xff71828c),outlineVariant=Color(0xffc9d5dd))
+    primary=Color(0xffbb1735),onPrimary=Color.White,primaryContainer=Color(0xffffdde3),onPrimaryContainer=Color(0xff860f25),
+    secondary=Color(0xff6e575e),onSecondary=Color.White,secondaryContainer=Color(0xfff0e4e7),onSecondaryContainer=Color(0xff49353c),
+    tertiary=Color(0xff765720),onTertiary=Color.White,tertiaryContainer=Color(0xffffe8bb),onTertiaryContainer=Color(0xff513a10),
+    background=Color(0xfffaf7f8),onBackground=Color(0xff211e20),surface=Color(0xfffaf7f8),onSurface=Color(0xff211e20),
+    surfaceVariant=Color(0xffeee5e8),onSurfaceVariant=Color(0xff6c6268),surfaceTint=Color(0xffbb1735),
+    surfaceContainerLowest=Color(0xffffffff),surfaceContainerLow=Color(0xfff5eff1),surfaceContainer=Color(0xfff0e9ec),
+    surfaceContainerHigh=Color(0xffeae2e6),surfaceContainerHighest=Color(0xffe5dce1),surfaceDim=Color(0xffded5da),surfaceBright=Color(0xfffffbfc),
+    outline=Color(0xff897b83),outlineVariant=Color(0xffd9cbd2))
 
 @Composable fun PocketTheme(mode:ThemeMode?=null,content:@Composable ()->Unit) {
     val stored=rememberThemeMode()

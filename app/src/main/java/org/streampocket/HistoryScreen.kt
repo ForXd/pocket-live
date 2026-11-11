@@ -87,7 +87,7 @@ import androidx.compose.ui.unit.dp
                             }
                         }
                         FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                            FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={resume(latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continue:$id")) {
+                            Button(shape=MaterialTheme.shapes.medium,onClick={resume(latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continue:$id")) {
                             Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
                         }
                             TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.heightIn(min=48.dp)) { Text(if(expanded==id) "收起分集" else "分集（${group.episodes.size}）") }

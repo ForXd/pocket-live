@@ -179,10 +179,10 @@ class MainActivity : ComponentActivity() {
             },navigationIcon={if(s.detail!=null || s.detailLoading) IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }})
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
-        bottomBar = { if(!imeVisible) Surface(color=MaterialTheme.colorScheme.surfaceContainer) { Row(Modifier.fillMaxWidth().selectableGroup().windowInsetsPadding(NavigationBarDefaults.windowInsets).heightIn(min=64.dp).testTag("mainNavigation"),verticalAlignment=Alignment.CenterVertically) {
+        bottomBar = { if(!imeVisible) Surface(color=MaterialTheme.colorScheme.background) { Row(Modifier.fillMaxWidth().selectableGroup().windowInsetsPadding(NavigationBarDefaults.windowInsets).heightIn(min=64.dp).testTag("mainNavigation"),verticalAlignment=Alignment.CenterVertically) {
             listOf(0,2,1,3).forEach { i ->
                 val title=destinations[i]
-                NavigationBarItem(selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
+                NavigationBarItem(colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,indicatorColor=MaterialTheme.colorScheme.primaryContainer.copy(alpha=.45f)),selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                     modifier=Modifier.height(if(androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 80.dp else 64.dp).testTag("nav:$i"),icon={navIcon(i)},label={Text(title)})
             }
         } } },snackbarHost={SnackbarHost(snack)}

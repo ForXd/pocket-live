@@ -70,8 +70,8 @@ import androidx.compose.ui.unit.sp
 }
 
 /** Shared quiet surface for discovery, search and viewing history. */
-@Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,content:@Composable ColumnScope.()->Unit) {
-    val colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)
+@Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainer,content:@Composable ColumnScope.()->Unit) {
+    val colors=CardDefaults.cardColors(containerColor=containerColor)
     if(onClick==null) Card(modifier=modifier,shape=MaterialTheme.shapes.medium,colors=colors,content=content)
     else {
         val interactions=remember { MutableInteractionSource() }

@@ -141,9 +141,9 @@ import androidx.compose.ui.text.style.TextOverflow
     Column(Modifier.fillMaxSize()) {
         val selectedTab=if(liveTab.value) 2 else if(recommendations.value) 0 else 1
         val tabs:@Composable ()->Unit = {
-            Tab(selected=!liveTab.value && recommendations.value,onClick={liveTab.value=false;recommendations.value=true},text={Text("推荐")})
-            Tab(selected=!liveTab.value && !recommendations.value,onClick={liveTab.value=false;recommendations.value=false},text={Text("分类搜索")})
-            Tab(selected=liveTab.value,onClick={liveTab.value=true},text={Text("直播")},modifier=Modifier.testTag("liveTab"))
+            Tab(unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && recommendations.value,onClick={liveTab.value=false;recommendations.value=true},text={Text("推荐")})
+            Tab(unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && !recommendations.value,onClick={liveTab.value=false;recommendations.value=false},text={Text("分类搜索")})
+            Tab(unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=liveTab.value,onClick={liveTab.value=true},text={Text("直播")},modifier=Modifier.testTag("liveTab"))
         }
         if(LocalDensity.current.fontScale>1.3f) PrimaryScrollableTabRow(selectedTabIndex=selectedTab,edgePadding=20.dp,containerColor=MaterialTheme.colorScheme.background,tabs=tabs)
         else PrimaryTabRow(selectedTabIndex=selectedTab,containerColor=MaterialTheme.colorScheme.background,tabs=tabs)
@@ -321,13 +321,13 @@ import androidx.compose.ui.text.style.TextOverflow
 
 /** Artwork meets the outer clip; no inset surface or independently rounded poster. */
 @Composable private fun DiscoveryCard(modifier:Modifier=Modifier,onClick:()->Unit,content:@Composable ColumnScope.()->Unit) {
-    ContentCard(modifier=modifier,onClick=onClick,content=content)
+    ContentCard(modifier=modifier,onClick=onClick,containerColor=MaterialTheme.colorScheme.background,content=content)
 }
 
 @Composable private fun RecommendationRating(video:Video,modifier:Modifier=Modifier,prefix:String="recommend") {
     val rating=video.rating?.toString()
     if(rating!=null) Surface(modifier=modifier.testTag("${prefix}Rating:${video.id}").semantics { contentDescription="${if(prefix=="recommend") "豆瓣" else "来源"}评分 $rating 分" },
-        shape=RoundedCornerShape(50),color=Color(0xee12212a),contentColor=Color(0xffffc12b)) {
+        shape=RoundedCornerShape(50),color=Color(0xdd111113),contentColor=Color(0xffffc12b)) {
         Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
             Icon(Icons.Default.Star,null,Modifier.size(16.dp))
             Text(rating,style=MaterialTheme.typography.labelLarge)
@@ -389,6 +389,6 @@ import androidx.compose.ui.text.style.TextOverflow
             Poster(video,model,Modifier.fillMaxWidth().aspectRatio(0.75f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)
         }
-        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=10.dp,vertical=4.dp).testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=13.sp,lineHeight=17.sp),color=MaterialTheme.colorScheme.onSurface,lines=1)
+        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=2.dp,vertical=8.dp).testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=14.sp,lineHeight=20.sp),color=MaterialTheme.colorScheme.onSurface,lines=1)
     }
 }
