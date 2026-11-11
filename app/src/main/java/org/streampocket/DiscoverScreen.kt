@@ -170,12 +170,12 @@ import androidx.compose.ui.text.style.TextOverflow
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                     item {
-                        GlassButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
+                        GlassButton(shape=MaterialTheme.shapes.small,colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
                             Text(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
                         }
                     }
                     item {
-                        GlassButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
+                        GlassButton(shape=MaterialTheme.shapes.small,colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
                             Text(s.categories.find { it.id==s.catalogCategory }?.name ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}");Icon(Icons.Default.ArrowDropDown,null)
                         }
                     }
@@ -185,17 +185,17 @@ import androidx.compose.ui.text.style.TextOverflow
                     if(s.catalogSourceKeys.isNotEmpty() || s.catalogGenres.isNotEmpty() || s.catalogCategory!=null) {
                         LazyRow(Modifier.fillMaxWidth().testTag("activeCatalogFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             items(sources.filter { it.key in s.catalogSourceKeys },key={it.key}) { selected ->
-                                InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys-selected.key,query=catalogQuery.trim(),genres=s.catalogGenres)},
+                                InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys-selected.key,query=catalogQuery.trim(),genres=s.catalogGenres)},
                                     label={Text(selected.name,maxLines=1,overflow=TextOverflow.Ellipsis)},trailingIcon={Icon(Icons.Default.Close,"取消${selected.name}",Modifier.size(16.dp))},
                                     modifier=Modifier.widthIn(max=200.dp).testTag("activeSource:${selected.key}"))
                             }
                             items(s.catalogGenres.sortedBy { it.ordinal },key={it.name}) { genre ->
-                                InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim(),genres=s.catalogGenres-genre)},
+                                InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim(),genres=s.catalogGenres-genre)},
                                     label={Text(genre.label)},trailingIcon={Icon(Icons.Default.Close,"取消${genre.label}",Modifier.size(16.dp))},
                                     modifier=Modifier.testTag("activeGenre:${genre.name}"))
                             }
                             s.categories.find { it.id==s.catalogCategory }?.let { category -> item {
-                                InputChip(selected=true,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim())},label={Text(category.name)},
+                                InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim())},label={Text(category.name)},
                                     trailingIcon={Icon(Icons.Default.Close,"取消${category.name}",Modifier.size(16.dp))})
                             } }
                         }

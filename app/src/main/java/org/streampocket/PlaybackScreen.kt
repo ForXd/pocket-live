@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyRow
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalConfiguration
@@ -316,6 +317,7 @@ import kotlinx.coroutines.delay
                     it.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility -> controlsVisible=visibility==android.view.View.VISIBLE })
                     controlsVisible=it.isControllerFullyVisible
                     it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener { openOptions() }
+                    it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_basic_controls)?.visibility=if(full && !pip) android.view.View.INVISIBLE else android.view.View.VISIBLE
                     playerView=it;it.useController=!pip
                 },
                 onReset=null,onRelease={it.cancelGestures();controller.detach(it);if(playerView===it) playerView=null},
@@ -355,10 +357,18 @@ import kotlinx.coroutines.delay
             PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f))
         }
         if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
-            // A single top rail leaves Media3's transport and timeline unobstructed.
+            // Keep navigation/title above the video; episode/source actions live below the timeline.
             Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha=.65f),Color.Transparent))).displayCutoutPadding().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                 IconButton(onClick={playerView?.cancelGestures();full=false},modifier=Modifier.size(48.dp).testTag("fullscreenToggle")) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"退出全屏") }
                 Text("${playback.video.title} · ${playback.episode.name}",Modifier.weight(1f),style=MaterialTheme.typography.titleSmall.copy(shadow=androidx.compose.ui.graphics.Shadow(Color.Black, androidx.compose.ui.geometry.Offset(0f,1f),3f)),maxLines=1,overflow=TextOverflow.Ellipsis)
+
+            }
+        }
+        if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
+            Row(Modifier.align(Alignment.BottomEnd).fillMaxWidth(.65f).height(48.dp)
+                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                .horizontalScroll(rememberScrollState()).padding(horizontal=8.dp).testTag("fullscreenBottomActions"),
+                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.End) {
                 PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
                 TextButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.heightIn(min=48.dp)) { Text("选集") }
                 PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
@@ -413,7 +423,7 @@ import kotlinx.coroutines.delay
             val playing=episode.url==currentUrl
             Surface(onClick={select(episode)},shape=MaterialTheme.shapes.small,
                 color=glassFill(playing),
-                border=glassBorder(playing),
+                border=null,
                 contentColor=MaterialTheme.colorScheme.onSurface,
                 modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { this.selected=playing }) {
                 Column(Modifier.padding(horizontal=12.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {

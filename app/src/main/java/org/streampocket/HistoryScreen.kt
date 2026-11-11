@@ -71,7 +71,7 @@ import androidx.compose.ui.unit.dp
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
             Box {
-                GlassButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={sourceMenu=true},modifier=Modifier.widthIn(max=180.dp).testTag("historySource")) { Text(sources.find { it.key==source }?.name ?: "全部来源",maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false));Icon(Icons.Default.ArrowDropDown,null) }
+                GlassButton(shape=MaterialTheme.shapes.small,colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={sourceMenu=true},modifier=Modifier.widthIn(max=180.dp).testTag("historySource")) { Text(sources.find { it.key==source }?.name ?: "全部来源",maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false));Icon(Icons.Default.ArrowDropDown,null) }
                 GlassMenu(expanded=sourceMenu,onDismissRequest={sourceMenu=false}) {
                     DropdownMenuItem(text={Text("全部来源")},onClick={source=null;sourceMenu=false})
                     sources.forEach { option -> DropdownMenuItem(text={Text(option.name)},onClick={source=option.key;sourceMenu=false}) }
@@ -98,7 +98,7 @@ import androidx.compose.ui.unit.dp
                 Column(Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
                     if(index==0 && model!=null) Box {
                         Poster(latest.playback.video,model,Modifier.fillMaxWidth().aspectRatio(1.95f),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
-                        GlassIconButton(onClick={resume(latest)},colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=androidx.compose.ui.graphics.Color.Black.copy(alpha=.48f),contentColor=NightColors.primary),border=androidx.compose.foundation.BorderStroke(1.dp,NightColors.primary.copy(alpha=.45f)),modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
+                        GlassIconButton(onClick={resume(latest)},colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=androidx.compose.ui.graphics.Color.Black.copy(alpha=.48f),contentColor=NightColors.primary),modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
                     }
                     Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         if(index>0 && model!=null) Poster(latest.playback.video,model,Modifier.size(80.dp,90.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)

@@ -93,7 +93,7 @@ internal val DayColors=lightColorScheme(
     GlassAlertDialog(onDismissRequest=close,title={Text("外观")},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         Text("选择适合你的观看环境",color=MaterialTheme.colorScheme.onSurfaceVariant)
         ThemeMode.entries.forEach { choice ->
-            Surface(shape=MaterialTheme.shapes.medium,color=glassFill(mode==choice),border=glassBorder(mode==choice)) {
+            Surface(shape=MaterialTheme.shapes.medium,color=glassFill(mode==choice),border=null) {
                 Row(Modifier.fillMaxWidth().selectable(mode==choice,role=Role.RadioButton,onClick={ThemePreference.write(context,choice)}).padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     RadioButton(selected=mode==choice,onClick=null)
                     Column { Text(choice.title,style=MaterialTheme.typography.titleSmall);Text(choice.description,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }

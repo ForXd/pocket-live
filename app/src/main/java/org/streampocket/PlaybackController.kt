@@ -57,7 +57,9 @@ class PlaybackController(
             val load = playbackLoadControl()
             val calls=MediaCallOwner(network.client);mediaCalls=calls
             val upstream=OkHttpDataSource.Factory(calls)
-            val prefetch=HlsLookAhead(upstream,network.client,if(context.getSystemService(android.app.ActivityManager::class.java).isLowRamDevice) 512*1024 else HlsLookAhead.MAX_SEGMENT_BYTES).also { lookAhead=it }
+            val memory=context.getSystemService(android.app.ActivityManager::class.java)
+            val segmentBudget=if(memory.isLowRamDevice) 4*1024*1024 else minOf(32,(memory.memoryClass/8).coerceAtLeast(1))*1024*1024
+            val prefetch=HlsLookAhead(upstream,network.client,segmentBudget).also { lookAhead=it }
             val dataSource=prefetch.factory
             val loadPolicy=PlaybackLoadPolicy()
             val factory = DefaultMediaSourceFactory(dataSource).setLoadErrorHandlingPolicy(loadPolicy)
@@ -129,7 +131,7 @@ class PlaybackController(
                     }
                 }
                 override fun onVideoSizeChanged(size:VideoSize) { if(player===p && !closed) videoSize(size.width,size.height) }
-                override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) { if(player===p && !closed) intent(value) }
+                override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) { if(player===p && !closed) { prefetch.setActive(value);intent(value) } }
                 override fun onPlayerError(error: PlaybackException) {
                     if(player!==p || closed) return
                     PlaybackMetrics.errorDiagnostic=playbackErrorDiagnostic(error)
@@ -167,6 +169,7 @@ class PlaybackController(
                 p.setMediaSource(hls.createMediaSource(item))
             } else p.setMediaItem(item)
             if(liveMedia) p.seekToDefaultPosition() else p.seekTo(position)
+            prefetch.setActive(autoStart)
             p.prepare()
             p.playWhenReady=autoStart; autoStart=false
             sample=scope.launch {

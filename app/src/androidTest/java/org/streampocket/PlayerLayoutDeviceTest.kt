@@ -80,7 +80,7 @@ class PlayerLayoutDeviceTest {
                 ui.onNode(hasText("第1集") and isSelected()).performClick()
                 assertEquals(created,PlaybackMetrics.created)
                 ui.onNodeWithContentDescription("横屏全屏").performClick()
-                ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+                ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
                 ui.onNodeWithContentDescription("退出全屏").performClick()
                 ui.onNodeWithTag("playerSidePanel").assertIsDisplayed()
                 assertEquals(created,PlaybackMetrics.created)
@@ -106,7 +106,7 @@ class PlayerLayoutDeviceTest {
             ui.onNodeWithText("选集").performClick()
             captureUi(ui,"player-portrait-episodes")
             ui.onNodeWithText("关闭").performClick()
-            ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             val session=model.state.value.playback!!.sessionId
             val created=PlaybackMetrics.created
             ui.onNodeWithContentDescription("更多播放选项").performClick()
@@ -119,21 +119,29 @@ class PlayerLayoutDeviceTest {
             assertEquals(created,PlaybackMetrics.created)
             ui.onNodeWithContentDescription("横屏全屏").performClick()
             ui.waitUntil(5000) { ui.activity.window.decorView.width>ui.activity.window.decorView.height }
-            ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
             captureUi(ui,"player-landscape")
-            ui.runOnIdle { view(ui.activity.window.decorView)!!.findViewById<View>(androidx.media3.ui.R.id.exo_settings).performClick() }
+            val actions=ui.onNodeWithTag("fullscreenBottomActions").fetchSemanticsNode().boundsInRoot
+            ui.runOnIdle {
+                val progress=view(ui.activity.window.decorView)!!.findViewById<View>(androidx.media3.ui.R.id.exo_progress)
+                assertTrue("Native timeline remains visible",progress.isShown)
+                val xy=IntArray(2);progress.getLocationInWindow(xy)
+                assertTrue("Actions must be below the timeline",actions.center.y>xy[1]+progress.height/2)
+                assertTrue("Actions must stay in the bottom region",actions.top>ui.activity.window.decorView.height*.75f)
+            }
+            ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.onNodeWithTag("playbackOptions").assertIsDisplayed()
             ui.onNodeWithTag("speed:1.5").performClick()
             ui.runOnIdle { assertEquals(1.5f,view(ui.activity.window.decorView)!!.player!!.playbackParameters.speed) }
             captureUi(ui,"player-fullscreen-options")
             ui.onNodeWithText("关闭").performClick()
-            ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             ui.onNodeWithText("快速换源").performClick()
             ui.waitUntil(10000) { !model.state.value.alternativesLoading && model.state.value.alternatives.count { it.probeStatus==ProbeStatus.READY }==2 }
             captureUi(ui,"player-fullscreen-alternatives")
             ui.onNodeWithText("关闭").performClick()
-            ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
 
             assertEquals(created,PlaybackMetrics.created)
             val windowsBefore=if(android.os.Build.VERSION.SDK_INT>=29) android.view.inspector.WindowInspector.getGlobalWindowViews().size else 0
@@ -161,7 +169,7 @@ class PlayerLayoutDeviceTest {
                 if(android.os.Build.VERSION.SDK_INT>=29) ui.waitUntil(5000) {
                     android.view.inspector.WindowInspector.getGlobalWindowViews().size==windowsBefore
                 }
-                ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+                ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
                 ui.onNodeWithText("选集").performClick()
                 ui.onNodeWithTag("fullscreenEpisodePanel").assertIsDisplayed()
             }

@@ -20,14 +20,16 @@ internal class HlsLookAhead(private val upstream:DataSource.Factory,private val 
     private var pending:Pending?=null
     private var promoted:Pending?=null
     private var closed=false
+    private var active=true
     private var disabled=false
     private data class Segment(val bytes:ByteArray,val length:Int)
     private class Pending(val url:String) {
         val result=CompletableFuture<Segment?>()
         var job:Job?=null
+        @Volatile var cancelled=false
         @Volatile var owner:MediaCallOwner?=null
     }
-    companion object { const val MAX_SEGMENT_BYTES=2*1024*1024;const val MAX_SEGMENTS=2000 }
+    companion object { const val MAX_SEGMENT_BYTES=32*1024*1024;const val MAX_SEGMENTS=2000 }
     @Synchronized internal fun observe(playlist:HlsPlaylist) {
         if(closed || disabled || playlist !is HlsMediaPlaylist) return
         // Live, keys, byte ranges and initialization segments retain the original loader.
@@ -85,13 +87,14 @@ internal class HlsLookAhead(private val upstream:DataSource.Factory,private val 
         val bytes=try { item.result.get(9,TimeUnit.SECONDS) } catch(_:Exception) { null }
         synchronized(this) {
             if(promoted===item) promoted=null
-            if(bytes==null) { disabled=true;cancelPending() }
+            if(bytes==null && !item.cancelled) { disabled=true;cancelPending() }
         }
+        item.result.obtrudeValue(null) // completed futures may outlive their coroutine on an idle worker
         item.job?.cancel();item.owner?.close()
-        return bytes
+        return if(synchronized(this) { closed }) null else bytes
     }
     @Synchronized private fun scheduleNext(url:String) {
-        if(closed || disabled) return
+        if(closed || disabled || !active) return
         val target=next[url] ?: return
         cancelPending()
         val item=Pending(target);pending=item
@@ -118,11 +121,20 @@ internal class HlsLookAhead(private val upstream:DataSource.Factory,private val 
                     count+=n
                 }
 
-            } catch(_:Exception) { synchronized(this@HlsLookAhead) { disabled=true } }
+            } catch(_:Exception) { synchronized(this@HlsLookAhead) { if(!item.cancelled) disabled=true } }
             finally { try { source?.close() } catch(_:Exception) { };item.owner?.close();item.owner=null;item.result.complete(null) }
         }
     }
     // The owner cancels the socket as well as the coroutine: blocking reads must not linger.
-    private fun cancelPending() { pending?.let { it.job?.cancel();it.owner?.close();it.result.complete(null) };pending=null }
-    @Synchronized override fun close() { closed=true;cancelPending();promoted?.let { it.job?.cancel();it.owner?.close();it.result.complete(null) };promoted=null;next=emptyMap();scope.cancel() }
+    private fun cancelPending() { pending?.let { it.cancelled=true;it.job?.cancel();it.owner?.close();it.result.obtrudeValue(null) };pending=null }
+    @Synchronized fun setActive(value:Boolean) {
+        if(closed) return
+        active=value
+        if(!value) {
+            cancelPending()
+            promoted?.let { it.cancelled=true;it.job?.cancel();it.owner?.close();it.result.obtrudeValue(null) }
+            promoted=null
+        }
+    }
+    @Synchronized override fun close() { closed=true;cancelPending();promoted?.let { it.cancelled=true;it.job?.cancel();it.owner?.close();it.result.obtrudeValue(null) };promoted=null;next=emptyMap();scope.cancel() }
 }

@@ -175,7 +175,7 @@ import kotlinx.coroutines.launch
                             row.forEach { episode ->
                                 val watched=latest?.playback?.episode?.url==episode.url
                                 GlassButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.small,
-                                    border=androidx.compose.foundation.BorderStroke(1.dp,if(watched) MaterialTheme.colorScheme.primary.copy(alpha=.5f) else Color.Transparent),
+                                    border=null,
                                     colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface,containerColor=glassFill(watched)),
                                     contentPadding=PaddingValues(horizontal=8.dp,vertical=12.dp),modifier=Modifier.weight(1f).fillMaxHeight().heightIn(min=56.dp).testTag("episode:${episode.name}")) {
                                     Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {

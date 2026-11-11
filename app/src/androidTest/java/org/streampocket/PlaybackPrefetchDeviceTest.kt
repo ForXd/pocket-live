@@ -60,6 +60,41 @@ class PlaybackPrefetchDeviceTest {
             }
         }
     }
+    @Test fun largerPrefetchIsReclaimedAfterPlaybackCloses() {
+        var weak:java.lang.ref.WeakReference<ByteArray>?=null
+        fun cachedArray(owner:HlsLookAhead):java.lang.ref.WeakReference<ByteArray> {
+            val slot=owner.javaClass.getDeclaredField("pending").apply { isAccessible=true }.get(owner)!!
+            val future=slot.javaClass.getDeclaredField("result").apply { isAccessible=true }.get(slot) as java.util.concurrent.CompletableFuture<*>
+            val segment=future.get(5,TimeUnit.SECONDS)!!
+            val bytes=segment.javaClass.getDeclaredField("bytes").apply { isAccessible=true }.get(segment) as ByteArray
+            assertEquals(8*1024*1024,bytes.size)
+            return java.lang.ref.WeakReference(bytes)
+        }
+        withFixture { base,server,lookAhead,_ ->
+            observeThree(base,lookAhead)
+            server.dispatcher=object:Dispatcher() {
+                override fun dispatch(request:RecordedRequest)=MockResponse().setBody(if(request.path=="/s1.ts") "x".repeat(8*1024*1024) else "current")
+            }
+            val data=lookAhead.factory.createDataSource();data.open(DataSpec(Uri.parse("$base/s0.ts")));data.close()
+            repeat(2) { assertNotNull(server.takeRequest(2,TimeUnit.SECONDS)) }
+            weak=cachedArray(lookAhead)
+            assertNotNull(weak!!.get())
+            lookAhead.setActive(false)
+            repeat(5) { System.gc();System.runFinalization();Thread.sleep(100) }
+            assertNull("Pause must release speculative bytes while the owner remains alive",weak!!.get())
+            val count=server.requestCount
+            val paused=lookAhead.factory.createDataSource();paused.open(DataSpec(Uri.parse("$base/s0.ts")));paused.close()
+            Thread.sleep(100)
+            assertEquals("Paused playback must not schedule a successor",count+1,server.requestCount)
+            lookAhead.setActive(true)
+            val resumed=lookAhead.factory.createDataSource();resumed.open(DataSpec(Uri.parse("$base/s0.ts")));resumed.close()
+            val deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(2)
+            while(server.requestCount<count+3 && System.nanoTime()<deadline) Thread.sleep(10)
+            assertEquals("Resuming can prefetch again",count+3,server.requestCount)
+        }
+        repeat(10) { System.gc();System.runFinalization();Thread.sleep(100);if(weak!!.get()==null) return }
+        assertNull("Closed playback must not retain an 8 MiB prefetched segment",weak!!.get())
+    }
     @Test fun adaptivePlaylistsKeepNativeBandwidthLoading() {
         withFixture { base,server,lookAhead,_ ->
             val parser=lookAhead.parser(androidx.media3.exoplayer.hls.playlist.DefaultHlsPlaylistParserFactory())
@@ -86,13 +121,13 @@ class PlaybackPrefetchDeviceTest {
         }
     }
     @Test fun oversizedSpeculationFallsBackAndDisablesFurtherPrefetch() {
-        withFixture { base,server,lookAhead,_ ->
+        withFixture(segmentLimit=4096) { base,server,lookAhead,_ ->
             observeThree(base,lookAhead)
             val nextRequests=AtomicInteger()
             server.dispatcher=object:Dispatcher() {
                 override fun dispatch(request:RecordedRequest):MockResponse {
                     if(request.path=="/s1.ts" && nextRequests.incrementAndGet()==1)
-                        return MockResponse().setBody("x".repeat(HlsLookAhead.MAX_SEGMENT_BYTES+1))
+                        return MockResponse().setBody("x".repeat(4097))
                     return MockResponse().setBody("valid")
                 }
             }
@@ -174,10 +209,10 @@ class PlaybackPrefetchDeviceTest {
     private fun observeThree(base:String,lookAhead:HlsLookAhead) {
         lookAhead.observe(HlsPlaylistParser().parse(Uri.parse("$base/list.m3u8"),"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2,\ns0.ts\n#EXTINF:2,\ns1.ts\n#EXTINF:2,\ns2.ts\n#EXT-X-ENDLIST\n".byteInputStream()))
     }
-    private fun withFixture(block:(String,MockWebServer,HlsLookAhead,MediaCallOwner)->Unit) {
+    private fun withFixture(segmentLimit:Int=HlsLookAhead.MAX_SEGMENT_BYTES,block:(String,MockWebServer,HlsLookAhead,MediaCallOwner)->Unit) {
         val server=MockWebServer();server.start()
         val network=Network({true},object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) })
-        val owner=MediaCallOwner(network.client);val lookAhead=HlsLookAhead(OkHttpDataSource.Factory(owner),network.client)
+        val owner=MediaCallOwner(network.client);val lookAhead=HlsLookAhead(OkHttpDataSource.Factory(owner),network.client,segmentLimit)
         try { block("http://fixture.test:${server.port}",server,lookAhead,owner) }
         finally { lookAhead.close();owner.close();server.shutdown();network.client.connectionPool.evictAll() }
     }

@@ -85,7 +85,7 @@ import androidx.compose.ui.unit.sp
 
 @Composable fun ContentFilterChip(selected:Boolean,onClick:()->Unit,modifier:Modifier=Modifier,reserveSelectionSpace:Boolean=false,label:@Composable ()->Unit) {
     FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.minimumInteractiveComponentSize(),shape=MaterialTheme.shapes.small,
-        border=androidx.compose.foundation.BorderStroke(1.dp,if(selected) MaterialTheme.colorScheme.primary.copy(alpha=.45f) else androidx.compose.ui.graphics.Color.Transparent),
+        border=null,
         leadingIcon=if(selected) { { Icon(Icons.Default.Check,null,Modifier.size(14.dp)) } } else if(reserveSelectionSpace) { { Spacer(Modifier.size(14.dp)) } } else null,
         colors=FilterChipDefaults.filterChipColors(containerColor=androidx.compose.ui.graphics.Color.Transparent,
             labelColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContainerColor=MaterialTheme.colorScheme.primary.copy(alpha=.10f),
