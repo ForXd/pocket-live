@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.Check
@@ -409,19 +413,22 @@ import androidx.compose.ui.text.style.TextOverflow
     }
 }
 
-/** The leading recommendation uses the same source-search action as every poster. */
+/** Artwork-backed glass information plate; text is never part of the blurred layer. */
 @Composable private fun FeaturedRecommendation(video:Video,model:AppModel,onClick:()->Unit) {
-    val background=MaterialTheme.colorScheme.background
     val wide=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=600
-    val height=if(wide) 340.dp else 320.dp
-    Box(Modifier.fillMaxWidth().testTag("recommendation:${video.id}").clickable(onClick=onClick)) {
+    val height=if(wide) 360.dp else 340.dp
+    Box(Modifier.fillMaxWidth().testTag("recommendation:${video.id}").clickable(onClick=onClick).clip(MaterialTheme.shapes.large)) {
         Poster(video,model,Modifier.fillMaxWidth().height(height).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(background.copy(alpha=.8f),Color.Transparent,background.copy(alpha=.12f),background))))
-        Column(Modifier.fillMaxWidth().padding(start=4.dp,end=4.dp,top=height-108.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(video.title,Modifier.testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.headlineLarge,maxLines=2,overflow=TextOverflow.Ellipsis)
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                Text(video.subtitle.ifBlank { "${if(wide) "发现好故事 · " else ""}精选${if(video.source.name.isNotBlank()) "推荐" else "影片"}" },Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
-                GlassButton(onClick=onClick,shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=18.dp,vertical=12.dp)) { Text("查看简介 ›") }
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.12f),Color.Black.copy(alpha=.8f)))))
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            Text(video.title,Modifier.testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.headlineLarge,color=Color(0xfff4f0e8),maxLines=2,overflow=TextOverflow.Ellipsis)
+            Text(video.subtitle.ifBlank { "精选推荐" },style=MaterialTheme.typography.bodyMedium,color=Color(0xffdddcd6),maxLines=2,overflow=TextOverflow.Ellipsis)
+            Box(Modifier.clip(MaterialTheme.shapes.medium)) {
+                Poster(video,model,Modifier.matchParentSize(),shape=RectangleShape,large=true,frosted=true)
+                MaterialTheme(colorScheme=NightColors) {
+                    GlassButton(onClick=onClick,shape=MaterialTheme.shapes.medium,
+                        colors=ButtonDefaults.outlinedButtonColors(containerColor=Color(0xff202522).copy(alpha=.55f),contentColor=Color.White)) { Text("查看简介");Icon(Icons.Default.KeyboardArrowRight,null,Modifier.size(18.dp)) }
+                }
             }
         }
     }

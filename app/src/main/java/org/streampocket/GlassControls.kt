@@ -3,6 +3,7 @@ package org.streampocket
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -14,13 +15,14 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 
 /** Controls share the parent backdrop, using light translucent tint rather than opaque paint. */
-@Composable internal fun glassFill(selected:Boolean=false)=MaterialTheme.colorScheme.primary.copy(alpha=if(selected) .20f else .065f)
-@Composable internal fun glassBorder(selected:Boolean=false)=BorderStroke(if(selected) 1.5.dp else 1.dp,MaterialTheme.colorScheme.primary.copy(alpha=if(selected) .65f else .18f))
+@Composable internal fun glassFill(selected:Boolean=false)=MaterialTheme.colorScheme.primary.copy(alpha=if(selected) .20f else .10f)
+@Composable internal fun glassBorder(selected:Boolean=false)=BorderStroke(if(selected) 1.5.dp else 1.dp,MaterialTheme.colorScheme.primary.copy(alpha=if(selected) .65f else .28f))
 @Composable internal fun GlassButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium,border:BorderStroke?=glassBorder(),
     colors:ButtonColors=ButtonDefaults.outlinedButtonColors(containerColor=glassFill(),contentColor=MaterialTheme.colorScheme.onSurface),
     contentPadding:PaddingValues=PaddingValues(horizontal=16.dp,vertical=12.dp),content:@Composable RowScope.()->Unit) {
-    OutlinedButton(onClick,modifier.heightIn(min=48.dp),enabled,shape,colors,border=border,contentPadding=contentPadding,content=content)
+    val sheen=Brush.verticalGradient(listOf(MaterialTheme.colorScheme.onSurface.copy(alpha=.12f),Color.Transparent))
+    OutlinedButton(onClick,modifier.heightIn(min=48.dp).clip(shape).background(sheen),enabled,shape,colors,border=border,contentPadding=contentPadding,content=content)
 }
 @Composable internal fun GlassIconButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium,

@@ -116,18 +116,21 @@ class PosterStore(private val directory: File) {
         })
     }
 }
-@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp),shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false) {
+@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp),shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false,frosted:Boolean=false) {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=remember(model) { model.state.value.posterRefresh })
-    val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle,large) {
+    val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle,large,frosted) {
         value=null // A changed URL must never reuse the previous poster bitmap.
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             // A stopped screen cancels its calls; foreground entry retries a failed image.
-            if(value==null) value=model.posters.load(video.poster,model.network,large)
+            if(value==null) {
+                val loaded=model.posters.load(video.poster,model.network,large)
+                value=if(frosted && loaded!=null) withContext(Dispatchers.Default) { blurGlassBitmap(loaded) } else loaded
+            }
         }
     }
-    Surface(modifier,shape=shape,color=containerColor) {
-        bitmap?.let { Image(it.asImageBitmap(),"${video.title} 封面",contentScale=contentScale) }
-            ?: Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) { Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant) }
+    Surface(modifier,shape=shape,color=if(frosted) androidx.compose.ui.graphics.Color.Transparent else containerColor) {
+        bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",contentScale=contentScale) }
+            ?: if(!frosted) Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) { Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant) } else Unit
     }
 }

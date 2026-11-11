@@ -31,6 +31,7 @@ class PlaybackController(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var mediaCalls:MediaCallOwner?=null
+    private var lookAhead:HlsLookAhead?=null
     private var sample: Job? = null
     private var recovery: Job? = null
     private var player: ExoPlayer? = null
@@ -55,7 +56,9 @@ class PlaybackController(
         try {
             val load = playbackLoadControl()
             val calls=MediaCallOwner(network.client);mediaCalls=calls
-            val dataSource=OkHttpDataSource.Factory(calls)
+            val upstream=OkHttpDataSource.Factory(calls)
+            val prefetch=HlsLookAhead(upstream,network.client,if(context.getSystemService(android.app.ActivityManager::class.java).isLowRamDevice) 512*1024 else HlsLookAhead.MAX_SEGMENT_BYTES).also { lookAhead=it }
+            val dataSource=prefetch.factory
             val loadPolicy=PlaybackLoadPolicy()
             val factory = DefaultMediaSourceFactory(dataSource).setLoadErrorHandlingPolicy(loadPolicy)
             hlsEdit=HlsEdit("");initialSeek=true
@@ -155,8 +158,12 @@ class PlaybackController(
             p.setHandleAudioBecomingNoisy(true)
             view?.player=p
             val item=MediaItem.fromUri(session.episode.url)
-            if((automaticAds || adPaths.isNotEmpty()) && !liveMedia && androidx.media3.common.util.Util.inferContentType(android.net.Uri.parse(session.episode.url))==C.CONTENT_TYPE_HLS) {
-                val hls=androidx.media3.exoplayer.hls.HlsMediaSource.Factory(dataSource).setLoadErrorHandlingPolicy(loadPolicy).setPlaylistParserFactory(SafeHlsParserFactory(session.episode.url,adPaths,automaticAds) { hlsEdit=it })
+            if(androidx.media3.common.util.Util.inferContentType(android.net.Uri.parse(session.episode.url))==C.CONTENT_TYPE_HLS) {
+                val parser=if((automaticAds || adPaths.isNotEmpty()) && !liveMedia)
+                    SafeHlsParserFactory(session.episode.url,adPaths,automaticAds) { hlsEdit=it }
+                    else androidx.media3.exoplayer.hls.playlist.DefaultHlsPlaylistParserFactory()
+                val hls=androidx.media3.exoplayer.hls.HlsMediaSource.Factory(dataSource).setLoadErrorHandlingPolicy(loadPolicy)
+                    .setPlaylistParserFactory(prefetch.parser(parser))
                 p.setMediaSource(hls.createMediaSource(item))
             } else p.setMediaItem(item)
             if(liveMedia) p.seekToDefaultPosition() else p.seekTo(position)
@@ -237,6 +244,7 @@ class PlaybackController(
         val p=player
         player=null
         view?.player=null
+        lookAhead?.close();lookAhead=null
         mediaCalls?.close();mediaCalls=null
         health(PlaybackHealth())
         try {

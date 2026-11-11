@@ -53,7 +53,7 @@ class AdPlaybackDeviceTest {
             ui.waitUntil(30000) { PlaybackMetrics.frames>frames }
             ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.waitUntil(30000) { ui.onAllNodes(hasText("已移除 1 个疑似广告切片",substring=true)).fetchSemanticsNodes().isNotEmpty() }
-            ui.onNodeWithText("关闭").performClick()
+            ui.onNode(hasText("关闭") and SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.Role,androidx.compose.ui.semantics.Role.Button)).performClick()
             ui.waitUntil(30000) { (model.state.value.playback?.position ?: 0)>10_000 }
             assertEquals("Filtered ad must never be downloaded",0,ads.get())
             ui.runOnIdle { model.stopPlayback() }
