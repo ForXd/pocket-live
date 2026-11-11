@@ -63,3 +63,15 @@ adb logcat -d -s PackageManager PackageInstallerSession ActivityManager | grep o
 - 普通日夜、两倍字号、大屏主要页面与简介流程通过；独立视觉评审指出的系统栏安全区和浅色海报按钮对比问题已修复并复核。独立 UX 走查证据与外部简介数据限制见 docs/ui-v0.40.0.md。
 - 验收后按规则保留 v0.40.0、v0.39.0、v0.38.0 三个 Release；删除旧 v0.37.1 Release 附件，保留 Git tag。
 - 本地证据目录：artifacts/v0.40.0/，包括 public/、final-device-tests.log、published-upgrade.log、ui-review.html。
+
+## v0.41.0 发布验收（2026-11-11）
+
+- 正式应用提交：`f5392986ba33fe0fbdea0cdfca064e11817b13d4`；版本 0.41.0（49）。
+- APK SHA-256：`80aea397bebfffd9050d9ee38f9bcb0565c68fe74b1bbd51593827f7e0305b94`，2,787,976 字节；原正式签名证书不变，apksigner 验证通过。
+- 匿名下载公开 APK、SHA256SUMS 和 latest/download/update.json 三者一致。匿名 GitHub latest API 返回 403 rate limit，未宣称该接口验证成功；登录 API 确认 Latest 及目标应用提交，公开清单和真实升级另外验证分发可用。
+- emulator-5554 / API 37 从正式 0.40.0 通过应用内实际下载、系统安装器升级到 0.41.0，PublishedUpgradeDeviceTest 为 OK (1 test)。包管理器确认 code 49 / 0.41.0，firstInstallTime 保持 2026-10-28 22:23:52。没有卸载正式应用或用 ADB 覆盖安装替代升级。
+- 131 项单元测试通过，release lint 0 errors / 63 warnings。最终专项共覆盖 16 个不同设备回归案例：预取 6、资源与容错 4、广告过滤 1、玻璃 1、播放器布局 1、网络关闭 1、更新器 2。广告测试原同名“关闭”匹配歧义已以按钮角色定位修正，并通过最终重跑；不是忽略失败。
+- 系统禁用窗口模糊的播放器 / 玻璃专项额外 2 项通过，含反复打开/关闭窗口、同一播放器保留与 500 集定位。日夜、2 倍字号、1280×800dp 大屏主要页面测试通过；独立静态视觉复核无阻断问题。降级视频面板不承诺动态背景捕获。
+- 受控 HLS 高响应延迟对比，二次缓冲 1 → 0；三切片耗时约 3800 → 2568ms。20 轮资源压力创建/释放播放器 54/54，播放器弱引用、活动媒体和换源探测请求均为 0。适用范围及内存边界见 docs/ui-v0.41.0.md。
+- 验收后保留 v0.41.0、v0.40.0、v0.39.0 三个 Release，删除旧 v0.38.0 Release 附件并保留 Git tag。
+- 本地证据：artifacts/v0.41.0/public/verification.txt、final-playback.log、fallback-player.log、published-upgrade.log、installed-version.txt、ui-review.html。
