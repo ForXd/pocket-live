@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
     val episodeHeader=if(detail.description.isBlank()) 1 else 2
     val showTop by remember(episodeHeader,list) { derivedStateOf { list.firstVisibleItemIndex>episodeHeader+2 } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val backdropHeight=if(maxWidth>=600.dp) 280.dp else 320.dp
+        val backdropHeight=if(LocalDensity.current.fontScale>1.3f) 200.dp else if(maxWidth>=600.dp) 280.dp else 320.dp
         val columns=((maxWidth.value-30)/(if(LocalDensity.current.fontScale>1.3f) 190 else 114)).toInt().coerceIn(1,6)
         val rows=remember(episodes,columns) { episodes.chunked(columns) }
         fun showEpisodes() { scope.launch { list.scrollToItem(episodeHeader) } }

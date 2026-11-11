@@ -84,12 +84,14 @@ class DetailLayoutDeviceTest {
         ui.waitUntil(5000) { model.state.value.playback?.episode?.url=="$base/main/17.mp4" }
         ui.runOnIdle { model.stopPlayback() }
         ui.waitUntil(5000) { model.state.value.playback==null }
+        list.performScrollToNode(hasTestTag("detailLinePicker"))
         ui.onNodeWithTag("detailLinePicker").performClick()
         captureUi(ui,"detail-lines")
         ui.onNodeWithTag("detailLine:1").performClick()
         ui.onNodeWithTag("episode:特别篇").assertIsDisplayed().performClick()
         ui.waitUntil(5000) { model.state.value.playback?.episode?.url=="$base/special.mp4" }
         ui.runOnIdle { model.stopPlayback() }
+        list.performScrollToNode(hasTestTag("detailSearchSame"))
         ui.onNodeWithTag("detailSearchSame").performClick()
         ui.waitUntil(5000) { model.state.value.detail==null }
         ui.onNodeWithTag("searchInput").assertTextContains(video.title)
