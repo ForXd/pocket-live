@@ -52,3 +52,14 @@ adb logcat -d -s PackageManager PackageInstallerSession ActivityManager | grep o
 - 130 unit tests passed; release lint has zero errors; final combined device regression passed 12 tests. Alternative media detection probes the current episode with at most three concurrent requests and cancels remaining work after two READY results. Closing, leaving and reopening verify cancellation and stale-session isolation.
 - Twenty resource-pressure cycles created/released 52/52 players, with zero retained player weak references, active media calls and alternative-probe calls. These are controlled emulator results, not guarantees for all physical devices or external providers.
 - Local evidence: artifacts/v0.39.0/published-upgrade.log, public/, final-feature-device-tests.log. Full visual audit: design-qa.md.
+
+## v0.40.0 发布验收（2026-11-11）
+
+- 正式应用提交：`fe28e09e2930bbd312350c3563e5a73ac78911c7`；版本 0.40.0（48）。
+- APK SHA-256：`c836378695dda4c3117a6084f2e958b8840cbabc20d2c7e7c0844f9f86b19b1c`，2,771,591 字节。原正式证书 SHA-256 保持 `7dd2deb1eb4668ae56f830f09ba9c0a5a322763392d8846074c1da2daef02b7f`。
+- 重新下载公开 APK、SHA256SUMS、latest/download/update.json 验证一致；匿名 GitHub latest API 指向 v0.40.0 及上述应用提交。
+- emulator-5554 / API 37 从正式 0.39.0 经实际应用内下载和系统安装器升级至 0.40.0，PublishedUpgradeDeviceTest 为 OK (1 test)。versionCode 48，firstInstallTime 仍为 2026-10-28 22:23:52。未卸载正式包，也未用 ADB 安装替代升级。
+- 131 项单元测试、16 项最终设备回归、额外两倍字号全屏播放器回归均通过；release lint 0 错误。20 轮压力测试创建/释放播放器 56/56，残留弱引用、活动媒体请求及换源探测请求为 0。Java 堆四次采样约 8.8/9.7/9.2/7.9 MB；这些是模拟器覆盖路径的数据。
+- 普通日夜、两倍字号、大屏主要页面与简介流程通过；独立视觉评审指出的系统栏安全区和浅色海报按钮对比问题已修复并复核。独立 UX 走查证据与外部简介数据限制见 docs/ui-v0.40.0.md。
+- 验收后按规则保留 v0.40.0、v0.39.0、v0.38.0 三个 Release；删除旧 v0.37.1 Release 附件，保留 Git tag。
+- 本地证据目录：artifacts/v0.40.0/，包括 public/、final-device-tests.log、published-upgrade.log、ui-review.html。
