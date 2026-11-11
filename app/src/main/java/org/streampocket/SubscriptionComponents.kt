@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
         if(expanded || importing) {
             HorizontalDivider(Modifier.padding(horizontal=16.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                Text(if(importing) "正在更新订阅…" else "更新于 ${java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT,java.text.DateFormat.SHORT).format(java.util.Date(sub.updated))}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if(importing) "正在更新订阅…" else "更新于 ${historyTime(sub.updated)}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(importing) TextButton(onClick=onCancel) { Text("取消") }
             }
         }

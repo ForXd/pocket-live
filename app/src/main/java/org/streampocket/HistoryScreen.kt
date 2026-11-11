@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.dp
     Column(Modifier.fillMaxSize().nestedScroll(scrollConnection)) {
     Column(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min=68.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text("历史",Modifier.weight(1f),style=MaterialTheme.typography.headlineLarge)
+            Text("历史",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
             IconButton(onClick={searchOpen=!searchOpen}) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
             IconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
         }
@@ -84,7 +84,7 @@ import androidx.compose.ui.unit.dp
             if(history.isNotEmpty()) TextButton(onClick={clearing=true},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("清空历史") }
             if(query.isNotEmpty() || source!=null || period!=HistoryPeriod.ALL || kind!=HistoryKind.ALL) TextButton(onClick={query="";source=null;period=HistoryPeriod.ALL;kind=HistoryKind.ALL}) { Text("重置") }
         }
-        Button(onClick={filtersOpen=false},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("完成") }
+        Button(shape=MaterialTheme.shapes.medium,onClick={filtersOpen=false},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("完成") }
         }
     }
     }

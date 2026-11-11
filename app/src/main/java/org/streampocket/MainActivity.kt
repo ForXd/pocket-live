@@ -119,7 +119,7 @@ class MainActivity : ComponentActivity() {
     if(jsonDialog) AlertDialog(onDismissRequest={model.cancelImport("new");jsonDialog=false;jsonText=""},title={Text("粘贴 JSON")},text={
         Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("粘贴订阅配置，支持与链接导入相同的格式。最多 2 MiB。")
-            OutlinedTextField(jsonText,{ if(it.length<=JsonData.LIMIT) jsonText=it else model.message("JSON 内容超过 2 MiB 上限") },
+            OutlinedTextField(shape=MaterialTheme.shapes.medium,value=jsonText,onValueChange={ if(it.length<=JsonData.LIMIT) jsonText=it else model.message("JSON 内容超过 2 MiB 上限") },
                 modifier=Modifier.fillMaxWidth().heightIn(max=280.dp).testTag("subscriptionJsonInput"),label={Text("JSON 内容")},minLines=5,maxLines=10,enabled="new" !in s.importing)
             if("new" in s.importing) Text("正在导入…") else s.message?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
         }
@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
                             Button(shape=MaterialTheme.shapes.medium,onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
                                 Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("添加订阅")
                             }
-                            OutlinedButton(onClick={chooseJson()},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("选择 JSON 文件") }
+                            OutlinedButton(shape=MaterialTheme.shapes.medium,onClick={chooseJson()},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("选择 JSON 文件") }
                             TextButton(onClick={model.message(null);jsonDialog=true},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("粘贴 JSON") }
                             if("new" in s.importing) TextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
                             Text("JSON 文件上限 2 MiB",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -184,7 +184,7 @@ class MainActivity : ComponentActivity() {
                 }
                 CollapsingHomeSearch(searchScroll) {
                 if(!searchOpen && !searchMode && !inCatalog && !inLive) Row(Modifier.fillMaxWidth().padding(start=24.dp,end=12.dp).heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                    Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
                     IconButton(onClick={searchOpen=true},modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
                 } else HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
                     {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else search(query)},
@@ -224,7 +224,6 @@ class MainActivity : ComponentActivity() {
                         Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1}) }
                         Box(Modifier.weight(.62f)) { DetailScreen(detail,model,splitArtwork=false) { model.closeDetail();search(detail.video.title) } }
                     } else DetailScreen(detail,model) { model.closeDetail();search(detail.video.title) }
-                    IconButton(onClick=model::closeDetail,modifier=Modifier.align(if(wide && searchMode) Alignment.TopEnd else Alignment.TopStart).padding(8.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }
                 }
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
@@ -235,7 +234,7 @@ class MainActivity : ComponentActivity() {
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })
                 1 -> Row(Modifier.fillMaxSize()) {
                     LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    item { Text("订阅",style=MaterialTheme.typography.headlineLarge,modifier=Modifier.padding(bottom=12.dp)) }
+                    item { Text("订阅",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(bottom=12.dp)) }
                     item { Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
                             modifier=Modifier.weight(1f), style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -273,6 +272,6 @@ class MainActivity : ComponentActivity() {
     }
     } // Bounded content
     ruleSource?.let { source -> AlertDialog(onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
-        OutlinedTextField(ruleText,{ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={TextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={TextButton(onClick={ruleSource=null}) { Text("取消") }}) }
+        OutlinedTextField(shape=MaterialTheme.shapes.medium,value=ruleText,onValueChange={ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={TextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={TextButton(onClick={ruleSource=null}) { Text("取消") }}) }
     delete?.let { sub -> AlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={TextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={TextButton(onClick={delete=null}){Text("取消")}}) }
 }

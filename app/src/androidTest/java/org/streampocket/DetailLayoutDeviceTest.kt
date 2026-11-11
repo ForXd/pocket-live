@@ -66,6 +66,10 @@ class DetailLayoutDeviceTest {
         ui.onNodeWithTag("episodeRange:9").performClick()
         ui.onNodeWithTag("episode:第451集").assertIsDisplayed()
         val toolbar=ui.onNodeWithTag("episodeToolbar").getUnclippedBoundsInRoot()
+        if(ui.activity.resources.configuration.screenWidthDp<840) {
+            val navigation=ui.onNodeWithTag("detailNavigation").getUnclippedBoundsInRoot()
+            assertTrue("Sticky episode heading must stay below the back navigation",toolbar.top>=navigation.bottom)
+        }
         assertTrue(ui.onNodeWithTag("episode:第451集").getUnclippedBoundsInRoot().top>=toolbar.bottom)
         ui.onNodeWithTag("detailBackToTop").assertIsDisplayed()
         ui.onNodeWithTag("backToTop").assertDoesNotExist()

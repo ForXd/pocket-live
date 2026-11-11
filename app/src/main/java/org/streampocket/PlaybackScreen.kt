@@ -136,7 +136,7 @@ import kotlinx.coroutines.delay
     val previous=adjacentEpisode(state.detail,playback,-1)
     val next=adjacentEpisode(state.detail,playback,1)
     val bufferingText=if(health.buffering) "正在缓冲 · ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒"
-    val openEpisodes={ playerView?.cancelGestures();episodesOpen=true }
+    val openEpisodes={ playerView?.cancelGestures();playerView?.hideController();episodesOpen=true }
     val openOptions={ playerView?.cancelGestures();optionsOpen=true }
     val leavePlayback={ playerView?.cancelGestures();model.stopPlayback() }
     val stepPrevious={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) };Unit }
@@ -166,7 +166,7 @@ import kotlinx.coroutines.delay
                             TextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
                         }
                         HorizontalDivider()
-                        OutlinedButton(modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),onClick={
+                        OutlinedButton(shape=MaterialTheme.shapes.medium,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),onClick={
                             optionsOpen=false;playerView?.cancelGestures()
                             if(activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                                 try { activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16,9)).build()) } catch(_:Exception) { error="设备当前不允许画中画" }
@@ -253,7 +253,7 @@ import kotlinx.coroutines.delay
                             Text("播放来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(playback.video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                         }
-                        if(playback.video.source.kind==SourceKind.VOD) OutlinedButton(onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
+                        if(playback.video.source.kind==SourceKind.VOD) OutlinedButton(shape=MaterialTheme.shapes.medium,onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
                     }
                     if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
                     else if(!hasEpisodes) {
@@ -332,22 +332,15 @@ import kotlinx.coroutines.delay
         }
         }
 
-        AnimatedVisibility(visible=full && episodesOpen && !pip,enter=slideInHorizontally(tween(220)) { it }+fadeIn(tween(160)),exit=slideOutHorizontally(tween(180)) { it }+fadeOut(tween(120))) {
-        BoxWithConstraints(Modifier.fillMaxSize().testTag("fullscreenEpisodeOverlay")) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.18f)).clickable { episodesOpen=false })
-            Surface(Modifier.align(Alignment.CenterEnd).width(maxWidth*.5f).fillMaxHeight().testTag("fullscreenEpisodePanel"),color=Color(0xff181715).copy(alpha=.88f)) {
-                Column(Modifier.windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.End)).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Column(Modifier.weight(1f)) {
-                            Text("选集",style=MaterialTheme.typography.titleLarge)
-                            Text("${currentLine?.name.orEmpty()} · ${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        TextButton(onClick={episodesOpen=false},modifier=Modifier.heightIn(min=48.dp)) { Text("关闭") }
-                    }
-                    PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f))
+        if(full && episodesOpen && !pip) FrostedSidePanel(onDismiss={episodesOpen=false}) {
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    Text("选集",style=MaterialTheme.typography.titleLarge)
+                    Text("${currentLine?.name.orEmpty()} · ${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                TextButton(onClick={episodesOpen=false},modifier=Modifier.heightIn(min=48.dp)) { Text("关闭") }
             }
-        }
+            PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f))
         }
         if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
             // A single top rail leaves Media3's transport and timeline unobstructed.
@@ -406,13 +399,12 @@ import kotlinx.coroutines.delay
         modifier=Modifier.weight(1f,false).fillMaxWidth().testTag("playbackEpisodes"),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         itemsIndexed(episodes,key={index,episode->"$index:${episode.url}"}) { _,episode ->
             val playing=episode.url==currentUrl
-            Surface(onClick={select(episode)},shape=MaterialTheme.shapes.medium,
+            Surface(onClick={select(episode)},shape=MaterialTheme.shapes.small,
                 color=if(playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor=if(playing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                modifier=Modifier.fillMaxWidth().heightIn(min=64.dp).semantics { this.selected=playing }) {
-                Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { this.selected=playing }) {
+                Column(Modifier.padding(horizontal=12.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text(episode.name,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    if(playing) Text("当前集",style=MaterialTheme.typography.labelSmall)
                 }
             }
         }

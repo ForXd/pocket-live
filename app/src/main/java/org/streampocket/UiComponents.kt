@@ -84,7 +84,7 @@ import androidx.compose.ui.unit.sp
 }
 
 @Composable fun ContentFilterChip(selected:Boolean,onClick:()->Unit,modifier:Modifier=Modifier,reserveSelectionSpace:Boolean=false,label:@Composable ()->Unit) {
-    FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.minimumInteractiveComponentSize(),shape=RoundedCornerShape(10.dp),
+    FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.minimumInteractiveComponentSize(),shape=MaterialTheme.shapes.small,
         border=androidx.compose.foundation.BorderStroke(1.dp,if(selected) MaterialTheme.colorScheme.primary.copy(alpha=.45f) else androidx.compose.ui.graphics.Color.Transparent),
         leadingIcon=if(selected) { { Icon(Icons.Default.Check,null,Modifier.size(14.dp)) } } else if(reserveSelectionSpace) { { Spacer(Modifier.size(14.dp)) } } else null,
         colors=FilterChipDefaults.filterChipColors(containerColor=androidx.compose.ui.graphics.Color.Transparent,
@@ -114,12 +114,12 @@ import androidx.compose.ui.unit.sp
     val focused by interactions.collectIsFocusedAsState()
     androidx.compose.foundation.text.BasicTextField(value=value,onValueChange=onValueChange,modifier=modifier,
         singleLine=true,interactionSource=interactions,
-        textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=15.sp,color=MaterialTheme.colorScheme.onSurface),
+        textStyle=MaterialTheme.typography.bodyMedium.copy(color=MaterialTheme.colorScheme.onSurface),
         cursorBrush=androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),
         keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
         decorationBox={input ->
-            Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainerLow,
+            Surface(shape=MaterialTheme.shapes.small,color=MaterialTheme.colorScheme.surfaceContainerLow,
                 border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.65f) else androidx.compose.ui.graphics.Color.Transparent)) {
                 Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Icon(painterResource(R.drawable.ic_search),null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)

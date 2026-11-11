@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -53,7 +54,11 @@ import kotlinx.coroutines.launch
     val showTop by remember(episodeHeader,list) { derivedStateOf { list.firstVisibleItemIndex>episodeHeader+2 } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val backdropHeight=if(LocalDensity.current.fontScale>1.3f) 180.dp else if(maxWidth>=600.dp) 280.dp else 300.dp
-        val columns=(((if(wide) maxWidth.value*.57f else maxWidth.value)-40)/(if(LocalDensity.current.fontScale>1.3f) 150 else 56)).toInt().coerceIn(1,6)
+        val columns=(((if(wide) maxWidth.value*.57f else maxWidth.value)-40)/(if(LocalDensity.current.fontScale>1.3f) 150 else 80)).toInt().coerceIn(1,6)
+        val navigationThreshold=with(LocalDensity.current) { (backdropHeight-80.dp).roundToPx() }
+        val pinnedNavigation by remember(list,wide,navigationThreshold) { derivedStateOf {
+            !wide && (list.firstVisibleItemIndex>0 || list.firstVisibleItemScrollOffset>navigationThreshold)
+        } }
         val rows=remember(episodes,columns) { episodes.chunked(columns) }
         fun showEpisodes() { scope.launch { list.scrollToItem(episodeHeader) } }
         if(sheet!=null) ModalBottomSheet(onDismissRequest={sheet=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
@@ -78,6 +83,10 @@ import kotlinx.coroutines.launch
         Row(Modifier.fillMaxSize(),horizontalArrangement=Arrangement.spacedBy(if(wide) 24.dp else 0.dp)) {
             if(wide) Poster(detail.video,model,Modifier.weight(.43f).fillMaxHeight().padding(start=20.dp,bottom=24.dp),shape=MaterialTheme.shapes.medium,contentScale=ContentScale.Crop,large=true)
             Column(Modifier.weight(if(wide) .57f else 1f)) {
+            if(pinnedNavigation) Row(Modifier.fillMaxWidth().heightIn(min=48.dp).background(MaterialTheme.colorScheme.background).testTag("detailNavigation"),verticalAlignment=Alignment.CenterVertically) {
+                IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }
+                Text(detail.video.title,Modifier.weight(1f).padding(end=20.dp),style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis)
+            }
             Box(Modifier.weight(1f)) {
                 LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag("detailGrid"),contentPadding=PaddingValues(bottom=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     item(key="identity") {
@@ -133,7 +142,7 @@ import kotlinx.coroutines.launch
                                 }
                             }
                         }
-                        Button(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        Button(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=MaterialTheme.shapes.medium,
                             modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("detailPlay")) {
                             Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp))
                             Text(if(primary==null) "暂无剧集" else if(latest!=null) "继续观看" else "立即播放")
@@ -182,6 +191,9 @@ import kotlinx.coroutines.launch
                 }
             }
         }
-    }
+        }
+        if(!pinnedNavigation) IconButton(onClick=model::closeDetail,modifier=Modifier.align(Alignment.TopStart).padding(8.dp).background(Color.Black.copy(alpha=.45f),MaterialTheme.shapes.small)) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回",tint=Color.White)
+        }
     }
 }

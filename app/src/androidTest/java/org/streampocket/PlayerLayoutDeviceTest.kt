@@ -82,6 +82,10 @@ class PlayerLayoutDeviceTest {
                 assertTrue("Native playback settings must remain available",playerView.findViewById<View>(androidx.media3.ui.R.id.exo_settings).isShown)
             }
             captureUi(ui,"player-portrait")
+            ui.onNodeWithText("选集").performClick()
+            captureUi(ui,"player-portrait-episodes")
+            ui.onNodeWithText("关闭").performClick()
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
             val session=model.state.value.playback!!.sessionId
             val created=PlaybackMetrics.created
             ui.onNodeWithContentDescription("更多播放选项").performClick()
@@ -98,11 +102,36 @@ class PlayerLayoutDeviceTest {
             ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
             captureUi(ui,"player-landscape")
             assertEquals(created,PlaybackMetrics.created)
+            val windowsBefore=if(android.os.Build.VERSION.SDK_INT>=29) android.view.inspector.WindowInspector.getGlobalWindowViews().size else 0
             ui.onNodeWithText("选集").performClick()
             ui.onNodeWithTag("fullscreenEpisodePanel").assertIsDisplayed()
             val panel=ui.onNodeWithTag("fullscreenEpisodePanel").getUnclippedBoundsInRoot()
             val surface=ui.onNodeWithTag("playbackSurface").getUnclippedBoundsInRoot()
             assertEquals((surface.right-surface.left).value*.5f,(panel.right-panel.left).value,2f)
+            repeat(10) { iteration ->
+                val instrument=InstrumentationRegistry.getInstrumentation()
+                when(iteration) {
+                    0 -> instrument.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                    1 -> {
+                        val now=android.os.SystemClock.uptimeMillis()
+                        val x=ui.activity.window.decorView.width/4f
+                        val y=ui.activity.window.decorView.height/2f
+                        for(action in listOf(android.view.MotionEvent.ACTION_DOWN,android.view.MotionEvent.ACTION_UP)) {
+                            val event=android.view.MotionEvent.obtain(now,now,action,x,y,0)
+                            try { instrument.uiAutomation.injectInputEvent(event,true) } finally { event.recycle() }
+                        }
+                    }
+                    else -> ui.onNodeWithText("关闭").performClick()
+                }
+                ui.onNodeWithTag("fullscreenEpisodePanel").assertDoesNotExist()
+                if(android.os.Build.VERSION.SDK_INT>=29) ui.waitUntil(5000) {
+                    android.view.inspector.WindowInspector.getGlobalWindowViews().size==windowsBefore
+                }
+                ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+                ui.onNodeWithText("选集").performClick()
+                ui.onNodeWithTag("fullscreenEpisodePanel").assertIsDisplayed()
+            }
+            assertEquals("Opening the glass panel must not recreate playback",created,PlaybackMetrics.created)
             ui.onNodeWithTag("playbackEpisodeRanges").performScrollToNode(hasTestTag("playbackRange:9"))
             ui.onNodeWithTag("playbackRange:9").performClick()
             ui.onNodeWithText("第451集").assertIsDisplayed()

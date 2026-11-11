@@ -71,13 +71,20 @@ internal val DayColors=lightColorScheme(
     } }
     CompositionLocalProvider(LocalPocketDark provides dark) {
         MaterialTheme(colorScheme=if(dark) NightColors else DayColors,
-            shapes=Shapes(extraSmall=RoundedCornerShape(6.dp),small=RoundedCornerShape(10.dp),medium=RoundedCornerShape(14.dp),large=RoundedCornerShape(20.dp),extraLarge=RoundedCornerShape(28.dp)),
+            shapes=Shapes(extraSmall=RoundedCornerShape(4.dp),small=RoundedCornerShape(8.dp),medium=RoundedCornerShape(12.dp),large=RoundedCornerShape(16.dp),extraLarge=RoundedCornerShape(20.dp)),
             typography=Typography(
-                headlineLarge=TextStyle(fontFamily=androidx.compose.ui.text.font.FontFamily.Serif,fontWeight=FontWeight.SemiBold,fontSize=32.sp,lineHeight=40.sp,letterSpacing=(-0.6).sp),
-                headlineSmall=TextStyle(fontFamily=androidx.compose.ui.text.font.FontFamily.Serif,fontWeight=FontWeight.SemiBold,fontSize=26.sp,lineHeight=34.sp,letterSpacing=(-0.3).sp),
-                titleLarge=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=24.sp,lineHeight=32.sp),
-                titleMedium=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=17.sp,lineHeight=25.sp),
-                titleSmall=TextStyle(fontWeight=FontWeight.Medium,fontSize=15.sp,lineHeight=22.sp)),content=content)
+                headlineLarge=TextStyle(fontFamily=androidx.compose.ui.text.font.FontFamily.Serif,fontWeight=FontWeight.Medium,fontSize=32.sp,lineHeight=40.sp,letterSpacing=(-0.4).sp),
+                headlineMedium=TextStyle(fontWeight=FontWeight.Medium,fontSize=26.sp,lineHeight=34.sp),
+                headlineSmall=TextStyle(fontWeight=FontWeight.Medium,fontSize=20.sp,lineHeight=28.sp),
+                titleLarge=TextStyle(fontWeight=FontWeight.Medium,fontSize=20.sp,lineHeight=28.sp),
+                titleMedium=TextStyle(fontWeight=FontWeight.Medium,fontSize=16.sp,lineHeight=24.sp),
+                titleSmall=TextStyle(fontWeight=FontWeight.Medium,fontSize=14.sp,lineHeight=20.sp),
+                bodyLarge=TextStyle(fontSize=16.sp,lineHeight=24.sp),
+                bodyMedium=TextStyle(fontSize=14.sp,lineHeight=22.sp),
+                bodySmall=TextStyle(fontSize=12.sp,lineHeight=18.sp),
+                labelLarge=TextStyle(fontWeight=FontWeight.Medium,fontSize=14.sp,lineHeight=20.sp),
+                labelMedium=TextStyle(fontWeight=FontWeight.Medium,fontSize=12.sp,lineHeight=16.sp),
+                labelSmall=TextStyle(fontSize=11.sp,lineHeight=16.sp)),content=content)
     }
 }
 @Composable fun AppearanceDialog(close:()->Unit) {

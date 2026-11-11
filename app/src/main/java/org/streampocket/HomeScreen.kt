@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.dp
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
                             IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
                         }
-                        FilledIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),shape=RoundedCornerShape(12.dp),colors=IconButtonDefaults.filledIconButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.primary,disabledContainerColor=Color.Transparent,disabledContentColor=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.4f)),modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
+                        FilledIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),shape=MaterialTheme.shapes.small,colors=IconButtonDefaults.filledIconButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.primary,disabledContainerColor=Color.Transparent,disabledContentColor=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.4f)),modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                     }
                 })
         }
@@ -123,7 +123,7 @@ import androidx.compose.ui.unit.dp
                 if(!compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total == 0) "还没有可搜索的来源" else if(s.results.isNotEmpty()) "没有匹配的影片" else "暂未找到结果",
                     if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.total == 0) "添加订阅或启用来源后，再搜索这部影片。" else if(s.results.isNotEmpty()) "当前已加载结果没有该题材，可切换题材或查看其他源站结果。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
                 if (compact && !s.searching) Text(if (s.total == 0) "请先添加或启用订阅来源" else "暂无结果，试试其他关键词")
-                if(!s.searching) OutlinedButton(onClick=subscriptions) { Text("管理订阅") }
+                if(!s.searching) OutlinedButton(shape=MaterialTheme.shapes.medium,onClick=subscriptions) { Text("管理订阅") }
             }
         }
         items(videos,key={it.source.key+":"+it.id}) { video ->

@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
     var rulesExpanded by rememberSaveable { mutableStateOf(false) }
     val sources=remember(s.saved.subscriptions) { s.saved.subscriptions.flatMap { it.sources }.filter { it.kind==SourceKind.VOD }.distinctBy { it.key } }
     LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { Text("设置",style=MaterialTheme.typography.headlineLarge,modifier=Modifier.padding(bottom=20.dp)) }
+        item { Text("设置",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(bottom=20.dp)) }
         item { SettingsEntry("外观设置","跟随系统、日间或夜间模式",appearance,"settingsAppearance") }
         item { SettingsEntry("应用更新",when {
             transfer.phase==UpdatePhase.DOWNLOADING -> "正在下载 · ${transfer.received/1024} KiB"
@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.dp
                 Text("响应内存：${u.memoryBytes/1024} KiB / 2 MiB",style=MaterialTheme.typography.bodyMedium)
             }
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
+                FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
                 TextButton(onClick=model::refreshStorage,modifier=Modifier.heightIn(min=48.dp)) { Text("刷新用量") }
             }
         } }
