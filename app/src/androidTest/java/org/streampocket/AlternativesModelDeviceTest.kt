@@ -14,10 +14,12 @@ class AlternativesModelDeviceTest {
         val instrument=InstrumentationRegistry.getInstrumentation()
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
+        val other="http://other.test:${server.port}"
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
                 val path=request.requestUrl!!.encodedPath
-                if(path=="/sub") return MockResponse().setBody("""{"sources":[{"name":"A","url":"$base/a"},{"name":"B","url":"$base/b"}]}""")
+                if(path.endsWith(".mp4")) return MockResponse().setBody(okio.Buffer().write(byteArrayOf(0,0,0,24)+"ftypisom".toByteArray()))
+                if(path=="/sub") return MockResponse().setBody("""{"sources":[{"name":"A","url":"$base/a"},{"name":"B","url":"$other/b"}]}""")
                 if(request.requestUrl!!.queryParameter("ids")==null) return MockResponse().setBody("""{"list":[{"vod_id":"1","vod_name":"合成剧 第二季"},{"vod_id":"wrong","vod_name":"合成剧 第一季"}]}""")
                 val episodes=if(path=="/a") "第1集${'$'}$base/a1.mp4#第2集${'$'}$base/a2.mp4" else "01${'$'}$base/b1.mp4#02${'$'}$base/b2.mp4"
                 return MockResponse().setBody("""{"list":[{"vod_play_from":"线路$path","vod_play_url":"$episodes"}]}""")
@@ -48,13 +50,14 @@ class AlternativesModelDeviceTest {
             main { model.openAlternatives(original.sessionId) }
             await { !model.state.value.alternativesLoading }
             val alternative=model.state.value.alternatives.single()
+            assertEquals(ProbeStatus.READY,alternative.probeStatus)
             assertEquals("$base/b2.mp4",alternative.episode.url)
             main { model.chooseAlternative(alternative,true) }
             assertEquals(84_000L,model.state.value.playback!!.position)
             val chosen=model.state.value.playback!!.sessionId
             assertNotEquals(original.sessionId,chosen)
             main { model.chooseAlternative(alternative,true) };assertEquals(chosen,model.state.value.playback!!.sessionId)
-            await { model.state.value.detail?.video?.source?.url=="$base/b" }
+            await { model.state.value.detail?.video?.source?.url=="$other/b" }
             main { model.openAlternatives(chosen) };await { !model.state.value.alternativesLoading }
             main { model.chooseAlternative(model.state.value.alternatives.single(),false) }
             assertEquals(0L,model.state.value.playback!!.position)

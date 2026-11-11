@@ -26,8 +26,13 @@ class PlayerLayoutDeviceTest {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
         val assets=InstrumentationRegistry.getInstrumentation().context.assets
+        val probeCapture=InstrumentationRegistry.getArguments().getString("alternativeProbeCapture")=="true"
+        val separator="${'$'}${'$'}${'$'}"
+        val lineNames=if(probeCapture) "高清线路${separator}备用 A${separator}备用 B" else "高清线路"
+        val playUrls=(1..500).joinToString("#") { "第${it}集${'$'}$base/test.mp4?e=$it" }+
+            if(probeCapture) "${separator}第1集${'$'}$base/test.mp4?alt=a${separator}第1集${'$'}$base/test.mp4?alt=b" else ""
         server.dispatcher=object:Dispatcher() {
-            override fun dispatch(request:RecordedRequest):MockResponse = if(request.requestUrl!!.encodedPath=="/api") MockResponse().setBody("""{"list":[{"vod_play_from":"高清线路","vod_play_url":"${(1..500).joinToString("#") { "第${it}集${'$'}$base/test.mp4?e=$it" }}"}]}""")
+            override fun dispatch(request:RecordedRequest):MockResponse = if(request.requestUrl!!.encodedPath=="/api") MockResponse().setBody("""{"list":[{"vod_play_from":"$lineNames","vod_play_url":"$playUrls"}]}""")
                 else MockResponse().setBody(Buffer().write(assets.open("test.mp4").use { it.readBytes() })).setHeader("Content-Type","video/mp4")
         }
         lateinit var model:AppModel
@@ -51,6 +56,22 @@ class PlayerLayoutDeviceTest {
             ui.runOnIdle { val d=model.state.value.detail!!;model.play(d.video,d.lines[0].episodes[0]) }
             ui.waitUntil(20000) { PlaybackMetrics.frames>beforeFrames }
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { player!!.pause();controllerShowTimeoutMs=0;showController() } }
+            if(probeCapture) {
+                ui.runOnIdle { model.openAlternatives(model.state.value.playback!!.sessionId) }
+                ui.waitUntil(10000) { !model.state.value.alternativesLoading && model.state.value.alternatives.count { it.probeStatus==ProbeStatus.READY }==2 }
+                ui.onNodeWithText("已找到 2 个媒体可用资源，检测已停止").assertIsDisplayed()
+                captureUi(ui,"player-alternatives-verified")
+                val target=model.state.value.alternatives.last()
+                val label="${target.line} · ${target.episode.name}"
+                ui.onNodeWithTag("playbackAlternatives").performScrollToNode(hasText(label))
+                captureUi(ui,"player-alternatives-scrolled")
+                val frames=PlaybackMetrics.frames
+                ui.onNodeWithText(label).performClick()
+                ui.waitUntil(10000) { model.state.value.playback?.episode?.url==target.episode.url && PlaybackMetrics.frames>frames }
+                ui.runOnIdle { model.stopPlayback() }
+                ui.waitUntil(5000) { PlaybackMetrics.created==PlaybackMetrics.released && model.activeAlternativeProbeCalls()==0 }
+                return
+            }
             if (InstrumentationRegistry.getArguments().getString("widePlayer")=="true") {
                 val created=PlaybackMetrics.created
                 val fallbacks=PlaybackMetrics.decoderFallbacks

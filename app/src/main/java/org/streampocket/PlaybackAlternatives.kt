@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
-data class PlaybackAlternative(val video:Video,val line:String,val episode:Episode)
+data class PlaybackAlternative(val video:Video,val line:String,val episode:Episode,val probeStatus:ProbeStatus=ProbeStatus.UNKNOWN,val resolution:String?=null)
 object PlaybackAlternatives {
     const val MAX_OPTIONS=40
     const val MAX_SOURCES=12

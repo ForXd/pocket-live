@@ -73,3 +73,13 @@ final result: passed
 Final matrix passed: phone light/dark, landscape and portrait tablet, wide playback. Final 2x font regression: OK (5 tests), `all-pages/final-font2.log`. Independent final review of wide and large-font screenshots found no P1/P2. Gallery: `artifacts/v0.39.0/final-ui/ui-review.html`.
 
 Additional large-display fullscreen check passed: `final-wide-fullscreen-verified.log` (1 test). The test now verifies return to the wide player layout on tablets rather than assuming a portrait rotation; production behavior was unchanged.
+
+## 追加功能：换源并发媒体检测
+
+播放器快速换源新增最多 3 路并发检测，验证当前集候选地址；两个媒体可用结果出现后取消剩余媒体请求、排队任务及来源搜索。候选地址去重、单项 5 秒、总时限 18 秒。未确认与检测失败状态保留手动选择，续播进度保持原行为。
+
+- `alternative-recheck.log`：4 项通过，覆盖并发启动、两个结果即停止、当前集地址、慢请求取消、关闭/退出、HTML 误响应、加密媒体待确认、跨来源集数匹配与续播。
+- `alternative-ui-normal.log`、`alternative-ui-large.log`：各 1 项通过，实际点击候选项并完成新地址解码；截图在 `final-ui/alternative-normal/`、`alternative-large/`，独立视觉复核无 P1/P2。
+- 最终合并回归 `final-feature-device-tests.log`：12 项全部通过，包含上述模型测试、播放恢复、全屏选集、更新器与网络退出。
+- 最新压力结果：52 个播放器创建/52 个释放，播放器弱引用残留 0、媒体调用 0、换源检测调用 0；Java 堆 8.74/8.22/9.18/9.49 MB，PSS 146124/145152/146448/147022 KiB，最大释放 156ms。仅说明测试覆盖路径未见资源残留。
+- 130 项单元测试及 release lint 0 errors 通过。媒体探测复用有界容器/HLS 读取，不创建额外播放器；它不能保证所有设备均支持该媒体编码，待确认内容仍可手动尝试。

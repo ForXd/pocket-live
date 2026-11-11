@@ -119,6 +119,9 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private var probeGeneration=0L
     private val probeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,requestLimit=1)
     private val playbackProbe=PlaybackProbe(probeNetwork)
+    private val alternativeProbeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,requestLimit=3)
+    private val alternativeProbe=PlaybackProbe(alternativeProbeNetwork)
+    internal fun activeAlternativeProbeCalls()=alternativeProbeNetwork.client.dispatcher.runningCallsCount()+alternativeProbeNetwork.client.dispatcher.queuedCallsCount()
     internal fun activeSearchCalls()=network.client.dispatcher.runningCallsCount()+network.client.dispatcher.queuedCallsCount()
     internal fun activeProbeCalls()=probeNetwork.client.dispatcher.runningCallsCount()+probeNetwork.client.dispatcher.queuedCallsCount()
     private val probeCache=linkedMapOf<String,Pair<Long,ProbeResult>>()
@@ -480,14 +483,51 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         val snapshot=state.value
         val detail=snapshot.detail?.takeIf { it.video.source.key==current.video.source.key && it.video.id==current.video.id }
         val local=detail?.let { PlaybackAlternatives.from(it,current) }.orEmpty()
-        _state.update { it.copy(alternativeSession=sessionId,alternatives=local,alternativesLoading=true) }
+        _state.update { it.copy(alternativeSession=sessionId,alternatives=emptyList(),alternativesLoading=true) }
         fun active()=alternativesOwner==owner && state.value.playback?.sessionId==sessionId
-        fun add(options:List<PlaybackAlternative>) { if(active()) _state.update { it.copy(alternatives=PlaybackAlternatives.merge(it.alternatives,options)) } }
         alternativesJob=viewModelScope.launch {
             var failures=0
+            var enough=false
+            var ready=0
             try {
                 withTimeout(18_000) {
                     supervisorScope {
+                        val discovery=this
+                        val probeSlots=Semaphore(3)
+                        val seen=mutableSetOf<String>()
+                        fun updateProbe(option:PlaybackAlternative,result:ProbeResult) {
+                            if(active()) _state.update { currentState -> currentState.copy(alternatives=currentState.alternatives.map {
+                                if(it.episode.url==option.episode.url) it.copy(probeStatus=result.status,resolution=result.resolution) else it
+                            }.sortedBy { if(it.probeStatus==ProbeStatus.READY) 0 else 1 }) }
+                        }
+                        // All admission/result updates run on this Main scope. Sampling runs on
+                        // the bounded probe client; the currently selected episode is checked.
+                        fun add(options:List<PlaybackAlternative>) {
+                            if(!active() || enough) return
+                            for(option in options) {
+                                if(seen.size>=PlaybackAlternatives.MAX_OPTIONS) break
+                                if(!seen.add(option.episode.url)) continue
+                                _state.update { it.copy(alternatives=PlaybackAlternatives.merge(it.alternatives,listOf(option))) }
+                                launch {
+                                    probeSlots.withPermit {
+                                        ensureActive()
+                                        updateProbe(option,ProbeResult(ProbeStatus.CHECKING))
+                                        val result=try { withTimeout(5_000) { alternativeProbe.inspect(option.episode) } }
+                                            catch(e:TimeoutCancellationException) { ensureActive();ProbeResult(ProbeStatus.FAILED) }
+                                            catch(e:CancellationException) { throw e }
+                                            catch(_:Exception) { ProbeResult(ProbeStatus.FAILED) }
+                                        ensureActive()
+                                        if(!active()) return@withPermit
+                                        updateProbe(option,result)
+                                        if(result.status==ProbeStatus.READY && ++ready==2) {
+                                            enough=true
+                                            discovery.cancel() // Cancel searches, queued probes and in-flight media reads together.
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        add(local)
                         if(detail==null) launch {
                             try {
                                 val d=withContext(Dispatchers.Default) { CmsParser.detail(network.text(network.api(current.video.source,"ids",current.video.id)),current.video) }
@@ -516,16 +556,16 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                     }
                 }
             } catch(_:TimeoutCancellationException) { failures++ }
-            catch(e:CancellationException) { throw e }
+            catch(e:CancellationException) { if(!enough) throw e }
             finally {
-                if(active()) _state.update { it.copy(alternativesLoading=false,alternativesError=
+                if(active()) _state.update { it.copy(alternatives=it.alternatives.map { option -> if(option.probeStatus==ProbeStatus.CHECKING) option.copy(probeStatus=ProbeStatus.UNKNOWN) else option },alternativesLoading=false,alternativesError=
                     if(failures>0) "部分来源暂不可用，已保留可用结果" else null) }
             }
         }
     }
     fun chooseAlternative(option:PlaybackAlternative,keepPosition:Boolean) {
         val current=state.value.playback ?: return
-        if(state.value.alternativeSession!=current.sessionId || option !in state.value.alternatives) return
+        if(state.value.alternativeSession!=current.sessionId || state.value.alternatives.none { it.video.source.key==option.video.source.key && it.video.id==option.video.id && it.episode.url==option.episode.url }) return
         val matching=state.value.detail?.takeIf { it.video.source.key==option.video.source.key && it.video.id==option.video.id }
         closeAlternatives();cancelDetailRequest()
         val next=Playback(option.video,option.episode,if(keepPosition) current.position else 0)
@@ -629,7 +669,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     override fun onCleared() {
         // TLS close_notify may write to the network. The ViewModel scope is already cancelled here.
         CoroutineScope(Dispatchers.IO).launch {
-            try { updateNetwork.close() } finally { probeNetwork.close();network.close() }
+            try { updateNetwork.close() } finally { alternativeProbeNetwork.close();probeNetwork.close();network.close() }
         }
         super.onCleared()
     }

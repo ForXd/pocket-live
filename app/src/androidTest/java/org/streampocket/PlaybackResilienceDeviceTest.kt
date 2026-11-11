@@ -154,7 +154,7 @@ class PlaybackResilienceDeviceTest {
                 val before=PlaybackMetrics.frames
                 ui.runOnIdle { model.chooseAlternative(option,true);model.chooseAlternative(option,true) }
                 ui.waitUntil(15000) { model.state.value.playback!!.sessionId!=session && PlaybackMetrics.frames>before }
-                ui.waitUntil(5000) { model.network.client.dispatcher.runningCallsCount()==0 }
+                ui.waitUntil(5000) { model.network.client.dispatcher.runningCallsCount()==0 && model.activeAlternativeProbeCalls()==0 }
                 assertNull(model.state.value.alternativeSession)
                 assertEquals(1L,PlaybackMetrics.created-PlaybackMetrics.released)
                 if(cycle%5==4) {
@@ -174,13 +174,13 @@ class PlaybackResilienceDeviceTest {
                 ui.runOnIdle { model.openAlternatives(model.state.value.playback!!.sessionId) }
                 ui.waitUntil(15000) { slowRequests.get()>count }
                 ui.runOnIdle { model.closeAlternatives() }
-                ui.waitUntil(5000) { model.network.client.dispatcher.runningCallsCount()==0 }
+                ui.waitUntil(5000) { model.network.client.dispatcher.runningCallsCount()==0 && model.activeAlternativeProbeCalls()==0 }
             }
             val before=slowRequests.get()
             ui.runOnIdle { model.openAlternatives(model.state.value.playback!!.sessionId) }
             ui.waitUntil(15000) { slowRequests.get()>before }
             ui.runOnIdle { model.stopPlayback() }
-            ui.waitUntil(5000) { model.network.client.dispatcher.runningCallsCount()==0 && MediaCallOwner.active.get()==0 && PlaybackMetrics.samplers==0 }
+            ui.waitUntil(5000) { model.network.client.dispatcher.runningCallsCount()==0 && model.activeAlternativeProbeCalls()==0 && MediaCallOwner.active.get()==0 && PlaybackMetrics.samplers==0 }
             assertEquals(PlaybackMetrics.created,PlaybackMetrics.released)
             assertEquals(0L,PlaybackMetrics.releaseFailures);assertEquals(0L,PlaybackMetrics.releaseTimeouts)
             assertEquals(0L,PlaybackMetrics.cleanupFailures)
@@ -191,7 +191,7 @@ class PlaybackResilienceDeviceTest {
                 putString("java_heap_after_5_10_15_20",javaHeap.toString());putString("pss_kib_after_5_10_15_20",pss.toString())
                 putInt("weak_players_remaining",players.count { it.get()!=null });putLong("players_created",PlaybackMetrics.created)
                 putLong("players_released",PlaybackMetrics.released);putInt("active_media_calls",MediaCallOwner.active.get())
-                putLong("max_release_ms",PlaybackMetrics.maxReleaseMs)
+                putLong("max_release_ms",PlaybackMetrics.maxReleaseMs);putInt("active_alternative_probe_calls",model.activeAlternativeProbeCalls())
             })
         } finally { ui.runOnUiThread { model.stopPlayback();ui.activity.viewModelStore.clear() };server.shutdown() }
     }

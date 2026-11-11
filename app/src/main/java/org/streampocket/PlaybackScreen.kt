@@ -118,7 +118,7 @@ import kotlinx.coroutines.delay
     DisposableEffect(controller,lifecycle) {
         val observer=LifecycleEventObserver { _,event -> when(event) {
             Lifecycle.Event.ON_START -> controller.start()
-            Lifecycle.Event.ON_STOP -> { playerView?.cancelGestures();controller.stop(activity.isChangingConfigurations) }
+            Lifecycle.Event.ON_STOP -> { model.closeAlternatives();playerView?.cancelGestures();controller.stop(activity.isChangingConfigurations) }
             else -> Unit
         } }
         lifecycle.addObserver(observer)
@@ -187,13 +187,19 @@ import kotlinx.coroutines.delay
                         Text("切换同集来源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                         TextButton(onClick=model::closeAlternatives) { Text("关闭") }
                     }
-                    LazyColumn(Modifier.weight(1f,false),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    LazyColumn(Modifier.weight(1f,false).testTag("playbackAlternatives"),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         item { Text("${playback.video.title} · ${playback.episode.name}",style=MaterialTheme.typography.bodySmall) }
                         item { Row(verticalAlignment=Alignment.CenterVertically) {
                             Checkbox(checked=keepPosition,onCheckedChange={keepPosition=it})
                             Text("保留当前进度（不同片源可能有偏差）",style=MaterialTheme.typography.bodySmall)
                         } }
-                        if(state.alternativesLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                        if(state.alternativesLoading) item {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text("正在检测可播放资源…",style=MaterialTheme.typography.bodySmall)
+                        }
+                        else if(state.alternatives.count { it.probeStatus==ProbeStatus.READY }>=2) item {
+                            Text("已找到 2 个媒体可用资源，检测已停止",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)
+                        }
                         state.alternativesError?.let { item { Text(it,style=MaterialTheme.typography.bodySmall) } }
                         if(!state.alternativesLoading && state.alternatives.isEmpty()) item { Text("未找到同名同集的备用地址。可添加其他订阅来源后再试。") }
                         itemsIndexed(state.alternatives,key={_,it->it.episode.url}) { _,option ->
@@ -201,6 +207,7 @@ import kotlinx.coroutines.delay
                                 Column(Modifier.fillMaxWidth()) {
                                     Text("${option.line} · ${option.episode.name}")
                                     Text(option.video.source.name,style=MaterialTheme.typography.bodySmall)
+                                    Text(listOfNotNull(option.probeStatus.label,option.resolution).joinToString(" · "),style=MaterialTheme.typography.bodySmall,color=if(option.probeStatus==ProbeStatus.READY) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }

@@ -24,6 +24,7 @@ internal class PlaybackProbe(private val network:Network) {
         val episode=detail.lines.firstOrNull { it.episodes.isNotEmpty() }?.episodes?.firstOrNull() ?: return@withContext ProbeResult(ProbeStatus.UNKNOWN)
         media(episode.url,0)
     }
+    suspend fun inspect(episode:Episode):ProbeResult = withContext(Dispatchers.Default) { media(episode.url,0) }
     private suspend fun media(url:String,depth:Int):ProbeResult {
         if(depth>2) return ProbeResult(ProbeStatus.UNKNOWN)
         val sample=sample(url)
