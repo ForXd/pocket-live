@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.layout.*
@@ -50,8 +51,7 @@ import kotlinx.coroutines.launch
     val episodeHeader=if(detail.description.isBlank()) 1 else 2
     val showTop by remember(episodeHeader,list) { derivedStateOf { list.firstVisibleItemIndex>episodeHeader+2 } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val backdropHeight=if(maxWidth>=600.dp) 320.dp else 300.dp
-        val posterWidth=if(maxWidth>=600.dp) 148.dp else 112.dp
+        val backdropHeight=if(maxWidth>=600.dp) 320.dp else 380.dp
         val columns=((maxWidth.value-30)/(if(LocalDensity.current.fontScale>1.3f) 190 else 114)).toInt().coerceIn(1,6)
         val rows=remember(episodes,columns) { episodes.chunked(columns) }
         fun showEpisodes() { scope.launch { list.scrollToItem(episodeHeader) } }
@@ -78,22 +78,17 @@ import kotlinx.coroutines.launch
             Box(Modifier.weight(1f)) {
                 LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag("detailGrid"),contentPadding=PaddingValues(bottom=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     item(key="identity") {
-                        Box(Modifier.fillMaxWidth()) {
-                            // Artwork supplies atmosphere; the opaque lower stop protects text contrast.
+                        Box(Modifier.fillMaxWidth().background(Color(0xff101012))) {
                             Poster(detail.video,model,Modifier.fillMaxWidth().height(backdropHeight),shape=RectangleShape,contentScale=ContentScale.Crop)
-                            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha=.28f),
-                                MaterialTheme.colorScheme.background.copy(alpha=.90f),
-                                MaterialTheme.colorScheme.background))))
-                            Row(Modifier.fillMaxWidth().padding(start=20.dp,end=20.dp,top=108.dp,bottom=16.dp),horizontalArrangement=Arrangement.spacedBy(20.dp),verticalAlignment=Alignment.Bottom) {
-                                Poster(detail.video,model,Modifier.width(posterWidth).aspectRatio(0.75f))
-                                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                    Text(detail.video.source.name,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-                                    Text(detail.video.title,style=MaterialTheme.typography.headlineSmall)
-                                    if(detail.video.subtitle.isNotBlank()) Text(detail.video.subtitle,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                    if(detail.video.rating!=null) Text("★ ${detail.video.rating}",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.tertiary)
-                                    if(detail.video.quality.evidence!=QualityEvidence.UNKNOWN) QualityBadge(detail.video.quality,lastPlayback=true)
+                            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color(0x10101012),Color(0x00101012),Color(0xff101012)))))
+                            Column(Modifier.fillMaxWidth().padding(start=24.dp,end=24.dp,top=backdropHeight-120.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Text(detail.video.title,style=MaterialTheme.typography.headlineLarge,color=Color.White)
+                                Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                                    Text(detail.video.source.name,Modifier.weight(1f),style=MaterialTheme.typography.labelLarge,color=Color(0xffded8db))
+                                    if(detail.video.rating!=null) Text("★ ${detail.video.rating}",style=MaterialTheme.typography.labelLarge,color=Color(0xffffd580))
                                 }
+                                if(detail.video.subtitle.isNotBlank()) Text(detail.video.subtitle,style=MaterialTheme.typography.bodyMedium,color=Color(0xffded8db))
+                                if(detail.video.quality.evidence!=QualityEvidence.UNKNOWN) QualityBadge(detail.video.quality,lastPlayback=true)
                             }
                         }
                     }

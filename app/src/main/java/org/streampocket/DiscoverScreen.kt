@@ -3,6 +3,8 @@ package org.streampocket
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -293,7 +295,18 @@ import androidx.compose.ui.text.style.TextOverflow
         modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=12.dp,bottom=16.dp),
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
-        items(videos,key={it.id},contentType={"recommendation"}) { video ->
+        videos.firstOrNull()?.let { featured ->
+            item(key=featured.id,span={GridItemSpan(maxLineSpan)},contentType="featured") {
+                FeaturedRecommendation(featured,model) { searchTitle(featured.title) }
+            }
+            if(videos.size>1) item(key="recommend-heading",span={GridItemSpan(maxLineSpan)}) {
+                Row(Modifier.fillMaxWidth().padding(top=12.dp,bottom=4.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Text("更多${if(s.recommendType=="tv") "剧集" else "电影"}",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                    Text(s.recommendTag,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        items(videos.drop(1),key={it.id},contentType={"recommendation"}) { video ->
             PosterGridCard(video,model,Modifier.testTag("recommendation:${video.id}"),"recommend") { searchTitle(video.title) }
         }
 
@@ -390,5 +403,26 @@ import androidx.compose.ui.text.style.TextOverflow
             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)
         }
         CardTextSlot(video.title,modifier=Modifier.padding(horizontal=2.dp,vertical=8.dp).testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=14.sp,lineHeight=20.sp),color=MaterialTheme.colorScheme.onSurface,lines=1)
+    }
+}
+
+/** The leading recommendation uses the same source-search action as every poster. */
+@Composable private fun FeaturedRecommendation(video:Video,model:AppModel,onClick:()->Unit) {
+    val interactions=remember { MutableInteractionSource() }
+    Card(onClick=onClick,modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}").pressFeedback(interactions),
+        interactionSource=interactions,shape=MaterialTheme.shapes.large,colors=CardDefaults.cardColors(containerColor=Color(0xff151517))) {
+        Box(Modifier.fillMaxWidth()) {
+            Poster(video,model,Modifier.fillMaxWidth().height(300.dp).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop)
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color(0x33101012),Color(0xff101012)))))
+            Column(Modifier.fillMaxWidth().padding(start=20.dp,end=20.dp,top=166.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Text("为你推荐",style=MaterialTheme.typography.labelLarge,color=Color(0xffded8db))
+                Text(video.title,Modifier.testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.headlineSmall,color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
+                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Search,null,Modifier.size(18.dp),tint=Color.White)
+                    Text("查找片源",style=MaterialTheme.typography.labelLarge,color=Color.White)
+                }
+            }
+            RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(16.dp))
+        }
     }
 }

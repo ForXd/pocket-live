@@ -126,6 +126,6 @@ class PosterStore(private val directory: File) {
     }
     Surface(modifier,shape=shape,color=containerColor) {
         bitmap?.let { Image(it.asImageBitmap(),"${video.title} 封面",contentScale=contentScale) }
-            ?: Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) { Icon(painterResource(R.drawable.ic_play),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant) }
+            ?: Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) { Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }

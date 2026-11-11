@@ -2,6 +2,12 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
@@ -74,18 +80,18 @@ import androidx.compose.ui.unit.dp
             val id=group.key.stableKey
             item(key="group:$id") {
                 ContentCard(modifier=Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
-                    Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                        Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                            if(model!=null) Poster(latest.playback.video,model,Modifier.size(88.dp,132.dp))
-                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                Text(latest.playback.video.title,style=MaterialTheme.typography.titleMedium)
-                                Text("${group.entries.map { it.playback.video.source.key }.distinct().size} 个来源 · 最近：${latest.playback.video.source.name}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(latest.playback.episode.name,style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.primary)
-                                if(latest.playback.video.subtitle.isNotBlank()) Text(latest.playback.video.subtitle,style=MaterialTheme.typography.bodySmall,maxLines=2)
-                                Text(historyTime(latest.updated),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                    Box(Modifier.fillMaxWidth().background(Color(0xff101012))) {
+                        if(model!=null) Poster(latest.playback.video,model,Modifier.fillMaxWidth().height(172.dp),shape=RectangleShape,contentScale=ContentScale.Crop)
+                        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color(0xee101012)))))
+                        Column(Modifier.fillMaxWidth().padding(start=16.dp,end=16.dp,top=88.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                            Text(latest.playback.video.title,style=MaterialTheme.typography.titleLarge,color=Color.White)
+                            Text("${latest.playback.episode.name} · ${HistoryGroups.progress(latest)}",style=MaterialTheme.typography.bodyMedium,color=Color(0xffe2dce0))
                         }
+                    }
+                    Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Text("${group.entries.map { it.playback.video.source.key }.distinct().size} 个来源 · 最近：${latest.playback.video.source.name}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        if(latest.playback.video.subtitle.isNotBlank()) Text(latest.playback.video.subtitle,style=MaterialTheme.typography.bodySmall,maxLines=2)
+                        Text(historyTime(latest.updated),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
                             Button(shape=MaterialTheme.shapes.medium,onClick={resume(latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continue:$id")) {
                             Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
