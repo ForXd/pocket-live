@@ -75,3 +75,14 @@ adb logcat -d -s PackageManager PackageInstallerSession ActivityManager | grep o
 - 受控 HLS 高响应延迟对比，二次缓冲 1 → 0；三切片耗时约 3800 → 2568ms。20 轮资源压力创建/释放播放器 54/54，播放器弱引用、活动媒体和换源探测请求均为 0。适用范围及内存边界见 docs/ui-v0.41.0.md。
 - 验收后保留 v0.41.0、v0.40.0、v0.39.0 三个 Release，删除旧 v0.38.0 Release 附件并保留 Git tag。
 - 本地证据：artifacts/v0.41.0/public/verification.txt、final-playback.log、fallback-player.log、published-upgrade.log、installed-version.txt、ui-review.html。
+
+## v0.42.0 发布验收（2026-11-11）
+
+- 应用提交 `6d9524ebca00e601920ecca645f92e6150804361`，版本 0.42.0（50）；正式证书保持不变。
+- APK SHA-256 `23c615e7a74397509544cfa641093bc9959d54797960e1dfda74a8a1529566f9`，2,787,976 字节。apksigner / 包内版本验证通过；匿名重新下载 APK、SHA256SUMS 与 latest/download/update.json 一致，登录 GitHub latest API 确认目标提交。
+- emulator-5554 / API 37 从 0.41.0 实际应用内下载、系统安装器升级至 0.42.0，PublishedUpgradeDeviceTest 为 OK (1 test)。versionCode 50；firstInstallTime 保持 2026-10-28 22:23:52，未卸载或 ADB 覆盖安装正式包。
+- 131 项单元测试、14 项设备回归通过；release lint 0 errors / 63 warnings。新增大于旧上限的 8 MiB 切片回收测试覆盖暂停、恢复与关闭；初次失败揭示已完成 Future 保留结果，显式清空后完整重跑通过。20 轮压力测试播放器创建/释放 56/56，播放器弱引用、活动媒体与换源请求均归零。
+- 手机日夜主要页面、普通 / 两倍字号全屏操作通过。控件截图验证按钮无描边，选集 / 换源及其他播放动作位于时间轴下方，顶部只保留返回与片名。自动测试点击实际可见的底部更多按钮，验证倍速、换源、500 集定位和窗口反复关闭。额外稳定截图测试关闭测试播放器的控制条自动隐藏计时，正式应用仍保留原有自动隐藏。
+- 预取数据最高约 96 MiB，按堆与低内存状态缩减；原播放器缓冲与解码内存另外计算。详细边界见 docs/ui-v0.42.0.md。
+- 验收后保留 v0.42.0、v0.41.0、v0.40.0 三个 Release，删除 v0.39.0 Release 附件、保留 Git tag。
+- 证据目录 artifacts/v0.42.0/：final-device.log、player-font2.log、player-capture/、dark/、light/、public/、published-upgrade.log、installed-version.txt。
