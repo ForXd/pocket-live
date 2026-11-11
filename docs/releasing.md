@@ -43,3 +43,12 @@ adb shell am instrument -w -e publishedUpgrade true \
 adb shell dumpsys package org.streampocket | grep -E 'versionCode=|versionName=|firstInstallTime|lastUpdateTime'
 adb logcat -d -s PackageManager PackageInstallerSession ActivityManager | grep org.streampocket
 ```
+
+## v0.39.0 publication verification (2026-11-11)
+
+- Release commit: `dd10cc23a1133ae0dac4479533288a5aa0d46fc4`; version 0.39.0 (47).
+- Public APK SHA-256: `68906853a701999317cff80c5d1a7b2d1d30e41071328219dccfb1beaf0a26a5`; 2,833,032 bytes. Downloaded APK, SHA256SUMS and latest/download/update.json match. Anonymous GitHub latest API returns v0.39.0 and the release commit.
+- API 37 emulator: genuine in-app download and system-installer upgrade from 0.38.0 to 0.39.0 passed PublishedUpgradeDeviceTest, OK (1 test). Package manager confirms code 47; firstInstallTime remains 2026-10-28 22:23:52. No uninstall or ADB replacement of the production app.
+- 130 unit tests passed; release lint has zero errors; final combined device regression passed 12 tests. Alternative media detection probes the current episode with at most three concurrent requests and cancels remaining work after two READY results. Closing, leaving and reopening verify cancellation and stale-session isolation.
+- Twenty resource-pressure cycles created/released 52/52 players, with zero retained player weak references, active media calls and alternative-probe calls. These are controlled emulator results, not guarantees for all physical devices or external providers.
+- Local evidence: artifacts/v0.39.0/published-upgrade.log, public/, final-feature-device-tests.log. Full visual audit: design-qa.md.
