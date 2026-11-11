@@ -156,12 +156,12 @@ import androidx.compose.ui.text.style.TextOverflow
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                     item {
-                        FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
+                        OutlinedButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
                             Text(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
                         }
                     }
                     item {
-                        FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
+                        OutlinedButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
                             Text(s.categories.find { it.id==s.catalogCategory }?.name ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}");Icon(Icons.Default.ArrowDropDown,null)
                         }
                     }
@@ -281,7 +281,7 @@ import androidx.compose.ui.text.style.TextOverflow
                     modifier=Modifier.testTag("recommendType:$type"),label={Text(label,maxLines=1)})
             }
             item {
-                FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={focus.clearFocus();keyboard?.hide();draftTag=s.recommendTag;categoryPicker=true},
+                OutlinedButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={focus.clearFocus();keyboard?.hide();draftTag=s.recommendTag;categoryPicker=true},
                     modifier=Modifier.testTag("recommendCategoryPicker").semantics { contentDescription="推荐分类：${s.recommendTag}" }) {
                     Text(s.recommendTag,maxLines=1);Icon(Icons.Default.ArrowDropDown,null)
                 }

@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.dp
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
                             IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
                         }
-                        FilledIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),modifier=Modifier.padding(end=4.dp).size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
+                        FilledIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),shape=RoundedCornerShape(12.dp),colors=IconButtonDefaults.filledIconButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.primary,disabledContainerColor=Color.Transparent,disabledContentColor=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.4f)),modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                     }
                 })
         }

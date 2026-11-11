@@ -156,7 +156,7 @@ class MainActivity : ComponentActivity() {
     val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
     val destinations=listOf("首页","订阅","历史","设置")
-    val navIcon:@Composable (Int)->Unit = { i -> if(i==3) Icon(Icons.Default.Settings,null) else Icon(painterResource(listOf(R.drawable.ic_search,R.drawable.ic_library,R.drawable.ic_history)[i]),null) }
+    val navIcon:@Composable (Int)->Unit = { i -> if(i==3) Icon(Icons.Default.Settings,null) else Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history)[i]),null) }
     Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
         topBar = {
             if(tab==0 && s.detail==null && !s.detailLoading) {
@@ -179,13 +179,13 @@ class MainActivity : ComponentActivity() {
             },navigationIcon={if(s.detail!=null || s.detailLoading) IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }})
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
-        bottomBar = { if(!imeVisible) Surface(color=MaterialTheme.colorScheme.background) { Row(Modifier.fillMaxWidth().selectableGroup().windowInsetsPadding(NavigationBarDefaults.windowInsets).heightIn(min=64.dp).testTag("mainNavigation"),verticalAlignment=Alignment.CenterVertically) {
+        bottomBar = { if(!imeVisible) Box(Modifier.fillMaxWidth().windowInsetsPadding(NavigationBarDefaults.windowInsets).padding(horizontal=16.dp,vertical=8.dp)) { Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(22.dp),color=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=.96f),border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.45f))) { Row(Modifier.fillMaxWidth().selectableGroup().heightIn(min=64.dp).testTag("mainNavigation"),verticalAlignment=Alignment.CenterVertically) {
             listOf(0,2,1,3).forEach { i ->
                 val title=destinations[i]
-                NavigationBarItem(colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,indicatorColor=MaterialTheme.colorScheme.primaryContainer.copy(alpha=.45f)),selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
+                NavigationBarItem(colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,indicatorColor=androidx.compose.ui.graphics.Color.Transparent),selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                     modifier=Modifier.height(if(androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 80.dp else 64.dp).testTag("nav:$i"),icon={navIcon(i)},label={Text(title)})
             }
-        } } },snackbarHost={SnackbarHost(snack)}
+        } } } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->
         Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize().imePadding(),contentAlignment=Alignment.TopCenter) {
         val destination=when {

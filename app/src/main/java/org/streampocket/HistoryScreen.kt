@@ -58,7 +58,7 @@ import androidx.compose.ui.unit.dp
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
             Box {
-                FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={sourceMenu=true},modifier=Modifier.widthIn(max=180.dp).testTag("historySource")) { Text(sources.find { it.key==source }?.name ?: "全部来源",maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false));Icon(Icons.Default.ArrowDropDown,null) }
+                OutlinedButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={sourceMenu=true},modifier=Modifier.widthIn(max=180.dp).testTag("historySource")) { Text(sources.find { it.key==source }?.name ?: "全部来源",maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false));Icon(Icons.Default.ArrowDropDown,null) }
                 DropdownMenu(expanded=sourceMenu,onDismissRequest={sourceMenu=false}) {
                     DropdownMenuItem(text={Text("全部来源")},onClick={source=null;sourceMenu=false})
                     sources.forEach { option -> DropdownMenuItem(text={Text(option.name)},onClick={source=option.key;sourceMenu=false}) }

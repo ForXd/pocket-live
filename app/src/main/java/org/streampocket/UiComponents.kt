@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -83,10 +84,12 @@ import androidx.compose.ui.unit.sp
 }
 
 @Composable fun ContentFilterChip(selected:Boolean,onClick:()->Unit,modifier:Modifier=Modifier,reserveSelectionSpace:Boolean=false,label:@Composable ()->Unit) {
-    FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.minimumInteractiveComponentSize(),shape=MaterialTheme.shapes.small,border=null,
-        leadingIcon=if(selected || reserveSelectionSpace) { { Icon(Icons.Default.Check,null,Modifier.size(16.dp),tint=if(selected) LocalContentColor.current else androidx.compose.ui.graphics.Color.Transparent) } } else null,
-        colors=FilterChipDefaults.filterChipColors(containerColor=MaterialTheme.colorScheme.surfaceContainer,
-            selectedContainerColor=MaterialTheme.colorScheme.primaryContainer))
+    FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.minimumInteractiveComponentSize(),shape=RoundedCornerShape(10.dp),
+        border=androidx.compose.foundation.BorderStroke(1.dp,if(selected) MaterialTheme.colorScheme.primary.copy(alpha=.45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),
+        leadingIcon=if(selected) { { Icon(Icons.Default.Check,null,Modifier.size(14.dp)) } } else null,
+        colors=FilterChipDefaults.filterChipColors(containerColor=androidx.compose.ui.graphics.Color.Transparent,
+            labelColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContainerColor=MaterialTheme.colorScheme.primary.copy(alpha=.10f),
+            selectedLabelColor=MaterialTheme.colorScheme.primary,selectedLeadingIconColor=MaterialTheme.colorScheme.primary))
 }
 
 /** Reserve geometry independently of fallback-font metrics and whether the text wraps. */
@@ -107,10 +110,25 @@ import androidx.compose.ui.unit.sp
 /** One search field geometry and keyboard contract; callers supply their own action. */
 @Composable internal fun ContentSearchField(value:String,onValueChange:(String)->Unit,placeholder:String,
     onSearch:()->Unit,modifier:Modifier=Modifier,trailingIcon:@Composable ()->Unit) {
-    TextField(value,onValueChange,modifier=modifier.heightIn(min=56.dp),singleLine=true,
+    val interactions=remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
+    androidx.compose.foundation.text.BasicTextField(value=value,onValueChange=onValueChange,modifier=modifier,
+        singleLine=true,interactionSource=interactions,
+        textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=15.sp,color=MaterialTheme.colorScheme.onSurface),
+        cursorBrush=androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),
         keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
-        placeholder={Text(placeholder,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)},
-        leadingIcon={Icon(painterResource(R.drawable.ic_search),null)},trailingIcon=trailingIcon,
-        shape=MaterialTheme.shapes.medium,colors=contentSearchColors())
+        decorationBox={input ->
+            Surface(shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerLow,
+                border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.65f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha=.5f))) {
+                Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    Icon(painterResource(R.drawable.ic_search),null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Box(Modifier.weight(1f).padding(vertical=12.dp)) {
+                        if(value.isEmpty()) Text(placeholder,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        input()
+                    }
+                    trailingIcon()
+                }
+            }
+        })
 }

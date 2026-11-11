@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
     val episodeHeader=if(detail.description.isBlank()) 1 else 2
     val showTop by remember(episodeHeader,list) { derivedStateOf { list.firstVisibleItemIndex>episodeHeader+2 } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val backdropHeight=if(maxWidth>=600.dp) 320.dp else 380.dp
+        val backdropHeight=if(maxWidth>=600.dp) 280.dp else 320.dp
         val columns=((maxWidth.value-30)/(if(LocalDensity.current.fontScale>1.3f) 190 else 114)).toInt().coerceIn(1,6)
         val rows=remember(episodes,columns) { episodes.chunked(columns) }
         fun showEpisodes() { scope.launch { list.scrollToItem(episodeHeader) } }
@@ -130,8 +130,9 @@ import kotlinx.coroutines.launch
                         Row(Modifier.fillMaxWidth().padding(horizontal=20.dp).height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             row.forEach { episode ->
                                 val watched=latest?.playback?.episode?.url==episode.url
-                                FilledTonalButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.small,
-                                    colors=ButtonDefaults.filledTonalButtonColors(containerColor=if(watched) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer),
+                                OutlinedButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.small,
+                                    border=androidx.compose.foundation.BorderStroke(1.dp,if(watched) MaterialTheme.colorScheme.primary.copy(alpha=.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),
+                                    colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface,containerColor=if(watched) MaterialTheme.colorScheme.primary.copy(alpha=.1f) else Color.Transparent),
                                     contentPadding=PaddingValues(horizontal=8.dp,vertical=12.dp),modifier=Modifier.weight(1f).fillMaxHeight().heightIn(min=56.dp).testTag("episode:${episode.name}")) {
                                     Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
                                         if(watched) Text("上次观看",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
@@ -148,11 +149,11 @@ import kotlinx.coroutines.launch
             Surface(color=MaterialTheme.colorScheme.background) {
                 Column {
                     ContentDivider()
-                    Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull()
-                        Column(Modifier.weight(1f).testTag("detailPlaybackSummary"),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                        Row(Modifier.fillMaxWidth().testTag("detailPlaybackSummary"),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
                             primary?.let { episode ->
-                                Text(episode.name,style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
+                                Text(episode.name,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
                                 latest?.let { entry ->
                                     val time=android.text.format.DateUtils.formatElapsedTime((entry.playback.position/1000).coerceAtLeast(0))
                                     Text("已观看 $time",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,
@@ -160,8 +161,8 @@ import kotlinx.coroutines.launch
                                 }
                             }
                         }
-                        Button(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=MaterialTheme.shapes.medium,
-                            modifier=Modifier.widthIn(max=220.dp).heightIn(min=48.dp).testTag("detailPlay")) {
+                        Button(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                            modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("detailPlay")) {
                             Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp))
                             Text(if(primary==null) "暂无剧集" else if(latest!=null) "继续观看" else "立即播放")
                         }
