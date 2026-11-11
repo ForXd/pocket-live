@@ -61,7 +61,7 @@ import kotlinx.coroutines.launch
         } }
         val rows=remember(episodes,columns) { episodes.chunked(columns) }
         fun showEpisodes() { scope.launch { list.scrollToItem(episodeHeader) } }
-        if(sheet!=null) ModalBottomSheet(onDismissRequest={sheet=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
+        if(sheet!=null) HandleOnlySheet(onDismissRequest={sheet=null}) {
             SheetSystemBars()
             LazyColumn(Modifier.fillMaxWidth().testTag("detailPicker"),contentPadding=PaddingValues(start=20.dp,end=20.dp,bottom=24.dp)) {
                 item { Row(verticalAlignment=Alignment.CenterVertically) {
@@ -69,11 +69,11 @@ import kotlinx.coroutines.launch
                     TextButton(onClick={sheet=null}) { Text("取消") }
                 } }
                 if(sheet=="line") itemsIndexed(detail.lines) { index,option ->
-                    ListItem(headlineContent={Text(option.name)},supportingContent={Text("${option.episodes.size} 集")},
+                    ListItem(colors=ListItemDefaults.colors(containerColor=androidx.compose.ui.graphics.Color.Transparent),headlineContent={Text(option.name)},supportingContent={Text("${option.episodes.size} 集")},
                         leadingContent={RadioButton(selected=index==selected,onClick=null)},
                         modifier=Modifier.fillMaxWidth().clickable { selected=index;sheet=null;showEpisodes() }.testTag("detailLine:$index"))
                 } else itemsIndexed(episodes.chunked(50)) { index,group ->
-                    ListItem(headlineContent={Text("${group.first().name} — ${group.last().name}")},
+                    ListItem(colors=ListItemDefaults.colors(containerColor=androidx.compose.ui.graphics.Color.Transparent),headlineContent={Text("${group.first().name} — ${group.last().name}")},
                         modifier=Modifier.fillMaxWidth().clickable {
                             sheet=null;scope.launch { list.scrollToItem(episodeHeader+1+index*50/columns,-toolbarHeight) }
                         }.testTag("episodeRange:$index"))
@@ -142,7 +142,7 @@ import kotlinx.coroutines.launch
                                 }
                             }
                         }
-                        Button(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=MaterialTheme.shapes.medium,
+                        GlassButton(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=MaterialTheme.shapes.medium,
                             modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("detailPlay")) {
                             Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp))
                             Text(if(primary==null) "暂无剧集" else if(latest!=null) "继续观看" else "立即播放")
@@ -174,9 +174,9 @@ import kotlinx.coroutines.launch
                         Row(Modifier.fillMaxWidth().padding(horizontal=20.dp).height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             row.forEach { episode ->
                                 val watched=latest?.playback?.episode?.url==episode.url
-                                OutlinedButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.small,
+                                GlassButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.small,
                                     border=androidx.compose.foundation.BorderStroke(1.dp,if(watched) MaterialTheme.colorScheme.primary.copy(alpha=.5f) else Color.Transparent),
-                                    colors=ButtonDefaults.outlinedButtonColors(contentColor=if(watched) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,containerColor=if(watched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer),
+                                    colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface,containerColor=glassFill(watched)),
                                     contentPadding=PaddingValues(horizontal=8.dp,vertical=12.dp),modifier=Modifier.weight(1f).fillMaxHeight().heightIn(min=56.dp).testTag("episode:${episode.name}")) {
                                     Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
 

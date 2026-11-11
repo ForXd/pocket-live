@@ -27,6 +27,7 @@ class UiLayoutDeviceTest {
         runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history),allowHttp=true)) }
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse = if(request.path=="/poster.png") MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
+            else if(request.path!!.startsWith("/synopsis")) MockResponse().setBody("<span property=\"v:summary\">一次穿越群星的旅程。每个故事，都值得被认真观看。</span>")
             else if(request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","rate":"8.2","cover":"$base/poster.png"},{"id":"3","title":"一段跨越山河与四季的漫长旅程：我们的故事还没有结束","rate":"","cover":""},{"id":"4","title":"雨","rate":"9.1","episodes_info":"更新至第十二集 · 特别篇与幕后故事持续更新","cover":"$base/poster.png"},{"id":"5","title":"风","rate":"","cover":"$base/poster.png"}]}""")
             else if(request.requestUrl!!.queryParameter("ids")!=null) MockResponse().setBody("""{"list":[{"vod_content":"一次穿越群星的旅程。每个故事，都值得被认真观看。","vod_play_from":"高清线路","vod_play_url":"第1集${'$'}$base/video.mp4#第2集${'$'}$base/video2.mp4#第3集${'$'}$base/video3.mp4#第4集${'$'}$base/video4.mp4#第5集${'$'}$base/video5.mp4#第6集${'$'}$base/video6.mp4"}]}""")
             else MockResponse().setBody("""{"list":[{"vod_id":"1","vod_name":"星河漫游","vod_remarks":"更新至第12集","vod_pic":"$base/poster.png"},{"vod_id":"2","vod_name":"山海之间","vod_remarks":"高清","vod_pic":"$base/poster.png"}]}""")
@@ -37,7 +38,7 @@ class UiLayoutDeviceTest {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
                 override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
-                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
+                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"},synopsisUrl={"$base/synopsis/$it"}) as T
                 }
             })[AppModel::class.java]
             ThemePreference.write(ui.activity,if(InstrumentationRegistry.getArguments().getString("appearance")=="dark") ThemeMode.DARK else ThemeMode.LIGHT)
@@ -54,9 +55,33 @@ class UiLayoutDeviceTest {
         }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            if(InstrumentationRegistry.getArguments().getString("uxReview")=="true") {
+                ui.waitUntil(10000) { model.state.value.recommendations.isNotEmpty() }
+                val done=java.io.File(ui.activity.filesDir,"ui-review-done");done.delete()
+                val deadline=android.os.SystemClock.elapsedRealtime()+180000
+                while(!done.exists() && android.os.SystemClock.elapsedRealtime()<deadline) {
+                    ui.mainClock.advanceTimeBy(100);ui.waitForIdle();android.os.SystemClock.sleep(100)
+                }
+                return
+            }
+
             if(InstrumentationRegistry.getArguments().getString("designCapture")=="true") {
                 ui.waitUntil(10000) { !model.state.value.recommendLoading && model.state.value.recommendations.isNotEmpty() }
                 capture("design-home")
+                ui.onNodeWithTag("recommendation:1").performClick()
+                ui.waitUntil(10000) { model.state.value.recommendSynopsis!=null }
+                assertTrue(model.state.value.searchQuery.isEmpty())
+                ui.onNodeWithTag("searchRecommendationSources").assertIsDisplayed()
+                capture("design-recommendation-preview")
+                ui.onNodeWithText("返回推荐").performClick()
+                ui.onNodeWithTag("recommendation:1").assertIsDisplayed()
+                ui.onNodeWithTag("recommendation:1").performClick()
+                ui.onNodeWithTag("searchRecommendationSources").performClick()
+                ui.waitUntil(10000) { model.state.value.searchQuery=="星河漫游" && !model.state.value.searching }
+                assertNull(model.state.value.recommendPreview)
+                ui.onNodeWithContentDescription("返回推荐").performClick()
+
+
                 ui.onNodeWithTag("openSearch").performClick()
                 ui.onNodeWithTag("searchInput").performTextInput("星河")
                 ui.onNodeWithTag("searchInput").performImeAction()

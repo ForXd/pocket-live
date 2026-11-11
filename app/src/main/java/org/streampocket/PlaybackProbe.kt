@@ -16,13 +16,30 @@ internal fun probeResolution(line:String):String? {
 }
 internal fun Video.probeKey()=source.key+":"+id
 
+internal object ProbePolicy {
+    const val CONCURRENCY=3
+    const val READY_LIMIT=2
+    const val MEDIA_TIMEOUT_MS=5_000L
+    const val SESSION_TIMEOUT_MS=18_000L
+}
+
 /** Bounded media validation, not a decoder or a background player. Every response is closed. */
 internal class PlaybackProbe(private val network:Network) {
     suspend fun check(video:Video):ProbeStatus = inspect(video).status
     suspend fun inspect(video:Video):ProbeResult = withContext(Dispatchers.Default) {
         val detail=CmsParser.detail(network.text(network.api(video.source,"ids",video.id)),video)
-        val episode=detail.lines.firstOrNull { it.episodes.isNotEmpty() }?.episodes?.firstOrNull() ?: return@withContext ProbeResult(ProbeStatus.UNKNOWN)
-        media(episode.url,0)
+        var unknown=false
+        // One candidate per line, using the same bounded media inspection as quick switch.
+        // A dead or web-only first line must not hide a working alternative line.
+        for(episode in detail.lines.mapNotNull { it.episodes.firstOrNull() }.distinctBy { it.url }) {
+            val checked=try { withTimeout(ProbePolicy.MEDIA_TIMEOUT_MS) { inspect(episode) } }
+                catch(e:TimeoutCancellationException) { ensureActive();ProbeResult(ProbeStatus.FAILED) }
+                catch(e:CancellationException) { throw e }
+                catch(_:Exception) { ProbeResult(ProbeStatus.FAILED) }
+            if(checked.status==ProbeStatus.READY) return@withContext checked
+            if(checked.status==ProbeStatus.UNKNOWN) unknown=true
+        }
+        ProbeResult(if(unknown) ProbeStatus.UNKNOWN else ProbeStatus.FAILED)
     }
     suspend fun inspect(episode:Episode):ProbeResult = withContext(Dispatchers.Default) { media(episode.url,0) }
     private suspend fun media(url:String,depth:Int):ProbeResult {
@@ -58,7 +75,7 @@ internal class PlaybackProbe(private val network:Network) {
                         val body=r.body ?: throw IOException("Empty media")
                         r.request.url to body.byteStream().use { input ->
                             val out=java.io.ByteArrayOutputStream();val chunk=ByteArray(4096)
-                            while(out.size()<65536) { val count=input.read(chunk,0,minOf(chunk.size,65536-out.size()));if(count<0) break;out.write(chunk,0,count) }
+                            while(out.size()<65536) { val count=input.read(chunk,0,minOf(chunk.size,65536-out.size()));if(count<0) break;out.write(chunk,0,count);if(validMediaPrefix(out.toByteArray())) break }
                             out.toByteArray() }
                     }
                     if(continuation.isActive) continuation.resume(result)

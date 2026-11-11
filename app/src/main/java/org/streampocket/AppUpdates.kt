@@ -83,7 +83,7 @@ object AppUpdates {
     }
     val busy=transfer.phase==UpdatePhase.DOWNLOADING || transfer.phase==UpdatePhase.VERIFYING
     val release=if(busy || transfer.phase==UpdatePhase.READY) transfer.release else state.appRelease ?: transfer.release
-    AlertDialog(onDismissRequest=close,title={Text("应用更新")},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    GlassAlertDialog(onDismissRequest=close,title={Text("应用更新")},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Text("Pocket Live · ${BuildConfig.VERSION_NAME}",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
         if(state.updateChecking) { LinearProgressIndicator(Modifier.fillMaxWidth());Text("正在检查新版…") }
         state.updateError?.let { Text("检查失败：$it") }

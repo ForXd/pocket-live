@@ -8,66 +8,69 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.ComponentDialog
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.*
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import java.util.function.Consumer
 
-/** System-composited backdrop blur; no video readback, bitmap loop or second decoder. */
-@Composable internal fun FrostedSidePanel(onDismiss:()->Unit,content:@Composable ColumnScope.()->Unit) {
+internal enum class GlassPlacement { CENTER, SIDE, BOTTOM }
+
+/** One native backdrop material for every overlay. No frame capture or extra decoder. */
+@Composable internal fun FrostedDialog(onDismissRequest:()->Unit,placement:GlassPlacement=GlassPlacement.CENTER,
+    immersive:Boolean=false,tag:String="glassDialog",content:@Composable ()->Unit) {
     val context=LocalContext.current
     val composition=rememberCompositionContext()
-    val width=(LocalConfiguration.current.screenWidthDp*.5f).dp
+    val config=LocalConfiguration.current
+    val width=when(placement) { GlassPlacement.SIDE->(config.screenWidthDp*.5f).dp;GlassPlacement.BOTTOM->minOf(config.screenWidthDp,640).dp;else->minOf(config.screenWidthDp-32,560).dp }
     val density=LocalDensity.current
     val widthPx=with(density) { width.roundToPx() }
-    val radius=with(density) { 16.dp.toPx() }
+    val radius=with(density) { 20.dp.toPx() }
     val blurRadius=with(density) { 24.dp.roundToPx() }.coerceAtMost(80)
-    val dismiss by rememberUpdatedState(onDismiss)
+    val tint=MaterialTheme.colorScheme.surface
+    val stroke=MaterialTheme.colorScheme.onSurface.copy(alpha=.15f).toArgb()
+    val dismiss by rememberUpdatedState(onDismissRequest)
     val body by rememberUpdatedState(content)
-    // Compose's stock Dialog supplies its own opaque window theme. The translucent theme
-    // must be applied before PhoneWindow creates its decor, not after showing the dialog.
     val dialog=remember(context,composition) { ComponentDialog(context,R.style.PocketFrostedDialogTheme) }
-    DisposableEffect(dialog,widthPx,blurRadius,radius) {
+    DisposableEffect(dialog,widthPx,blurRadius,radius,tint,stroke,placement,immersive) {
         val window=checkNotNull(dialog.window)
         val view=ComposeView(dialog.context).apply {
             setParentCompositionContext(composition)
             setContent {
-                Surface(Modifier.width(width).fillMaxHeight().testTag("fullscreenEpisodePanel"),color=Color.Transparent,contentColor=MaterialTheme.colorScheme.onSurface) {
-                    Column(Modifier.windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.End)).padding(horizontal=20.dp,vertical=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp),content=body)
+                Surface(Modifier.width(width).then(if(placement==GlassPlacement.SIDE) Modifier.fillMaxHeight() else Modifier.heightIn(max=(config.screenHeightDp*.88f).dp)).testTag(tag),color=Color.Transparent,contentColor=MaterialTheme.colorScheme.onSurface) {
+                    Box(Modifier.windowInsetsPadding(if(immersive) WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal) else WindowInsets(0,0,0,0))) { body() }
                 }
             }
         }
         dialog.setContentView(view)
         dialog.setCanceledOnTouchOutside(true)
         dialog.setOnCancelListener { dismiss() }
-        val background=GradientDrawable().apply { cornerRadius=radius }
+        val background=GradientDrawable().apply { cornerRadius=radius;setStroke(with(density) { 1.dp.roundToPx() },stroke) }
         window.setBackgroundDrawable(background)
-        window.setGravity(Gravity.RIGHT or Gravity.CENTER_VERTICAL)
-        window.setWindowAnimations(R.style.PocketSidePanelAnimation)
+        window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.RIGHT or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL;else->Gravity.CENTER })
+        if(placement==GlassPlacement.SIDE) window.setWindowAnimations(R.style.PocketSidePanelAnimation)
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        WindowCompat.setDecorFitsSystemWindows(window,false)
+        WindowCompat.setDecorFitsSystemWindows(window,!immersive)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         fun update(enabled:Boolean) {
-            background.setColor(android.graphics.Color.argb(if(enabled) 224 else 248,24,23,21))
-            window.setDimAmount(.18f)
+            background.setColor(tint.copy(alpha=if(enabled) .78f else .96f).toArgb())
+            window.setDimAmount(.22f)
             if(Build.VERSION.SDK_INT>=31) window.setBackgroundBlurRadius(if(enabled) blurRadius else 0)
         }
         val manager=context.getSystemService(WindowManager::class.java)
         val listener=Consumer<Boolean> { update(it) }
         update(false)
         dialog.show()
-        window.setLayout(widthPx,ViewGroup.LayoutParams.MATCH_PARENT)
-        WindowCompat.getInsetsController(window,view).apply {
+        window.setLayout(widthPx,if(placement==GlassPlacement.SIDE) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT)
+        if(immersive) WindowCompat.getInsetsController(window,view).apply {
             systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.systemBars())
         }
@@ -84,5 +87,28 @@ import java.util.function.Consumer
             dialog.dismiss()
             view.disposeComposition()
         }
+    }
+}
+
+@Composable internal fun FrostedSidePanel(onDismiss:()->Unit,content:@Composable ColumnScope.()->Unit) {
+    FrostedDialog(onDismiss,GlassPlacement.SIDE,immersive=true,tag="fullscreenEpisodePanel") {
+        Column(Modifier.fillMaxSize().padding(horizontal=20.dp,vertical=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp),content=content)
+    }
+}
+
+@Composable internal fun GlassAlertDialog(onDismissRequest:()->Unit,title:@Composable ()->Unit,text:@Composable ()->Unit,
+    confirmButton:@Composable ()->Unit,dismissButton:(@Composable ()->Unit)?=null) {
+    FrostedDialog(onDismissRequest) {
+        Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+            ProvideTextStyle(MaterialTheme.typography.titleLarge,content=title)
+            Box(Modifier.weight(1f,false)) { ProvideTextStyle(MaterialTheme.typography.bodyMedium,content=text) }
+            FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { dismissButton?.invoke();confirmButton() }
+        }
+    }
+}
+
+@Composable internal fun GlassMenu(expanded:Boolean,onDismissRequest:()->Unit,content:@Composable ColumnScope.()->Unit) {
+    if(expanded) FrostedDialog(onDismissRequest) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(8.dp),content=content)
     }
 }

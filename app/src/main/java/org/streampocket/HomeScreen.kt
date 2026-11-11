@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.dp
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
                             IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
                         }
-                        FilledIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),shape=MaterialTheme.shapes.small,colors=IconButtonDefaults.filledIconButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.primary,disabledContainerColor=Color.Transparent,disabledContentColor=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.4f)),modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
+                        GlassIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),shape=MaterialTheme.shapes.small,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                     }
                 })
         }
@@ -80,7 +80,7 @@ import androidx.compose.ui.unit.dp
                     IconButton(onClick=back,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回推荐") }
                     if (s.results.isNotEmpty()) Box {
                         IconButton(onClick={sortMenu=true},modifier=Modifier.size(48.dp).testTag("searchSort")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"排序：${s.searchOrder.label}") }
-                        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                        GlassMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                             SearchOrder.entries.forEach { order -> DropdownMenuItem(text = { Text(order.label) },
                                 onClick = { model.sortSearch(order); sortMenu = false }, trailingIcon = { if (order == s.searchOrder) Text("已选") }) }
                         }
@@ -123,7 +123,7 @@ import androidx.compose.ui.unit.dp
                 if(!compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total == 0) "还没有可搜索的来源" else if(s.results.isNotEmpty()) "没有匹配的影片" else "暂未找到结果",
                     if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.total == 0) "添加订阅或启用来源后，再搜索这部影片。" else if(s.results.isNotEmpty()) "当前已加载结果没有该题材，可切换题材或查看其他源站结果。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
                 if (compact && !s.searching) Text(if (s.total == 0) "请先添加或启用订阅来源" else "暂无结果，试试其他关键词")
-                if(!s.searching) OutlinedButton(shape=MaterialTheme.shapes.medium,onClick=subscriptions) { Text("管理订阅") }
+                if(!s.searching) GlassButton(shape=MaterialTheme.shapes.medium,onClick=subscriptions) { Text("管理订阅") }
             }
         }
         items(videos,key={it.source.key+":"+it.id}) { video ->
@@ -135,9 +135,7 @@ import androidx.compose.ui.unit.dp
                         val metadata = SearchRules.metadata(video)
                         if(metadata.isNotEmpty()) Text(metadata.replace(" · ","  "),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
                         Text(video.source.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
-                        Text(s.probes[video.probeKey()]?.label ?: "未探测",style=MaterialTheme.typography.labelMedium,
-                            color=if(s.probes[video.probeKey()]==ProbeStatus.READY) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier=Modifier.testTag("probe:${video.id}"))
+                        MediaProbeIndicator(s.probes[video.probeKey()],textModifier=Modifier.testTag("probe:${video.id}"))
                         if(s.probes[video.probeKey()]==ProbeStatus.READY) Text(s.probeResolutions[video.probeKey()]?.let { "播放清单 · $it" } ?: "清晰度未确认",
                             style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeResolution:${video.id}"))
                         if(video.quality.evidence==QualityEvidence.UNKNOWN) { if(s.probes[video.probeKey()]!=ProbeStatus.READY) Text("清晰度未知",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }

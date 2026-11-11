@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import java.util.UUID
 
-data class UiState(val liveSourceKey:String?=null,val liveChannels:List<Video> = emptyList(),val liveLoading:Boolean=false,val liveError:String?=null, val loading: Boolean = true, val loadFailed: Boolean = false, val saved: Saved = Saved(), val results: List<Video> = emptyList(),
+data class UiState(val recommendPreview:Video?=null,val recommendSynopsis:String?=null,val recommendMetadata:String?=null,val recommendPreviewLoading:Boolean=false, val liveSourceKey:String?=null,val liveChannels:List<Video> = emptyList(),val liveLoading:Boolean=false,val liveError:String?=null, val loading: Boolean = true, val loadFailed: Boolean = false, val saved: Saved = Saved(), val results: List<Video> = emptyList(),
     val sourceAvailability:Map<String,Boolean> = emptyMap(), val probes:Map<String,ProbeStatus> = emptyMap(), val probeRunning:Boolean=false, val probeResolutions:Map<String,String> = emptyMap(),
     val searchQuery: String = "", val searchOrder: SearchOrder = SearchOrder.RELEVANCE,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
@@ -27,7 +27,8 @@ data class UiState(val liveSourceKey:String?=null,val liveChannels:List<Video> =
     val importing: Set<String> = emptySet(), val storageUsage: StorageUsage? = null, val message: String? = null)
 class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.Dns = PublicNetwork.dns,
     private val recommendationUrl: (String,String,Int)->String = Recommendations::url,
-    private val updateDocument:(suspend (Network)->String)? = null) : AndroidViewModel(application) {
+    private val updateDocument:(suspend (Network)->String)? = null,
+    private val synopsisUrl:(String)->String={ "https://movie.douban.com/subject/$it/" }) : AndroidViewModel(application) {
     private val responseCache = ResponseCache(java.io.File(application.cacheDir,"responses-v1"))
     val posters = PosterStore(java.io.File(application.cacheDir,"posters-v1"))
     private val store = Storage(application, purgeCache={ responseCache.clear(); posters.clear() })
@@ -116,17 +117,23 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     fun refreshSourceAvailability() { _state.update { it.copy(sourceAvailability=sourceHealth.snapshot()) } }
     private var probeJob:Job?=null
     private var probeActive=false
+    private var probeCatalog=false
     private var probeGeneration=0L
-    private val probeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,requestLimit=1)
+    private val probeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,requestLimit=ProbePolicy.CONCURRENCY)
     private val playbackProbe=PlaybackProbe(probeNetwork)
-    private val alternativeProbeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,requestLimit=3)
+    private val alternativeProbeNetwork=Network({ _state.value.saved.allowHttp },dns=dns,requestLimit=ProbePolicy.CONCURRENCY)
     private val alternativeProbe=PlaybackProbe(alternativeProbeNetwork)
     internal fun activeAlternativeProbeCalls()=alternativeProbeNetwork.client.dispatcher.runningCallsCount()+alternativeProbeNetwork.client.dispatcher.queuedCallsCount()
     internal fun activeSearchCalls()=network.client.dispatcher.runningCallsCount()+network.client.dispatcher.queuedCallsCount()
     internal fun activeProbeCalls()=probeNetwork.client.dispatcher.runningCallsCount()+probeNetwork.client.dispatcher.queuedCallsCount()
     private val probeCache=linkedMapOf<String,Pair<Long,ProbeResult>>()
-    fun setSearchProbeActive(active:Boolean) {
-        probeActive=active
+    fun setSearchProbeActive(active:Boolean,catalog:Boolean=false) {
+        if(!active && catalog!=probeCatalog) return
+        if(active && catalog!=probeCatalog) {
+            cancelProbes()
+            _state.update { it.copy(probes=emptyMap(),probeResolutions=emptyMap()) }
+        }
+        probeCatalog=catalog;probeActive=active
         if(active) startProbes() else cancelProbes()
     }
     private fun cancelProbes() {
@@ -135,29 +142,51 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     }
     private fun probeSorted(rows:List<Video>,statuses:Map<String,ProbeStatus>)=rows.sortedBy { if(statuses[it.probeKey()]==ProbeStatus.READY) 0 else 1 }
     private fun startProbes() {
-        if(!probeActive || probeJob?.isActive==true || state.value.searchQuery.isBlank()) return
+        val catalog=probeCatalog
+        val query=if(catalog) state.value.catalogQuery else state.value.searchQuery
+        if(!probeActive || probeJob?.isActive==true || query.isBlank()) return
         val owner=++probeGeneration
         probeJob=viewModelScope.launch {
-            val attempted=mutableSetOf<String>()
-            try { withTimeout(30_000) {
-                while(isActive && owner==probeGeneration && state.value.probes.values.count { it==ProbeStatus.READY }<2 && attempted.size<12 && state.value.probes.size<12) {
-                    val snapshot=state.first { st -> !st.searching || st.results.any { it.source.kind==SourceKind.VOD && SearchRules.relevance(it,st.searchQuery)>0 && it.probeKey() !in attempted && it.probeKey() !in st.probes } }
-                    val video=snapshot.results.firstOrNull { it.source.kind==SourceKind.VOD && SearchRules.relevance(it,snapshot.searchQuery)>0 && it.probeKey() !in attempted && it.probeKey() !in snapshot.probes } ?: break
-                    val key=video.probeKey();attempted+=key
-                    _state.update { it.copy(probeRunning=true,probes=it.probes+(key to ProbeStatus.CHECKING)) }
-                    val now=System.currentTimeMillis()
-                    probeCache.entries.removeAll { now-it.value.first !in 0..300_000L }
-                    val result=probeCache[key]?.second ?: try { withTimeout(5_000) { playbackProbe.inspect(video) } }
-                        catch(e:TimeoutCancellationException) { ensureActive();ProbeResult(ProbeStatus.FAILED) }
-                        catch(e:CancellationException) { throw e }
-                        catch(_:Exception) { ProbeResult(ProbeStatus.FAILED) }
-                    ensureActive()
-                    if(owner!=probeGeneration) break
-                    probeCache.remove(key);probeCache[key]=now to result
-                    while(probeCache.size>100) probeCache.remove(probeCache.keys.first())
-                    _state.update { val statuses=it.probes+(key to result.status);it.copy(probes=statuses,probeResolutions=if(result.resolution!=null) it.probeResolutions+(key to result.resolution) else it.probeResolutions-key,results=probeSorted(it.results,statuses)) }
-                }
-            } } catch(_:TimeoutCancellationException) { /* bounded automatic work */ }
+            var enough=state.value.probes.values.count { it==ProbeStatus.READY }>=ProbePolicy.READY_LIMIT
+            if(enough) return@launch
+            _state.update { it.copy(probeRunning=true) }
+            try { withTimeout(60_000) { supervisorScope {
+                val detection=this
+                val slots=Semaphore(ProbePolicy.CONCURRENCY)
+                val admitted=mutableSetOf<String>()
+                // Observe streamed search results until discovery finishes; slow sources must
+                // not lose their opportunity because earlier results exhausted a serial timer.
+                state.map { if(catalog) it.catalogVideos to it.catalogLoading else it.results to it.searching }.distinctUntilChanged()
+                    .transformWhile { emit(it);it.second }.collect { (rows,_) ->
+                        rows.filter { it.source.kind==SourceKind.VOD && SearchRules.relevance(it,query)>0 }.forEach { video ->
+                            val key=video.probeKey()
+                            if(admitted.size>=PlaybackAlternatives.MAX_OPTIONS || key in state.value.probes || !admitted.add(key)) return@forEach
+                            launch { slots.withPermit {
+                                ensureActive()
+                                if(owner!=probeGeneration) return@withPermit
+                                _state.update { it.copy(probes=it.probes+(key to ProbeStatus.CHECKING)) }
+                                val now=System.currentTimeMillis()
+                                probeCache.entries.removeAll { now-it.value.first !in 0..300_000L }
+                                val result=probeCache[key]?.second ?: try { withTimeout(ProbePolicy.SESSION_TIMEOUT_MS) { playbackProbe.inspect(video) } }
+                                    catch(e:TimeoutCancellationException) { ensureActive();ProbeResult(ProbeStatus.FAILED) }
+                                    catch(e:CancellationException) { throw e }
+                                    catch(_:Exception) { ProbeResult(ProbeStatus.FAILED) }
+                                ensureActive()
+                                if(owner!=probeGeneration) return@withPermit
+                                // Transient failures and unverified media are retried next query.
+                                if(result.status==ProbeStatus.READY) {
+                                    probeCache.remove(key);probeCache[key]=System.currentTimeMillis() to result
+                                    while(probeCache.size>100) probeCache.remove(probeCache.keys.first())
+                                }
+                                _state.update { val statuses=it.probes+(key to result.status);it.copy(probes=statuses,probeResolutions=if(result.resolution!=null) it.probeResolutions+(key to result.resolution) else it.probeResolutions-key,results=if(catalog) it.results else probeSorted(it.results,statuses),catalogVideos=if(catalog) probeSorted(it.catalogVideos,statuses) else it.catalogVideos) }
+                                if(state.value.probes.values.count { it==ProbeStatus.READY }>=ProbePolicy.READY_LIMIT) {
+                                    enough=true;detection.cancel()
+                                }
+                            } }
+                        }
+                    }
+            } } } catch(_:TimeoutCancellationException) { /* bounded automatic work */ }
+            catch(e:CancellationException) { if(!enough) throw e }
             finally { if(owner==probeGeneration) _state.update { it.copy(probeRunning=false,probes=it.probes.filterValues { status->status!=ProbeStatus.CHECKING }) } }
         }
     }
@@ -300,7 +329,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     fun cancelImport(key: String) { importJobs[key]?.cancel() }
     fun cancelSearch() { cancelProbes();searchJob?.cancel(); searchJob = null; _state.update { it.copy(searching = false) } }
     fun search(query: String) {
-        cancelSearch()
+        cancelSearch();probeCatalog=false
         searchOrderPinned=false
         val q = query.trim().take(100); if(q.isEmpty()) return
         val sources = distinctSearchDomains(sourceHealth.ordered(state.value.saved.enabledSources(),QueryKind.SEARCH),network::actualDomain)
@@ -341,6 +370,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         change { it.copy(adRules=it.adRules + (source.key to paths)) }
     }
     fun cancelCatalog() {
+        if(probeCatalog) cancelProbes()
         catalogOwner++;catalogJob?.cancel();catalogJob=null
         _state.update { it.copy(catalogLoading=false,catalogMore=catalogCursors.isNotEmpty(),catalogError=if(it.catalogLoading) "查找已取消" else it.catalogError) }
     }
@@ -356,6 +386,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         val rawCategory=category.takeIf { sources.size==1 }
         if(more && (before.catalogLoading || !before.catalogMore || before.catalogSourceKeys!=sourceKeys || before.catalogCategory!=rawCategory || before.catalogQuery!=query || before.catalogGenres!=genres)) return
         cancelCatalog();val owner=catalogOwner
+        if(probeCatalog && !more) { cancelProbes();_state.update { it.copy(probes=emptyMap(),probeResolutions=emptyMap()) } }
         if(!more) { catalogCursors.clear();sources.forEach { catalogCursors[it.key]=null } }
         val tasks=sources.filter { it.key in catalogCursors }.map { it to catalogCursors[it.key] }
         _state.update { it.copy(catalogSource=sources.first(),catalogSourceKeys=sourceKeys.toSet(),catalogCategory=rawCategory,catalogGenres=genres.toSet(),catalogQuery=query,
@@ -396,6 +427,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                     catalogError=if(timedOut) "查找超时，已保留返回结果，可继续查找" else if(failures>0) "$failures 个来源未完成，已保留返回结果" else null) }
             }
         }
+        if(probeCatalog) startProbes()
     }
     fun shuffleCatalog() {
         val before=state.value
@@ -427,6 +459,34 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                 _state.update { it.copy(catalogLoading=false,catalogVideos=if(rows.isEmpty()) it.catalogVideos.shuffled() else rows.distinctBy { v->v.probeKey() }.shuffled().take(1000),
                     catalogMore=next.isNotEmpty(),catalogError=if(failures>0) "部分来源未响应，已保留可用推荐" else if(rows.isEmpty()) "没有新的匹配，已随机排列当前结果" else null) }
             } }
+        }
+    }
+    private var synopsisJob:Job?=null
+    private var synopsisOwner=0L
+    fun closeRecommendation() {
+        synopsisOwner++;synopsisJob?.cancel();synopsisJob=null
+        _state.update { it.copy(recommendPreview=null,recommendSynopsis=null,recommendMetadata=null,recommendPreviewLoading=false) }
+    }
+    fun openRecommendation(video:Video) {
+        closeRecommendation()
+        val owner=synopsisOwner
+        _state.update { it.copy(recommendPreview=video,recommendPreviewLoading=true) }
+        synopsisJob=viewModelScope.launch {
+            supervisorScope {
+                val url=synopsisUrl(video.id)
+                val metadata=async {
+                    try { withTimeout(8_000) {
+                        val endpoint=if(url.startsWith("https://movie.douban.com/subject/")) "https://movie.douban.com/j/subject_abstract?subject_id=${video.id}" else "$url?abstract=true"
+                        withContext(Dispatchers.Default) { recommendationMetadata(network.text(endpoint)) }
+                    } } catch(e:TimeoutCancellationException) { null } catch(e:CancellationException) { throw e } catch(_:Exception) { null }
+                }
+                val summary=try { withTimeout(10_000) { withContext(Dispatchers.Default) { recommendationSynopsis(network.text(url)) } } }
+                    catch(e:TimeoutCancellationException) { null }
+                    catch(e:CancellationException) { throw e }
+                    catch(_:Exception) { null }
+                val info=metadata.await()
+                if(owner==synopsisOwner) _state.update { it.copy(recommendSynopsis=summary,recommendMetadata=info,recommendPreviewLoading=false) }
+            }
         }
     }
     fun recommend(type: String = state.value.recommendType, tag: String = if(type == state.value.recommendType) state.value.recommendTag else "热门", more: Boolean = false) {
@@ -490,10 +550,10 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
             var enough=false
             var ready=0
             try {
-                withTimeout(18_000) {
+                withTimeout(ProbePolicy.SESSION_TIMEOUT_MS) {
                     supervisorScope {
                         val discovery=this
-                        val probeSlots=Semaphore(3)
+                        val probeSlots=Semaphore(ProbePolicy.CONCURRENCY)
                         val seen=mutableSetOf<String>()
                         fun updateProbe(option:PlaybackAlternative,result:ProbeResult) {
                             if(active()) _state.update { currentState -> currentState.copy(alternatives=currentState.alternatives.map {
@@ -512,14 +572,14 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                                     probeSlots.withPermit {
                                         ensureActive()
                                         updateProbe(option,ProbeResult(ProbeStatus.CHECKING))
-                                        val result=try { withTimeout(5_000) { alternativeProbe.inspect(option.episode) } }
+                                        val result=try { withTimeout(ProbePolicy.MEDIA_TIMEOUT_MS) { alternativeProbe.inspect(option.episode) } }
                                             catch(e:TimeoutCancellationException) { ensureActive();ProbeResult(ProbeStatus.FAILED) }
                                             catch(e:CancellationException) { throw e }
                                             catch(_:Exception) { ProbeResult(ProbeStatus.FAILED) }
                                         ensureActive()
                                         if(!active()) return@withPermit
                                         updateProbe(option,result)
-                                        if(result.status==ProbeStatus.READY && ++ready==2) {
+                                        if(result.status==ProbeStatus.READY && ++ready==ProbePolicy.READY_LIMIT) {
                                             enough=true
                                             discovery.cancel() // Cancel searches, queued probes and in-flight media reads together.
                                         }

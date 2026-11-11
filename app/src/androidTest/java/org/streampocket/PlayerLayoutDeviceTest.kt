@@ -28,9 +28,9 @@ class PlayerLayoutDeviceTest {
         val assets=InstrumentationRegistry.getInstrumentation().context.assets
         val probeCapture=InstrumentationRegistry.getArguments().getString("alternativeProbeCapture")=="true"
         val separator="${'$'}${'$'}${'$'}"
-        val lineNames=if(probeCapture) "高清线路${separator}备用 A${separator}备用 B" else "高清线路"
+        val lineNames=if(true) "高清线路${separator}备用 A${separator}备用 B" else "高清线路"
         val playUrls=(1..500).joinToString("#") { "第${it}集${'$'}$base/test.mp4?e=$it" }+
-            if(probeCapture) "${separator}第1集${'$'}$base/test.mp4?alt=a${separator}第1集${'$'}$base/test.mp4?alt=b" else ""
+            if(true) "${separator}第1集${'$'}$base/test.mp4?alt=a${separator}第1集${'$'}$base/test.mp4?alt=b" else ""
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse = if(request.requestUrl!!.encodedPath=="/api") MockResponse().setBody("""{"list":[{"vod_play_from":"$lineNames","vod_play_url":"$playUrls"}]}""")
                 else MockResponse().setBody(Buffer().write(assets.open("test.mp4").use { it.readBytes() })).setHeader("Content-Type","video/mp4")
@@ -122,6 +122,19 @@ class PlayerLayoutDeviceTest {
             ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
             ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
             captureUi(ui,"player-landscape")
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.findViewById<View>(androidx.media3.ui.R.id.exo_settings).performClick() }
+            ui.onNodeWithTag("playbackOptions").assertIsDisplayed()
+            ui.onNodeWithTag("speed:1.5").performClick()
+            ui.runOnIdle { assertEquals(1.5f,view(ui.activity.window.decorView)!!.player!!.playbackParameters.speed) }
+            captureUi(ui,"player-fullscreen-options")
+            ui.onNodeWithText("关闭").performClick()
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+            ui.onNodeWithText("快速换源").performClick()
+            ui.waitUntil(10000) { !model.state.value.alternativesLoading && model.state.value.alternatives.count { it.probeStatus==ProbeStatus.READY }==2 }
+            captureUi(ui,"player-fullscreen-alternatives")
+            ui.onNodeWithText("关闭").performClick()
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.showController() }
+
             assertEquals(created,PlaybackMetrics.created)
             val windowsBefore=if(android.os.Build.VERSION.SDK_INT>=29) android.view.inspector.WindowInspector.getGlobalWindowViews().size else 0
             ui.onNodeWithText("选集").performClick()

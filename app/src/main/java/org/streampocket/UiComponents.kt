@@ -119,7 +119,7 @@ import androidx.compose.ui.unit.sp
         keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),
         keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
         decorationBox={input ->
-            Surface(shape=MaterialTheme.shapes.small,color=MaterialTheme.colorScheme.surfaceContainerLow,
+            Surface(shape=MaterialTheme.shapes.small,color=glassFill(),
                 border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.65f) else androidx.compose.ui.graphics.Color.Transparent)) {
                 Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Icon(painterResource(R.drawable.ic_search),null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)

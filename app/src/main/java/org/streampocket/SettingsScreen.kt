@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.dp
                 Text("响应内存：${u.memoryBytes/1024} KiB / 2 MiB",style=MaterialTheme.typography.bodyMedium)
             }
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(shape=MaterialTheme.shapes.medium,onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
+                GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
                 TextButton(onClick=model::refreshStorage,modifier=Modifier.heightIn(min=48.dp)) { Text("刷新用量") }
             }
         } }

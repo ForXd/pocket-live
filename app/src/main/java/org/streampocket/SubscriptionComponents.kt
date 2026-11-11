@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
             }
             Box {
                 IconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"管理订阅 ${sub.name}") }
-                DropdownMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
+                GlassMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
                     DropdownMenuItem(text={Text(if(sub.isLocalJson) "重新选择 JSON 文件" else "更新订阅")},enabled=!importing,onClick={menuOpen=false;onUpdate()})
                     DropdownMenuItem(text={Text("删除订阅",color=MaterialTheme.colorScheme.error)},onClick={menuOpen=false;onDelete()})
                 }
@@ -62,7 +62,7 @@ import androidx.compose.ui.unit.dp
             }
             if(source.kind==SourceKind.VOD && onRules!=null) Box {
                 IconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"来源选项 ${source.name}") }
-                DropdownMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
+                GlassMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
                     DropdownMenuItem(text={Text("广告精确路径规则")},onClick={menuOpen=false;onRules()})
                 }
             }

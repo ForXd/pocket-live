@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
         SheetSystemBars()
         LazyColumn(contentPadding=PaddingValues(20.dp)) {
             item { Row(verticalAlignment=Alignment.CenterVertically) { Text("直播来源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge);TextButton(onClick={picker=false}) { Text("取消") } } }
-            items(sources,key={it.key}) { source -> ListItem(headlineContent={Text(source.name)},leadingContent={RadioButton(source.key==s.liveSourceKey,onClick=null)},modifier=Modifier.clickable { model.loadLive(source.key);picker=false }.testTag("liveSource:${source.key}")) }
+            items(sources,key={it.key}) { source -> ListItem(colors=ListItemDefaults.colors(containerColor=androidx.compose.ui.graphics.Color.Transparent),headlineContent={Text(source.name)},leadingContent={RadioButton(source.key==s.liveSourceKey,onClick=null)},modifier=Modifier.clickable { model.loadLive(source.key);picker=false }.testTag("liveSource:${source.key}")) }
         }
     }
     Column(Modifier.fillMaxSize()) {

@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
         try { jsonPicker.launch(arrayOf("*/*")) }
         catch(_:android.content.ActivityNotFoundException) { fileTargetId=null;model.message("未找到文件选择器，可使用粘贴 JSON") }
     }
-    if(jsonDialog) AlertDialog(onDismissRequest={model.cancelImport("new");jsonDialog=false;jsonText=""},title={Text("粘贴 JSON")},text={
+    if(jsonDialog) GlassAlertDialog(onDismissRequest={model.cancelImport("new");jsonDialog=false;jsonText=""},title={Text("粘贴 JSON")},text={
         Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("粘贴订阅配置，支持与链接导入相同的格式。最多 2 MiB。")
             OutlinedTextField(shape=MaterialTheme.shapes.medium,value=jsonText,onValueChange={ if(it.length<=JsonData.LIMIT) jsonText=it else model.message("JSON 内容超过 2 MiB 上限") },
@@ -144,15 +144,15 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val playback = s.playback
     if(playback != null) { PlaybackScreen(playback, model); return }
-    if(addingSubscription) ModalBottomSheet(onDismissRequest={model.cancelImport("new");addingSubscription=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
+    if(addingSubscription) HandleOnlySheet(onDismissRequest={model.cancelImport("new");addingSubscription=false}) {
         SheetSystemBars()
                         Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                             Text("添加订阅",style=MaterialTheme.typography.headlineSmall)
                             OutlinedTextField(url,{url=it.take(4096)},modifier=Modifier.fillMaxWidth().testTag("subscriptionInput"),label={Text("粘贴订阅链接")},singleLine=true,shape=MaterialTheme.shapes.medium,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri))
-                            Button(shape=MaterialTheme.shapes.medium,onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
+                            GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
                                 Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("添加订阅")
                             }
-                            OutlinedButton(shape=MaterialTheme.shapes.medium,onClick={chooseJson()},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("选择 JSON 文件") }
+                            GlassButton(shape=MaterialTheme.shapes.medium,onClick={chooseJson()},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("选择 JSON 文件") }
                             TextButton(onClick={model.message(null);jsonDialog=true},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("粘贴 JSON") }
                             if("new" in s.importing) TextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
                             Text("JSON 文件上限 2 MiB",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -171,6 +171,7 @@ class MainActivity : ComponentActivity() {
     val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
     val wide=LocalConfiguration.current.screenWidthDp>=840
+    if(s.recommendPreview!=null) { RecommendationPreview(s,model,::search);return }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
     Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
@@ -197,15 +198,15 @@ class MainActivity : ComponentActivity() {
         },
         bottomBar = { if(!wide && !imeVisible && s.detail==null && !s.detailLoading) NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp,modifier=Modifier.testTag("mainNavigation")) {
             listOf(0,2,1,3).forEach { i ->
-                NavigationBarItem(colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,indicatorColor=Color.Transparent),selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
-                    modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(destinations[i])})
+                NavigationBarItem(colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,indicatorColor=glassFill(true)),selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
+                    modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(destinations[i],fontWeight=if(tab==i) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal)})
             }
         } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->
         Row(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize().imePadding()) {
         if(wide) NavigationRail(containerColor=MaterialTheme.colorScheme.background,windowInsets=WindowInsets(0,0,0,0),modifier=Modifier.testTag("mainNavigation")) {
             Spacer(Modifier.height(24.dp))
-            listOf(0,2,1,3).forEach { i -> NavigationRailItem(selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(destinations[i])},colors=NavigationRailItemDefaults.colors(indicatorColor=Color.Transparent)) }
+            listOf(0,2,1,3).forEach { i -> NavigationRailItem(selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(destinations[i],fontWeight=if(tab==i) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal)},colors=NavigationRailItemDefaults.colors(indicatorColor=glassFill(true))) }
         }
         val destination=when {
             s.detailLoading -> "detailLoading"
@@ -238,7 +239,7 @@ class MainActivity : ComponentActivity() {
                     item { Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
                             modifier=Modifier.weight(1f), style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        FilledTonalIconButton(onClick={addingSubscription=!addingSubscription},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Add,if(addingSubscription) "收起添加订阅" else "添加订阅") }
+                        GlassIconButton(onClick={addingSubscription=!addingSubscription},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Add,if(addingSubscription) "收起添加订阅" else "添加订阅") }
                     } }
                     if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在首页搜索或浏览内容。",R.drawable.ic_library) }
                     s.saved.subscriptions.forEach { sub ->
@@ -271,7 +272,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     } // Bounded content
-    ruleSource?.let { source -> AlertDialog(onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
+    ruleSource?.let { source -> GlassAlertDialog(onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
         OutlinedTextField(shape=MaterialTheme.shapes.medium,value=ruleText,onValueChange={ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={TextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={TextButton(onClick={ruleSource=null}) { Text("取消") }}) }
-    delete?.let { sub -> AlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={TextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={TextButton(onClick={delete=null}){Text("取消")}}) }
+    delete?.let { sub -> GlassAlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={TextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={TextButton(onClick={delete=null}){Text("取消")}}) }
 }

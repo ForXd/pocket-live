@@ -51,7 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
     val recommendationFilters=rememberSaveable { mutableStateOf(false) }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
-    val catalogVideos=remember(s.catalogVideos,catalogSort) { catalogSort.apply(s.catalogVideos) }
+    val catalogVideos=remember(s.catalogVideos,catalogSort,s.probes) { catalogSort.apply(s.catalogVideos).sortedBy { if(s.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 } }
     var picker by rememberSaveable { mutableStateOf<String?>(null) }
     var draftGenres by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var draftSources by rememberSaveable { mutableStateOf(emptyList<String>()) }
@@ -63,6 +63,13 @@ import androidx.compose.ui.text.style.TextOverflow
         }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
+    }
+    val catalogProbeVisible=!recommendations.value && !liveTab.value && s.catalogQuery.isNotBlank()
+    DisposableEffect(model,lifecycle,catalogProbeVisible,s.catalogQuery) {
+        fun update() { model.setSearchProbeActive(catalogProbeVisible && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED),catalog=true) }
+        val observer=androidx.lifecycle.LifecycleEventObserver { _,_->update() }
+        lifecycle.addObserver(observer);update()
+        onDispose { lifecycle.removeObserver(observer);model.setSearchProbeActive(false,catalog=true) }
     }
     val keyboard=LocalSoftwareKeyboardController.current
     val focus=androidx.compose.ui.platform.LocalFocusManager.current
@@ -82,7 +89,7 @@ import androidx.compose.ui.text.style.TextOverflow
             if(picker=="source") {
                 item { Text("不选即搜索所有来源",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                 items(sources,key={it.key}) { source ->
-                    ListItem(headlineContent={Text(source.name)},leadingContent={Checkbox(checked=source.key in draftSources,onCheckedChange=null)},
+                    ListItem(colors=ListItemDefaults.colors(containerColor=androidx.compose.ui.graphics.Color.Transparent),headlineContent={Text(source.name)},leadingContent={Checkbox(checked=source.key in draftSources,onCheckedChange=null)},
                         modifier=Modifier.fillMaxWidth().toggleable(value=source.key in draftSources,role=androidx.compose.ui.semantics.Role.Checkbox) {
                             draftSources=if(source.key in draftSources) draftSources-source.key else draftSources+source.key
                         }.testTag("catalogSource:${source.key}"))
@@ -115,7 +122,7 @@ import androidx.compose.ui.text.style.TextOverflow
             HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
                 TextButton(onClick={if(picker=="source") draftSources=emptyList() else { draftGenres=emptyList();draftCategory=null }},modifier=Modifier.testTag("clearCatalogFilters")) { Text("重置") }
-                Button(shape=MaterialTheme.shapes.medium,onClick={
+                GlassButton(shape=MaterialTheme.shapes.medium,onClick={
                     if(picker=="source") model.browseSources(draftSources.toSet(),query=catalogQuery.trim(),genres=s.catalogGenres)
                     else model.browseSources(s.catalogSourceKeys,draftCategory,catalogQuery.trim(),genres=draftGenres.map { Genre.valueOf(it) }.toSet())
                     picker=null
@@ -159,12 +166,12 @@ import androidx.compose.ui.text.style.TextOverflow
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                     item {
-                        OutlinedButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
+                        GlassButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
                             Text(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
                         }
                     }
                     item {
-                        OutlinedButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
+                        GlassButton(shape=MaterialTheme.shapes.small,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
                             Text(s.categories.find { it.id==s.catalogCategory }?.name ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}");Icon(Icons.Default.ArrowDropDown,null)
                         }
                     }
@@ -195,7 +202,7 @@ import androidx.compose.ui.text.style.TextOverflow
         LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 180.dp else if(androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=600) 180.dp else 150.dp),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             if(sources.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
                 EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
-                Button(shape=MaterialTheme.shapes.medium,onClick=addSource) { Text("添加订阅") }
+                GlassButton(shape=MaterialTheme.shapes.medium,onClick=addSource) { Text("添加订阅") }
             }
             s.catalogSource?.let { source ->
                 if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item(span={GridItemSpan(maxLineSpan)}) {
@@ -206,7 +213,7 @@ import androidx.compose.ui.text.style.TextOverflow
                     }
                 }
                 items(catalogVideos,key={it.source.key+":"+it.id}) { video ->
-                    PosterGridCard(video,model,Modifier.testTag("catalogVideo:${video.id}"),"catalog") { model.open(video) }
+                    PosterGridCard(video,model,Modifier.testTag("catalogVideo:${video.id}"),"catalog",probe=s.probes[video.probeKey()],showProbe=s.catalogQuery.isNotBlank()) { model.open(video) }
                 }
 
                 if(s.catalogLoading) item(span={GridItemSpan(maxLineSpan)}) { Row(verticalAlignment=Alignment.CenterVertically) {
@@ -217,7 +224,7 @@ import androidx.compose.ui.text.style.TextOverflow
                     TextButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,more=s.catalogMore,genres=s.catalogGenres)}) { Text("重新加载") }
                 } }
                 if(s.catalogMore && !s.catalogLoading) item(span={GridItemSpan(maxLineSpan)}) {
-                    OutlinedButton(shape=MaterialTheme.shapes.medium,onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,true,s.catalogGenres)},modifier=Modifier.fillMaxWidth().testTag("catalogMore")) {
+                    GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,true,s.catalogGenres)},modifier=Modifier.fillMaxWidth().testTag("catalogMore")) {
                         Text(if(s.catalogGenres.isEmpty()) "加载更多" else "继续查找")
                     }
                 }
@@ -277,7 +284,7 @@ import androidx.compose.ui.text.style.TextOverflow
             HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
                 TextButton(onClick={draftTag="热门"}) { Text("重置") }
-                Button(shape=MaterialTheme.shapes.medium,onClick={categoryPicker.value=false;model.recommend(tag=draftTag)},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("applyRecommendCategory")) { Text("应用") }
+                GlassButton(shape=MaterialTheme.shapes.medium,onClick={categoryPicker.value=false;model.recommend(tag=draftTag)},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("applyRecommendCategory")) { Text("应用") }
             }
         }
     }
@@ -289,7 +296,7 @@ import androidx.compose.ui.text.style.TextOverflow
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
         videos.firstOrNull()?.let { featured ->
             item(key=featured.id,span={GridItemSpan(maxLineSpan)},contentType="featured") {
-                FeaturedRecommendation(featured,model) { searchTitle(featured.title) }
+                FeaturedRecommendation(featured,model) { model.openRecommendation(featured) }
             }
             if(videos.size>1) item(key="recommend-heading",span={GridItemSpan(maxLineSpan)}) {
                 Row(Modifier.fillMaxWidth().padding(top=12.dp,bottom=4.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -299,7 +306,7 @@ import androidx.compose.ui.text.style.TextOverflow
             }
         }
         items(videos.drop(1),key={it.id},contentType={"recommendation"}) { video ->
-            PosterGridCard(video,model,Modifier.testTag("recommendation:${video.id}"),"recommend") { searchTitle(video.title) }
+            PosterGridCard(video,model,Modifier.testTag("recommendation:${video.id}"),"recommend") { model.openRecommendation(video) }
         }
 
         if(s.recommendLoading && !refreshing) item(span={GridItemSpan(maxLineSpan)}) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
@@ -308,7 +315,7 @@ import androidx.compose.ui.text.style.TextOverflow
                 TextButton(onClick={model.recommend(more=s.recommendAppending)}) { Text("重试推荐") } }
         } }
         if(!s.recommendMore && !s.recommendLoading && videos.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("已显示本次推荐",Modifier.fillMaxWidth().padding(12.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-        if(s.recommendMore && !s.recommendLoading && s.recommendError==null) item(span={GridItemSpan(maxLineSpan)}) { OutlinedButton(shape=MaterialTheme.shapes.medium,onClick={model.recommend(more=true)}) { Text("更多推荐") } }
+        if(s.recommendMore && !s.recommendLoading && s.recommendError==null) item(span={GridItemSpan(maxLineSpan)}) { GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.recommend(more=true)}) { Text("更多推荐") } }
     }
     val showTop by remember { derivedStateOf { grid.firstVisibleItemIndex>3 } }
     BackToTop(showTop,Modifier.align(Alignment.BottomEnd)) { scope.launch { grid.animateScrollToItem(0);onTop() } }
@@ -318,7 +325,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @Composable internal fun BackToTop(visible:Boolean,modifier:Modifier=Modifier,onClick:()->Unit) {
     androidx.compose.animation.AnimatedVisibility(visible,modifier.padding(16.dp)) {
-        SmallFloatingActionButton(onClick=onClick,modifier=Modifier.testTag("backToTop"),containerColor=MaterialTheme.colorScheme.secondaryContainer) {
+        GlassIconButton(onClick=onClick,modifier=Modifier.size(48.dp).testTag("backToTop")) {
             Icon(Icons.Default.KeyboardArrowUp,"回到顶部")
         }
     }
@@ -349,7 +356,7 @@ import androidx.compose.ui.text.style.TextOverflow
         Box {
             if(compact) IconButton(onClick={expanded=true},modifier=Modifier.size(48.dp).testTag("discoverySort")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"排序：${selected.label}") }
             else TextButton(onClick={expanded=true},modifier=Modifier.heightIn(min=48.dp).testTag("discoverySort")) { Text("排序：${selected.label}");Icon(Icons.Default.ArrowDropDown,null) }
-            DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) {
+            GlassMenu(expanded=expanded,onDismissRequest={expanded=false}) {
                 DiscoverySort.entries.forEach { option ->
                     DropdownMenuItem(text={Text(option.label)},onClick={onSelect(option);expanded=false},
                         enabled=option!=DiscoverySort.UPDATED || !recommendation,
@@ -388,11 +395,15 @@ import androidx.compose.ui.text.style.TextOverflow
     }
 }
 
-@Composable private fun PosterGridCard(video:Video,model:AppModel,modifier:Modifier,prefix:String,onClick:()->Unit) {
+@Composable private fun PosterGridCard(video:Video,model:AppModel,modifier:Modifier,prefix:String,probe:ProbeStatus?=null,showProbe:Boolean=false,onClick:()->Unit) {
     DiscoveryCard(onClick=onClick,modifier=modifier.fillMaxWidth()) {
         Box {
             Poster(video,model,Modifier.fillMaxWidth().aspectRatio(0.75f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)
+        }
+        if(showProbe) {
+            val status=probe
+            MediaProbeIndicator(status)
         }
         CardTextSlot(video.title,modifier=Modifier.padding(horizontal=2.dp,vertical=8.dp).testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=14.sp,lineHeight=20.sp),color=MaterialTheme.colorScheme.onSurface,lines=1)
     }
@@ -410,7 +421,7 @@ import androidx.compose.ui.text.style.TextOverflow
             Text(video.title,Modifier.testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.headlineLarge,maxLines=2,overflow=TextOverflow.Ellipsis)
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                 Text(video.subtitle.ifBlank { "${if(wide) "发现好故事 · " else ""}精选${if(video.source.name.isNotBlank()) "推荐" else "影片"}" },Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
-                Button(onClick=onClick,shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=18.dp,vertical=12.dp)) { Text("查找片源 ›") }
+                GlassButton(onClick=onClick,shape=MaterialTheme.shapes.small,contentPadding=PaddingValues(horizontal=18.dp,vertical=12.dp)) { Text("查看简介 ›") }
             }
         }
     }

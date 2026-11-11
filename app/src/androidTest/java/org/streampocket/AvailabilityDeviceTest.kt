@@ -61,17 +61,19 @@ class AvailabilityDeviceTest {
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     @Test fun probesTwoMediaResultsThenStopsAndShowsHealthWithoutPlayers() {
         val created=PlaybackMetrics.created
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("星河")
         ui.onNodeWithTag("searchInput").performImeAction()
         ui.waitUntil(15000) { model.state.value.probes.values.count { it==ProbeStatus.READY }==2 && !model.state.value.probeRunning && !model.state.value.searching }
-        assertEquals(listOf("1","2","3"),details.toList())
-        assertEquals(listOf("2","3"),model.state.value.results.take(2).map { it.id })
+        assertTrue(details.size in 3..5)
+        assertTrue(model.state.value.results.take(2).all { model.state.value.probes[it.probeKey()]==ProbeStatus.READY })
         assertEquals(5,model.state.value.results.size)
         assertEquals(2,model.state.value.total)
         assertEquals("1920×1080",model.state.value.probeResolutions[model.state.value.results.first().probeKey()])
         assertEquals(created,PlaybackMetrics.created)
-        ui.onNodeWithTag("probe:2",useUnmergedTree=true).assertTextEquals("媒体可用")
-        ui.onNodeWithTag("probeResolution:2",useUnmergedTree=true).assertTextEquals("播放清单 · 1920×1080")
+        val first=model.state.value.results.first().id
+        ui.onNodeWithTag("probe:$first",useUnmergedTree=true).assertTextEquals("媒体可用")
+        ui.onNodeWithTag("probeResolution:$first",useUnmergedTree=true).assertTextEquals("播放清单 · 1920×1080")
         captureUi(ui,"search-probes")
         if(androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("uxReview")=="true") {
             val done=java.io.File(ui.activity.filesDir,"availability-review-done");done.delete()
@@ -82,9 +84,11 @@ class AvailabilityDeviceTest {
             return
         }
 
+        val readyIds=model.state.value.results.take(2).map { it.id }
+        val before=readyIds.associateWith { id->details.count { it==id } }
         ui.onNodeWithContentDescription("开始搜索").performClick()
         ui.waitUntil(10000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==2 }
-        assertEquals("Repeated query reuses bounded probe cache",listOf("1","2","3"),details.toList())
+        readyIds.forEach { id->assertEquals("Successful probes are reused",before[id],details.count { it==id }) }
 
         ui.onNodeWithTag("nav:1").performClick()
         ui.onNodeWithText("资源测试").performClick()
@@ -95,6 +99,7 @@ class AvailabilityDeviceTest {
         captureUi(ui,"source-health")
     }
     @Test fun leavingSearchCancelsActiveMediaWorkAndCannotCommitLateResults() {
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("慢速")
         ui.onNodeWithTag("searchInput").performImeAction()
         ui.waitUntil(10000) { details.contains("slow") && model.state.value.probeRunning }
@@ -106,6 +111,7 @@ class AvailabilityDeviceTest {
         assertEquals(true,model.state.value.sourceAvailability[model.state.value.results.single().source.key])
     }
     @Test fun newQueryCancelsOldProbeAndKeepsOnlyNewStatuses() {
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("慢速")
         ui.onNodeWithTag("searchInput").performImeAction()
         ui.waitUntil(10000) { details.contains("slow") && model.state.value.probeRunning }
@@ -114,7 +120,7 @@ class AvailabilityDeviceTest {
         ui.waitUntil(15000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==2 }
         assertEquals("星河",model.state.value.searchQuery)
         assertTrue(model.state.value.probes.keys.none { it.endsWith(":slow") })
-        assertEquals(listOf("2","3"),model.state.value.results.take(2).map { it.id })
+        assertTrue(model.state.value.results.take(2).all { model.state.value.probes[it.probeKey()]==ProbeStatus.READY })
         ui.waitUntil(10000) { model.activeProbeCalls()==0 }
     }
 

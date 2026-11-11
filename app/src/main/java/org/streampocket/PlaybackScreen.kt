@@ -99,7 +99,7 @@ import kotlinx.coroutines.delay
             filterReport={filterSummary=it},health={health=it},smoothMode=state.smoothPlayback)
     }
     LaunchedEffect(controller,state.smoothPlayback) { controller.setSmoothMode(state.smoothPlayback) }
-    fun showAlternatives() { playerView?.cancelGestures();controller.checkpointNow();model.openAlternatives(playback.sessionId) }
+    fun showAlternatives() { episodesOpen=false;optionsOpen=false;playerView?.hideController();playerView?.cancelGestures();controller.checkpointNow();model.openAlternatives(playback.sessionId) }
     LaunchedEffect(full,pip,playerView,playback.sessionId) {
         playerView?.cancelGestures()
         playerView?.gesturesEnabled=!pip
@@ -137,26 +137,27 @@ import kotlinx.coroutines.delay
     val next=adjacentEpisode(state.detail,playback,1)
     val bufferingText=if(health.buffering) "正在缓冲 · ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒"
     val openEpisodes={ playerView?.cancelGestures();playerView?.hideController();episodesOpen=true }
-    val openOptions={ playerView?.cancelGestures();optionsOpen=true }
+    val openOptions={ playerView?.cancelGestures();playerView?.hideController();optionsOpen=true }
     val leavePlayback={ playerView?.cancelGestures();model.stopPlayback() }
     val stepPrevious={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) };Unit }
     val stepNext={ playerView?.cancelGestures();next?.let { model.play(playback.video,it) };Unit }
     val episodeControls: @Composable RowScope.() -> Unit = {
         PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
-        FilledTonalButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) { Text("选集") }
+        GlassButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) { Text("选集") }
         PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
     }
     MaterialTheme(colorScheme=if(full || pip) NightColors else MaterialTheme.colorScheme) {
     if(optionsOpen && !pip) {
-        Dialog(onDismissRequest={optionsOpen=false}) {
+        FrostedDialog(onDismissRequest={optionsOpen=false},placement=if(full) GlassPlacement.SIDE else GlassPlacement.CENTER,immersive=full,tag="playbackOptions") {
             BackHandler { optionsOpen=false }
-            Surface(shape=MaterialTheme.shapes.extraLarge,color=MaterialTheme.colorScheme.surfaceContainerHigh) {
-                Column(Modifier.fillMaxWidth().heightIn(max=420.dp).padding(20.dp)) {
+            Surface(shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
+                Column(Modifier.fillMaxWidth().then(if(full) Modifier.fillMaxHeight() else Modifier.heightIn(max=(configuration.screenHeightDp*.88f).dp)).padding(20.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("播放选项",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                         TextButton(onClick={optionsOpen=false}) { Text("关闭") }
                     }
                     Column(Modifier.weight(1f,false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                        PlaybackTrackSettings(playerView?.player)
                         SettingSwitch("流畅优先","多清晰度优先 720p；单清晰度可通过换源改善",state.smoothPlayback,model::smoothPlayback)
                         Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         if(state.saved.adFilter) Text(filterSummary.ifBlank { "广告过滤已启用" }+" · 可在设置页关闭",style=MaterialTheme.typography.bodySmall)
@@ -166,7 +167,7 @@ import kotlinx.coroutines.delay
                             TextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
                         }
                         HorizontalDivider()
-                        OutlinedButton(shape=MaterialTheme.shapes.medium,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),onClick={
+                        GlassButton(shape=MaterialTheme.shapes.medium,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),onClick={
                             optionsOpen=false;playerView?.cancelGestures()
                             if(activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                                 try { activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16,9)).build()) } catch(_:Exception) { error="设备当前不允许画中画" }
@@ -179,10 +180,10 @@ import kotlinx.coroutines.delay
         }
     }
     if(state.alternativeSession==playback.sessionId && !pip) {
-        Dialog(onDismissRequest=model::closeAlternatives) {
+        FrostedDialog(onDismissRequest=model::closeAlternatives,placement=if(full) GlassPlacement.SIDE else GlassPlacement.CENTER,immersive=full,tag="alternativePanel") {
             BackHandler(onBack=model::closeAlternatives)
-            Surface(shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.surface) {
-                Column(Modifier.fillMaxWidth().heightIn(max=500.dp).padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Surface(shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
+                Column(Modifier.fillMaxWidth().then(if(full) Modifier.fillMaxHeight() else Modifier.heightIn(max=(configuration.screenHeightDp*.88f).dp)).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("切换同集来源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                         TextButton(onClick=model::closeAlternatives) { Text("关闭") }
@@ -203,11 +204,14 @@ import kotlinx.coroutines.delay
                         state.alternativesError?.let { item { Text(it,style=MaterialTheme.typography.bodySmall) } }
                         if(!state.alternativesLoading && state.alternatives.isEmpty()) item { Text("未找到同名同集的备用地址。可添加其他订阅来源后再试。") }
                         itemsIndexed(state.alternatives,key={_,it->it.episode.url}) { _,option ->
-                            OutlinedButton(onClick={controller.checkpointNow();model.chooseAlternative(option,keepPosition)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) {
+                            GlassButton(onClick={controller.checkpointNow();model.chooseAlternative(option,keepPosition)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) {
                                 Column(Modifier.fillMaxWidth()) {
                                     Text("${option.line} · ${option.episode.name}")
                                     Text(option.video.source.name,style=MaterialTheme.typography.bodySmall)
-                                    Text(listOfNotNull(option.probeStatus.label,option.resolution).joinToString(" · "),style=MaterialTheme.typography.bodySmall,color=if(option.probeStatus==ProbeStatus.READY) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                        MediaProbeIndicator(option.probeStatus)
+                                        option.resolution?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
+                                    }
                                 }
                             }
                         }
@@ -223,9 +227,9 @@ import kotlinx.coroutines.delay
     }
     if(episodesOpen && !pip && !full) {
         LaunchedEffect(episodesOpen) { playerView?.cancelGestures() }
-        Dialog(onDismissRequest={episodesOpen=false},properties=DialogProperties(usePlatformDefaultWidth=false)) {
+        FrostedDialog(onDismissRequest={episodesOpen=false}) {
             BackHandler { episodesOpen=false }
-            Surface(modifier=Modifier.widthIn(max=600.dp).fillMaxWidth(.94f),shape=MaterialTheme.shapes.extraLarge,color=MaterialTheme.colorScheme.surface) {
+            Surface(modifier=Modifier.widthIn(max=600.dp).fillMaxWidth(.94f),shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
                 Column(Modifier.heightIn(max=(configuration.screenHeightDp*.8f).dp).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
@@ -260,7 +264,7 @@ import kotlinx.coroutines.delay
                             Text("播放来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(playback.video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                         }
-                        if(playback.video.source.kind==SourceKind.VOD) OutlinedButton(shape=MaterialTheme.shapes.medium,onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
+                        if(playback.video.source.kind==SourceKind.VOD) GlassButton(shape=MaterialTheme.shapes.medium,onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
                     }
                     if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
                     else if(!hasEpisodes) {
@@ -269,7 +273,7 @@ import kotlinx.coroutines.delay
                     }
                     (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let { problem ->
                         Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=MaterialTheme.shapes.large) {
-                            Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                 Text(problem,style=MaterialTheme.typography.bodyMedium)
                                 TextButton(onClick={error=null;controller.retry()}) { Text(if(error!=null) "重试播放" else "重新连接") }
                             }
@@ -311,6 +315,7 @@ import kotlinx.coroutines.delay
                     // this session's Compose state, just like the seek/feedback callbacks.
                     it.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility -> controlsVisible=visibility==android.view.View.VISIBLE })
                     controlsVisible=it.isControllerFullyVisible
+                    it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener { openOptions() }
                     playerView=it;it.useController=!pip
                 },
                 onReset=null,onRelease={it.cancelGestures();controller.detach(it);if(playerView===it) playerView=null},
@@ -407,8 +412,9 @@ import kotlinx.coroutines.delay
         itemsIndexed(episodes,key={index,episode->"$index:${episode.url}"}) { _,episode ->
             val playing=episode.url==currentUrl
             Surface(onClick={select(episode)},shape=MaterialTheme.shapes.small,
-                color=if(playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor=if(playing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                color=glassFill(playing),
+                border=glassBorder(playing),
+                contentColor=MaterialTheme.colorScheme.onSurface,
                 modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { this.selected=playing }) {
                 Column(Modifier.padding(horizontal=12.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text(episode.name,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)

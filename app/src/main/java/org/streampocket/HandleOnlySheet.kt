@@ -27,21 +27,12 @@ import kotlin.math.roundToInt
     val threshold=with(LocalDensity.current) { 48.dp.toPx() }
     val dismiss by rememberUpdatedState(onDismissRequest)
     var drag by remember { mutableFloatStateOf(0f) }
-    var appeared by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { appeared=true }
-    val entrance by animateFloatAsState(if(appeared) 0f else 1f,tween(220),label="pickerEntrance")
-    Dialog(onDismissRequest=onDismissRequest,properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val heightPx=with(LocalDensity.current) { maxHeight.toPx() }
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha=0.32f)).clickable(interactionSource=remember { MutableInteractionSource() },indication=null,onClick=onDismissRequest))
-            Surface(Modifier.align(androidx.compose.ui.Alignment.BottomCenter).widthIn(max=640.dp).fillMaxWidth().heightIn(max=maxHeight*0.9f).offset { IntOffset(0,(drag+entrance*heightPx).roundToInt()) },shape=MaterialTheme.shapes.extraLarge,color=MaterialTheme.colorScheme.surfaceContainerLow) {
-                Column(Modifier.navigationBarsPadding()) {
-                    Box(Modifier.fillMaxWidth().height(48.dp).testTag("pickerDragHandle").semantics { contentDescription="向下拖动关闭筛选";customActions=listOf(CustomAccessibilityAction("关闭") { dismiss();true }) }.pointerInput(threshold) {
-                        detectVerticalDragGestures(onDragStart={drag=0f},onDragCancel={drag=0f},onDragEnd={if(drag>=threshold) dismiss();drag=0f},onVerticalDrag={change,amount->change.consume();drag=(drag+amount).coerceAtLeast(0f)})
-                    },contentAlignment=androidx.compose.ui.Alignment.Center) { BottomSheetDefaults.DragHandle() }
-                    content()
-                }
-            }
+    FrostedDialog(onDismissRequest,placement=GlassPlacement.BOTTOM,tag="glassSheet") {
+        Column(Modifier.navigationBarsPadding().imePadding().offset { IntOffset(0,drag.roundToInt()) }) {
+            Box(Modifier.fillMaxWidth().height(48.dp).testTag("pickerDragHandle").semantics { contentDescription="向下拖动关闭筛选";customActions=listOf(CustomAccessibilityAction("关闭") { dismiss();true }) }.pointerInput(threshold) {
+                detectVerticalDragGestures(onDragStart={drag=0f},onDragCancel={drag=0f},onDragEnd={if(drag>=threshold) dismiss();drag=0f},onVerticalDrag={change,amount->change.consume();drag=(drag+amount).coerceAtLeast(0f)})
+            },contentAlignment=androidx.compose.ui.Alignment.Center) { BottomSheetDefaults.DragHandle() }
+            content()
         }
     }
 }
