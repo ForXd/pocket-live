@@ -1,6 +1,6 @@
 # v0.39.0 设计实现验收
 
-final result: pending final device matrix
+final result: passed
 
 ## 比较依据
 
@@ -37,7 +37,7 @@ final result: pending final device matrix
 
 受控 10 域名/1000 结果、真实帧时钟、30 次滑动：480×800 软件模拟器首结果 209ms、完成 823ms，帧中位数 16ms、P95 25ms；简单列表对照 17/25ms。1080×2400 调试模拟器为 38/89ms，对照 21/53ms，显示软件渲染在高分辨率下的局限。没有物理 Android 设备的帧率保证；完整数据保留在 `performance-480.log`、`480-frames.txt`、`real-clock-scroll-frames.txt`，不只报告较好的采样。
 
-剩余 P3：不同来源图片的清晰度/裁切、系统字体细节；可在实际设备与真实来源上继续观察。最终设备矩阵完成后确认是否仍有 P0/P1/P2。
+剩余 P3：不同来源图片的清晰度/裁切、系统字体细节；可在实际设备与真实来源上继续观察。Final device matrix and independent visual review passed; no remaining P0/P1/P2 findings.
 
 ## 用户追加要求：逐页细节复核
 
@@ -69,3 +69,5 @@ final result: pending final device matrix
 新增原生浮层之后重新运行资源压力测试：46 个播放器创建/46 个释放，残留弱引用与媒体请求均为 0；Java 堆 7.09/8.18/9.37/6.86 MB，PSS 141383/142055/142928/141192 KiB，最大释放 68ms（`polished/resource-stress.log`）。这不是所有设备无泄漏的保证。
 
 新增两条 lint warning 为半屏尺寸使用 Configuration 与右侧窗口 Gravity.RIGHT：前者经手机、宽屏和字号矩阵核对，后者符合用户明确指定右侧展开。未通过关闭 lint 隐藏问题。
+
+Final matrix passed: phone light/dark, landscape and portrait tablet, wide playback. Final 2x font regression: OK (5 tests), `all-pages/final-font2.log`. Independent final review of wide and large-font screenshots found no P1/P2. Gallery: `artifacts/v0.39.0/final-ui/ui-review.html`.
