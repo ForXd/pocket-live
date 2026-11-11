@@ -71,3 +71,5 @@ final result: passed
 新增两条 lint warning 为半屏尺寸使用 Configuration 与右侧窗口 Gravity.RIGHT：前者经手机、宽屏和字号矩阵核对，后者符合用户明确指定右侧展开。未通过关闭 lint 隐藏问题。
 
 Final matrix passed: phone light/dark, landscape and portrait tablet, wide playback. Final 2x font regression: OK (5 tests), `all-pages/final-font2.log`. Independent final review of wide and large-font screenshots found no P1/P2. Gallery: `artifacts/v0.39.0/final-ui/ui-review.html`.
+
+Additional large-display fullscreen check passed: `final-wide-fullscreen-verified.log` (1 test). The test now verifies return to the wide player layout on tablets rather than assuming a portrait rotation; production behavior was unchanged.

@@ -149,7 +149,12 @@ class PlayerLayoutDeviceTest {
             }
             ui.onNodeWithContentDescription("上一集").assertIsEnabled()
             ui.onNodeWithContentDescription("退出全屏").performClick()
-            ui.waitUntil(5000) { ui.activity.window.decorView.width<ui.activity.window.decorView.height }
+            if(ui.activity.resources.configuration.smallestScreenWidthDp<600) {
+                ui.waitUntil(5000) { ui.activity.window.decorView.width<ui.activity.window.decorView.height }
+            } else {
+                // Large-screen Android may retain landscape after leaving fullscreen.
+                ui.onNodeWithTag("playerSidePanel").assertIsDisplayed()
+            }
             ui.onNodeWithContentDescription("返回选集").performClick()
             ui.waitUntil(10000) { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
