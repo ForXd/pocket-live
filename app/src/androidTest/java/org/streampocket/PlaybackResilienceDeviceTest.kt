@@ -19,14 +19,16 @@ import java.util.concurrent.atomic.AtomicInteger
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
 class PlaybackResilienceDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
-    private fun model():AppModel {
+    private fun model(base:String):AppModel {
         lateinit var model:AppModel
+        ui.runOnUiThread { ui.activity.viewModelStore.clear() }
+        kotlinx.coroutines.runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true)) }
         ui.runOnUiThread {
             ui.activity.viewModelStore.clear()
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
                 override fun <T:ViewModel> create(clazz:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
-                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
+                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
                 }
             })[AppModel::class.java]
             ui.activity.setContent { PocketTheme { Pocket(model) } }
@@ -60,7 +62,7 @@ class PlaybackResilienceDeviceTest {
                     .setHeader("Content-Type","video/mp2t").throttleBody(64*1024,100,TimeUnit.MILLISECONDS)
             }
         }
-        val model=model()
+        val model=model(base)
         try {
             val frames=PlaybackMetrics.frames
             ui.runOnIdle { model.smoothPlayback(true);model.play(Video(Source("合成多码率","$base/api"),"abr","合成视频"),Episode("第1集","$base/master.m3u8")) }
@@ -93,7 +95,7 @@ class PlaybackResilienceDeviceTest {
                     .setHeader("Content-Type","video/mp2t").throttleBody(64*1024,20,TimeUnit.MILLISECONDS)
             }
         }
-        val model=model()
+        val model=model(base)
         try {
             ui.runOnIdle { model.play(Video(Source("缓冲测试","$base/api"),"buffer","合成视频"),Episode("第1集","$base/long.m3u8")) }
             ui.waitUntil(15000) { var ready=false;ui.runOnIdle {
@@ -123,15 +125,15 @@ class PlaybackResilienceDeviceTest {
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
                 return when(request.requestUrl!!.encodedPath) {
-                    "/sub" -> MockResponse().setBody("""{"name":"压力测试","sources":[{"name":"正常来源","url":"$base/api"},{"name":"慢来源","url":"$base/slow"}]}""")
-                    "/slow" -> { slowRequests.incrementAndGet();MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE) }
+                    "/sub" -> MockResponse().setBody("""{"name":"压力测试","sources":[{"name":"正常来源","url":"$base/api"},{"name":"慢来源","url":"http://slow.test:${server.port}/slow"}]}""")
+                    "/slow" -> if(request.requestUrl!!.queryParameter("wd")=="合成视频") { slowRequests.incrementAndGet();MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE) } else MockResponse().setBody("{\"list\":[]}")
                     "/api" -> if(request.requestUrl!!.queryParameter("ids")==null) MockResponse().setBody("""{"list":[{"vod_id":"1","vod_name":"合成视频"}]}""") else
                         MockResponse().setBody("""{"list":[{"vod_play_from":"A${'$'}${'$'}${'$'}B","vod_play_url":"第1集${'$'}$base/a.mp4${'$'}${'$'}${'$'}第1集${'$'}$base/b.mp4"}]}""")
                     else -> MockResponse().setBody(Buffer().write(assets.open("test.mp4").use { it.readBytes() })).setHeader("Content-Type","video/mp4")
                 }
             }
         }
-        val model=model()
+        val model=model(base)
         val players=mutableListOf<WeakReference<Any>>()
         val javaHeap=mutableListOf<Long>();val pss=mutableListOf<Int>()
         try {

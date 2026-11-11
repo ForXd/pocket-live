@@ -39,6 +39,10 @@ class DiscoverySafetyTest {
         assertTrue(Catalog.url(source,"2","a & b",2).contains("wd=a%20%26%20b"))
     }
     @Test fun imagePixelBoundsAndDiskBudgetIncludeStaging() {
+        for(limit in listOf(PosterLimits.DECODE_PIXELS,PosterLimits.HERO_PIXELS)) {
+            val factor=PosterLimits.sample(3000,4000,limit)!!
+            assertTrue(((3000+factor-1)/factor).toLong()*((4000+factor-1)/factor)<=limit)
+        }
         assertNull(PosterLimits.sample(100_000,100_000));assertNull(PosterLimits.sample(0,100))
         val sample=PosterLimits.sample(4000,4000)!!
         assertTrue(((4000+sample-1)/sample).toLong()*((4000+sample-1)/sample)<=PosterLimits.DECODE_PIXELS)

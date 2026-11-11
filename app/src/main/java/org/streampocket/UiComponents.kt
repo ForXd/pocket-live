@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.sp
 @Composable fun SettingsGroup(title:String,summary:String,content:@Composable ColumnScope.()->Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val rotation by animateFloatAsState(if(expanded) 180f else 0f,tween(220),label="settingsChevron")
-    Card(Modifier.fillMaxWidth(),shape=MaterialTheme.shapes.medium,colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
+    Card(Modifier.fillMaxWidth(),shape=MaterialTheme.shapes.medium,colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.background)) {
         TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth().heightIn(min=64.dp),shape=MaterialTheme.shapes.large,contentPadding=PaddingValues(16.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(title,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)
@@ -85,8 +85,8 @@ import androidx.compose.ui.unit.sp
 
 @Composable fun ContentFilterChip(selected:Boolean,onClick:()->Unit,modifier:Modifier=Modifier,reserveSelectionSpace:Boolean=false,label:@Composable ()->Unit) {
     FilterChip(selected=selected,onClick=onClick,label=label,modifier=modifier.minimumInteractiveComponentSize(),shape=RoundedCornerShape(10.dp),
-        border=androidx.compose.foundation.BorderStroke(1.dp,if(selected) MaterialTheme.colorScheme.primary.copy(alpha=.45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),
-        leadingIcon=if(selected) { { Icon(Icons.Default.Check,null,Modifier.size(14.dp)) } } else null,
+        border=androidx.compose.foundation.BorderStroke(1.dp,if(selected) MaterialTheme.colorScheme.primary.copy(alpha=.45f) else androidx.compose.ui.graphics.Color.Transparent),
+        leadingIcon=if(selected) { { Icon(Icons.Default.Check,null,Modifier.size(14.dp)) } } else if(reserveSelectionSpace) { { Spacer(Modifier.size(14.dp)) } } else null,
         colors=FilterChipDefaults.filterChipColors(containerColor=androidx.compose.ui.graphics.Color.Transparent,
             labelColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContainerColor=MaterialTheme.colorScheme.primary.copy(alpha=.10f),
             selectedLabelColor=MaterialTheme.colorScheme.primary,selectedLeadingIconColor=MaterialTheme.colorScheme.primary))
@@ -119,8 +119,8 @@ import androidx.compose.ui.unit.sp
         keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),
         keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
         decorationBox={input ->
-            Surface(shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerLow,
-                border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.65f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha=.5f))) {
+            Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainerLow,
+                border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.65f) else androidx.compose.ui.graphics.Color.Transparent)) {
                 Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Icon(painterResource(R.drawable.ic_search),null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
                     Box(Modifier.weight(1f).padding(vertical=12.dp)) {

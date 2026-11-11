@@ -5,7 +5,7 @@ import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.selection.selectableGroup
@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
     var appearanceOpen by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     var searchMode by rememberSaveable { mutableStateOf(false) }
     val liveTab=rememberSaveable { mutableStateOf(false) }
     var liveQuery by rememberSaveable { mutableStateOf("") }
@@ -89,11 +90,11 @@ class MainActivity : ComponentActivity() {
     var submittedQuery by rememberSaveable { mutableStateOf("") }
     fun search(text:String) {
         if(text.isBlank()) return
-        query=text.take(100);submittedQuery=query;searchMode=true;tab=0
+        query=text.take(100);submittedQuery=query;searchMode=true;searchOpen=true;tab=0
         focusManager.clearFocus();keyboard?.hide();model.search(query)
     }
     fun showRecommendations() {
-        model.cancelSearch();searchMode=false;query="";submittedQuery="";recommendations.value=true;liveTab.value=false
+        model.cancelSearch();searchMode=false;searchOpen=false;query="";submittedQuery="";recommendations.value=true;liveTab.value=false
         focusManager.clearFocus();keyboard?.hide()
     }
     // Do not put token-bearing input into saved-instance-state or screen titles.
@@ -143,79 +144,10 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val playback = s.playback
     if(playback != null) { PlaybackScreen(playback, model); return }
-    if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
-    if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
-    BackHandler(s.detail != null || s.detailLoading || searchMode || tab!=0) {
-        when {
-            s.detail!=null || s.detailLoading -> model.closeDetail()
-            tab!=0 -> tab=0
-            else -> showRecommendations()
-        }
-    }
-    val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(liveTab.value) s.liveChannels.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
-    val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
-    val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
-    val destinations=listOf("首页","订阅","历史","设置")
-    val navIcon:@Composable (Int)->Unit = { i -> if(i==3) Icon(Icons.Default.Settings,null) else Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history)[i]),null) }
-    Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
-        topBar = {
-            if(tab==0 && s.detail==null && !s.detailLoading) {
-                val inLive=!searchMode && liveTab.value
-                val inCatalog=!searchMode && !liveTab.value && !recommendations.value
-                fun browseQuery(value:String) {
-                    catalogQuery=value;focusManager.clearFocus();keyboard?.hide()
-                    model.browseSources(s.catalogSourceKeys,s.catalogCategory,value.trim(),genres=s.catalogGenres)
-                }
-                CollapsingHomeSearch(searchScroll) {
-                HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
-                    {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else search(query)},
-                    {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else showRecommendations()},
-                    placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
-                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog || inLive)
-                }
-            }
-            else if(s.detail!=null || s.detailLoading) TopAppBar(expandedHeight=56.dp,colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background),title={
-                Text(if(s.detail!=null || s.detailLoading) "详情与选集" else when(tab) { 1 -> "订阅管理";2 -> "观看历史";else -> "设置" },style=MaterialTheme.typography.titleLarge)
-            },navigationIcon={if(s.detail!=null || s.detailLoading) IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }})
-            else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
-        },
-        bottomBar = { if(!imeVisible) Box(Modifier.fillMaxWidth().windowInsetsPadding(NavigationBarDefaults.windowInsets).padding(horizontal=16.dp,vertical=8.dp)) { Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(22.dp),color=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=.96f),border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.45f))) { Row(Modifier.fillMaxWidth().selectableGroup().heightIn(min=64.dp).testTag("mainNavigation"),verticalAlignment=Alignment.CenterVertically) {
-            listOf(0,2,1,3).forEach { i ->
-                val title=destinations[i]
-                NavigationBarItem(colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,indicatorColor=androidx.compose.ui.graphics.Color.Transparent),selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
-                    modifier=Modifier.height(if(androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 80.dp else 64.dp).testTag("nav:$i"),icon={navIcon(i)},label={Text(title)})
-            }
-        } } } },snackbarHost={SnackbarHost(snack)}
-    ) { padding ->
-        Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize().imePadding(),contentAlignment=Alignment.TopCenter) {
-        val destination=when {
-            s.detailLoading -> "detailLoading"
-            s.detail!=null -> "detail"
-            tab==0 && searchMode -> "search"
-            else -> "tab:$tab"
-        }
-        Box(Modifier.widthIn(max=1100.dp).fillMaxSize().destinationArrival(destination)) {
-            if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
-            if(s.loading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); Text("正在读取本地数据…") }; return@Box }
-            if(s.detailLoading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); TextButton(onClick=model::closeDetail) { Text("取消详情请求") } }; return@Box }
-            val detail = s.detail
-            if(detail != null) {
-                DetailScreen(detail,model) { model.closeDetail();search(detail.video.title) }
-            } else when(tab) {
-                0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
-                    if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1},onTop={searchScroll.reveal()}) }
-                    else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,liveTab,liveQuery,onTop={searchScroll.reveal()})
-                }
-                3 -> SettingsScreen(s,model,{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
-                    { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })
-                1 -> LazyColumn(modifier=Modifier.fillMaxSize().testTag("subscriptionsList"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    item { Row(verticalAlignment=Alignment.CenterVertically) {
-                        Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
-                            modifier=Modifier.weight(1f), style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        if(s.saved.subscriptions.isNotEmpty()) FilledTonalIconButton(onClick={addingSubscription=!addingSubscription},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Add,if(addingSubscription) "收起添加订阅" else "添加订阅") }
-                    } }
-                    if(s.saved.subscriptions.isEmpty() || addingSubscription || url.isNotEmpty()) item { Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
-                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    if(addingSubscription) ModalBottomSheet(onDismissRequest={model.cancelImport("new");addingSubscription=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
+        SheetSystemBars()
+                        Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                            Text("添加订阅",style=MaterialTheme.typography.headlineSmall)
                             OutlinedTextField(url,{url=it.take(4096)},modifier=Modifier.fillMaxWidth().testTag("subscriptionInput"),label={Text("粘贴订阅链接")},singleLine=true,shape=MaterialTheme.shapes.medium,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri))
                             Button(shape=MaterialTheme.shapes.medium,onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
                                 Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("添加订阅")
@@ -225,6 +157,89 @@ class MainActivity : ComponentActivity() {
                             if("new" in s.importing) TextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
                             Text("JSON 文件上限 2 MiB",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+    }
+    if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
+    if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
+    BackHandler(s.detail != null || s.detailLoading || searchMode || searchOpen || tab!=0) {
+        when {
+            s.detail!=null || s.detailLoading -> model.closeDetail()
+            tab!=0 -> tab=0
+            else -> showRecommendations()
+        }
+    }
+    val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(liveTab.value) s.liveChannels.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
+    val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
+    val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
+    val wide=LocalConfiguration.current.screenWidthDp>=840
+    val destinations=listOf("首页","订阅","历史","设置")
+    val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
+    Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
+        topBar = {
+            if(tab==0 && (s.detail==null || (wide && searchMode)) && !s.detailLoading) {
+                val inLive=!searchMode && liveTab.value
+                val inCatalog=!searchMode && !liveTab.value && !recommendations.value
+                fun browseQuery(value:String) {
+                    catalogQuery=value;focusManager.clearFocus();keyboard?.hide()
+                    model.browseSources(s.catalogSourceKeys,s.catalogCategory,value.trim(),genres=s.catalogGenres)
+                }
+                CollapsingHomeSearch(searchScroll) {
+                if(!searchOpen && !searchMode && !inCatalog && !inLive) Row(Modifier.fillMaxWidth().padding(start=24.dp,end=12.dp).heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                    IconButton(onClick={searchOpen=true},modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
+                } else HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
+                    {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else search(query)},
+                    {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else showRecommendations()},
+                    placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
+                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog || inLive)
+                }
+            }
+            else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
+        },
+        bottomBar = { if(!wide && !imeVisible && s.detail==null && !s.detailLoading) NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp,modifier=Modifier.testTag("mainNavigation")) {
+            listOf(0,2,1,3).forEach { i ->
+                NavigationBarItem(colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,indicatorColor=Color.Transparent),selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
+                    modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(destinations[i])})
+            }
+        } },snackbarHost={SnackbarHost(snack)}
+    ) { padding ->
+        Row(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize().imePadding()) {
+        if(wide) NavigationRail(containerColor=MaterialTheme.colorScheme.background,windowInsets=WindowInsets(0,0,0,0),modifier=Modifier.testTag("mainNavigation")) {
+            Spacer(Modifier.height(24.dp))
+            listOf(0,2,1,3).forEach { i -> NavigationRailItem(selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(destinations[i])},colors=NavigationRailItemDefaults.colors(indicatorColor=Color.Transparent)) }
+        }
+        val destination=when {
+            s.detailLoading -> "detailLoading"
+            s.detail!=null -> "detail"
+            tab==0 && searchMode -> "search"
+            else -> "tab:$tab"
+        }
+        Box(Modifier.weight(1f).fillMaxSize().destinationArrival(destination)) {
+            if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
+            if(s.loading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); Text("正在读取本地数据…") }; return@Box }
+            if(s.detailLoading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); TextButton(onClick=model::closeDetail) { Text("取消详情请求") } }; return@Box }
+            val detail = s.detail
+            if(detail != null) {
+                Box(Modifier.fillMaxSize()) {
+                    if(wide && searchMode) Row(Modifier.fillMaxSize()) {
+                        Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1}) }
+                        Box(Modifier.weight(.62f)) { DetailScreen(detail,model,splitArtwork=false) { model.closeDetail();search(detail.video.title) } }
+                    } else DetailScreen(detail,model) { model.closeDetail();search(detail.video.title) }
+                    IconButton(onClick=model::closeDetail,modifier=Modifier.align(if(wide && searchMode) Alignment.TopEnd else Alignment.TopStart).padding(8.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }
+                }
+            } else when(tab) {
+                0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
+                    if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1},onTop={searchScroll.reveal()}) }
+                    else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,liveTab,liveQuery,onTop={searchScroll.reveal()})
+                }
+                3 -> SettingsScreen(s,model,{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
+                    { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })
+                1 -> Row(Modifier.fillMaxSize()) {
+                    LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    item { Text("订阅",style=MaterialTheme.typography.headlineLarge,modifier=Modifier.padding(bottom=12.dp)) }
+                    item { Row(verticalAlignment=Alignment.CenterVertically) {
+                        Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
+                            modifier=Modifier.weight(1f), style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        FilledTonalIconButton(onClick={addingSubscription=!addingSubscription},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Add,if(addingSubscription) "收起添加订阅" else "添加订阅") }
                     } }
                     if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在首页搜索或浏览内容。",R.drawable.ic_library) }
                     s.saved.subscriptions.forEach { sub ->
@@ -234,11 +249,23 @@ class MainActivity : ComponentActivity() {
                                 onUpdate={if(sub.isLocalJson) chooseJson(sub) else model.importSubscription(sub.url,sub)},onCancel={model.cancelImport(sub.id)},onDelete={delete=sub})
                         }
                         // Keep source rows lazy: even a 300-source subscription composes only the viewport.
-                        if(expandedSubscription==sub.id) items(sub.sources.sortedBy { when(s.sourceAvailability[it.key]) { true->0;null->1;false->2 } },key={"source:${sub.id}:${it.key}"}) { source ->
+                        if(!wide && expandedSubscription==sub.id) items(sub.sources.sortedBy { when(s.sourceAvailability[it.key]) { true->0;null->1;false->2 } },key={"source:${sub.id}:${it.key}"}) { source ->
                             SubscriptionSourceRow(source,source.key !in s.saved.disabled,onToggle={model.toggle(source)},availability=s.sourceAvailability[source.key])
                         }
                     }
 
+                }
+                if(wide) {
+                    val active=s.saved.subscriptions.find { it.id==expandedSubscription }
+                    LazyColumn(Modifier.weight(.6f).fillMaxHeight().testTag("subscriptionSources"),contentPadding=PaddingValues(24.dp)) {
+                        item { Text(active?.name ?: "选择订阅",style=MaterialTheme.typography.headlineSmall,modifier=Modifier.padding(bottom=24.dp)) }
+                        if(active==null) item { Text("从左侧选择订阅，查看与管理来源。",color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                        else items(active.sources.sortedBy { when(s.sourceAvailability[it.key]) { true->0;null->1;false->2 } },key={it.key}) { source ->
+                            SubscriptionSourceRow(source,source.key !in s.saved.disabled,onToggle={model.toggle(source)},availability=s.sourceAvailability[source.key])
+                            ContentDivider()
+                        }
+                    }
+                }
                 }
                 2 -> historyState.SaveableStateProvider("history") { HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory,model) }
             }

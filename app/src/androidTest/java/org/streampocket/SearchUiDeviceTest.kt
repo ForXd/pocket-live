@@ -60,6 +60,7 @@ class SearchUiDeviceTest {
         fun top() { ui.onNodeWithTag("searchResults").performScrollToIndex(0) }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("星河")
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
@@ -87,7 +88,7 @@ class SearchUiDeviceTest {
             assertEquals("noise",model.state.value.results.first().id)
             ui.onNodeWithTag("searchVideo:noise").assertExists()
             ui.onNodeWithContentDescription("清空并返回推荐").performClick()
-            ui.onNodeWithText("分类搜索").performClick()
+            ui.onNodeWithText("分类").performClick()
             ui.waitUntil(10000) { model.state.value.categories.isNotEmpty() }
             ui.onNodeWithTag("searchInput").performTextReplacement("星河")
             ui.onNodeWithTag("catalogGenrePicker").performClick()

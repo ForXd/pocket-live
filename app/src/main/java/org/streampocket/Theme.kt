@@ -44,23 +44,23 @@ val LocalPocketDark=staticCompositionLocalOf { true }
     return mode
 }
 internal val NightColors=darkColorScheme(
-    primary=Color(0xffff5364),onPrimary=Color(0xff280008),primaryContainer=Color(0xff49151e),onPrimaryContainer=Color(0xffffd9de),
-    secondary=Color(0xffd5c2c5),onSecondary=Color(0xff372d30),secondaryContainer=Color(0xff35282b),onSecondaryContainer=Color(0xffeedde0),
-    tertiary=Color(0xffe9c178),onTertiary=Color(0xff402d06),tertiaryContainer=Color(0xff58431d),onTertiaryContainer=Color(0xffffe4ac),
-    background=Color(0xff0c0c0e),onBackground=Color(0xfff5f3f4),surface=Color(0xff0c0c0e),onSurface=Color(0xfff5f3f4),
-    surfaceVariant=Color(0xff353135),onSurfaceVariant=Color(0xffbcb5b9),surfaceTint=Color(0xffff5364),
-    surfaceContainerLowest=Color(0xff080809),surfaceContainerLow=Color(0xff141416),surfaceContainer=Color(0xff1b1b1e),
-    surfaceContainerHigh=Color(0xff242427),surfaceContainerHighest=Color(0xff303034),surfaceDim=Color(0xff0c0c0e),surfaceBright=Color(0xff38383c),
-    outline=Color(0xff978d92),outlineVariant=Color(0xff373236))
+    primary=Color(0xffefe3d0),onPrimary=Color(0xff27231d),primaryContainer=Color(0xff494136),onPrimaryContainer=Color(0xfff5ead8),
+    secondary=Color(0xffcec2b0),onSecondary=Color(0xff302b24),secondaryContainer=Color(0xff39352e),onSecondaryContainer=Color(0xffeee5d6),
+    tertiary=Color(0xffcdb58c),onTertiary=Color(0xff352b1b),
+    background=Color(0xff181715),onBackground=Color(0xfff4f0e8),surface=Color(0xff181715),onSurface=Color(0xfff4f0e8),
+    surfaceVariant=Color(0xff34312c),onSurfaceVariant=Color(0xffbcb6ab),surfaceTint=Color(0xffefe3d0),
+    surfaceContainerLowest=Color(0xff121210),surfaceContainerLow=Color(0xff201f1b),surfaceContainer=Color(0xff282620),
+    surfaceContainerHigh=Color(0xff302d27),surfaceContainerHighest=Color(0xff3b3730),surfaceDim=Color(0xff181715),surfaceBright=Color(0xff403b33),
+    outline=Color(0xff918a7e),outlineVariant=Color(0xff49443b))
 internal val DayColors=lightColorScheme(
-    primary=Color(0xffbb1735),onPrimary=Color.White,primaryContainer=Color(0xffffdde3),onPrimaryContainer=Color(0xff860f25),
-    secondary=Color(0xff6e575e),onSecondary=Color.White,secondaryContainer=Color(0xfff0e4e7),onSecondaryContainer=Color(0xff49353c),
-    tertiary=Color(0xff765720),onTertiary=Color.White,tertiaryContainer=Color(0xffffe8bb),onTertiaryContainer=Color(0xff513a10),
-    background=Color(0xfffaf7f8),onBackground=Color(0xff211e20),surface=Color(0xfffaf7f8),onSurface=Color(0xff211e20),
-    surfaceVariant=Color(0xffeee5e8),onSurfaceVariant=Color(0xff6c6268),surfaceTint=Color(0xffbb1735),
-    surfaceContainerLowest=Color(0xffffffff),surfaceContainerLow=Color(0xfff5eff1),surfaceContainer=Color(0xfff0e9ec),
-    surfaceContainerHigh=Color(0xffeae2e6),surfaceContainerHighest=Color(0xffe5dce1),surfaceDim=Color(0xffded5da),surfaceBright=Color(0xfffffbfc),
-    outline=Color(0xff897b83),outlineVariant=Color(0xffd9cbd2))
+    primary=Color(0xff574735),onPrimary=Color(0xfffffbf3),primaryContainer=Color(0xffe9dfce),onPrimaryContainer=Color(0xff352b20),
+    secondary=Color(0xff6b6051),onSecondary=Color.White,secondaryContainer=Color(0xffe8e1d4),onSecondaryContainer=Color(0xff382f24),
+    tertiary=Color(0xff79613c),onTertiary=Color.White,
+    background=Color(0xfff8f5ee),onBackground=Color(0xff24221d),surface=Color(0xfff8f5ee),onSurface=Color(0xff24221d),
+    surfaceVariant=Color(0xffe8e2d6),onSurfaceVariant=Color(0xff6b655b),surfaceTint=Color(0xff574735),
+    surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xfff0ece3),surfaceContainer=Color(0xffeae5da),
+    surfaceContainerHigh=Color(0xffe4ded1),surfaceContainerHighest=Color(0xffded6c7),surfaceDim=Color(0xffe0d8ca),surfaceBright=Color(0xfffffcf6),
+    outline=Color(0xff8a8071),outlineVariant=Color(0xffd3c9b9))
 
 @Composable fun PocketTheme(mode:ThemeMode?=null,content:@Composable ()->Unit) {
     val stored=rememberThemeMode()
@@ -73,8 +73,8 @@ internal val DayColors=lightColorScheme(
         MaterialTheme(colorScheme=if(dark) NightColors else DayColors,
             shapes=Shapes(extraSmall=RoundedCornerShape(6.dp),small=RoundedCornerShape(10.dp),medium=RoundedCornerShape(14.dp),large=RoundedCornerShape(20.dp),extraLarge=RoundedCornerShape(28.dp)),
             typography=Typography(
-                headlineLarge=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=32.sp,lineHeight=40.sp,letterSpacing=(-0.6).sp),
-                headlineSmall=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=26.sp,lineHeight=34.sp,letterSpacing=(-0.3).sp),
+                headlineLarge=TextStyle(fontFamily=androidx.compose.ui.text.font.FontFamily.Serif,fontWeight=FontWeight.SemiBold,fontSize=32.sp,lineHeight=40.sp,letterSpacing=(-0.6).sp),
+                headlineSmall=TextStyle(fontFamily=androidx.compose.ui.text.font.FontFamily.Serif,fontWeight=FontWeight.SemiBold,fontSize=26.sp,lineHeight=34.sp,letterSpacing=(-0.3).sp),
                 titleLarge=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=24.sp,lineHeight=32.sp),
                 titleMedium=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=17.sp,lineHeight=25.sp),
                 titleSmall=TextStyle(fontWeight=FontWeight.Medium,fontSize=15.sp,lineHeight=22.sp)),content=content)

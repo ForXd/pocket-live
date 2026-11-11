@@ -68,7 +68,7 @@ class HomeBrowseDeviceTest {
         val first=ui.onNodeWithTag("recommendation:1").getUnclippedBoundsInRoot()
         assertEquals(first.left.value,poster.left.value,1f)
         assertEquals(first.right.value,poster.right.value,1f)
-        ui.onNodeWithText("查找片源").assertIsDisplayed()
+        ui.onNodeWithText("查找片源 ›").assertIsDisplayed()
         grid.performScrollToNode(hasTestTag("recommendation:2"))
         val second=ui.onNodeWithTag("recommendation:2").getUnclippedBoundsInRoot()
         val third=ui.onNodeWithTag("recommendation:3").getUnclippedBoundsInRoot()
@@ -80,7 +80,7 @@ class HomeBrowseDeviceTest {
         grid.performTouchInput { swipeUp(durationMillis=600) }
         ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
         ui.onNodeWithTag("recommendToolbar").assertIsDisplayed()
-        ui.onNodeWithTag("discoverySort").assertIsDisplayed()
+        ui.onNodeWithTag("recommendCategoryPicker").assertIsDisplayed()
         val fixedTop=ui.onNodeWithTag("recommendToolbar").getUnclippedBoundsInRoot().top
         grid.performScrollToIndex(17)
         ui.waitUntil(10000) { model.state.value.recommendations.size==40 && !model.state.value.recommendLoading }
@@ -92,13 +92,14 @@ class HomeBrowseDeviceTest {
         assertEquals(40,model.state.value.recommendations.size)
         assertEquals(1,requests.count { it=="/recommend?page=3" })
         ui.onNodeWithTag("backToTop").performClick()
-        ui.onNodeWithTag("searchInput").assertIsDisplayed()
+        ui.onNodeWithTag("openSearch").assertIsDisplayed()
         ui.onNodeWithTag("recommendation:1").assertIsDisplayed()
         val refreshes=requests.count { it=="/recommend?page=1" }
         grid.performTouchInput { swipeDown(durationMillis=700) }
         ui.waitUntil(10000) { requests.count { it=="/recommend?page=1" }>refreshes && !model.state.value.recommendLoading }
         assertEquals(20,model.state.value.recommendations.size)
         captureUi(ui,"home-refreshed")
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performClick().performTextInput("星河")
         ui.waitUntil(5000) { androidx.core.view.ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())==true }
         grid.performTouchInput { swipeUp(durationMillis=600) }
@@ -121,7 +122,7 @@ class HomeBrowseDeviceTest {
         assertNull(model.state.value.recommendError)
     }
     @Test fun catalogFiltersStayPinnedWhileNextPageLoadsAndTopReturns() {
-        ui.onNodeWithText("分类搜索").performClick()
+        ui.onNodeWithText("分类").performClick()
         ui.waitUntil(10000) { model.state.value.catalogVideos.size==20 && !model.state.value.catalogLoading }
         val first=ui.onNodeWithTag("catalogVideo:1").getUnclippedBoundsInRoot()
         val second=ui.onNodeWithTag("catalogVideo:2").getUnclippedBoundsInRoot()
@@ -145,6 +146,7 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("searchInput").assertIsDisplayed()
     }
     @Test fun searchResultSortAndGenresAlsoRemainPinned() {
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("片库")
         ui.onNodeWithTag("searchInput").performImeAction()
         ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==20 }
@@ -162,6 +164,7 @@ class HomeBrowseDeviceTest {
     }
 
     @Test fun searchPositionSurvivesDetailPlaybackAndReturnWithoutRefetch() {
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("片库")
         ui.onNodeWithTag("searchInput").performImeAction()
         ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==20 }
@@ -208,7 +211,7 @@ class HomeBrowseDeviceTest {
         // Tab switching intentionally reveals search; compare offset relative to the grid.
         assertEquals(recommendationOffset.value,(recommendation.getUnclippedBoundsInRoot().top-recommendations.getUnclippedBoundsInRoot().top).value,1f)
         assertEquals(1,requests.count { it=="/recommend?page=1" })
-        ui.onNodeWithText("分类搜索").performClick()
+        ui.onNodeWithText("分类").performClick()
         ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogVideos.size==20 }
         val catalog=ui.onNodeWithTag("catalogList")
         catalog.performTouchInput { swipeUp(durationMillis=600) }
@@ -237,7 +240,7 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("recommendCategorySheet").assertIsDisplayed()
         ui.onNodeWithTag("pickerDragHandle").performTouchInput { swipe(start=center,end=center.copy(y=center.y+200f),durationMillis=500) }
         ui.onNodeWithTag("recommendCategorySheet").assertDoesNotExist()
-        ui.onNodeWithText("分类搜索").performClick()
+        ui.onNodeWithText("分类").performClick()
         ui.waitUntil(10000) { model.state.value.catalogSource!=null }
         ui.onNodeWithTag("catalogGenrePicker").performClick()
         ui.onNodeWithTag("catalogPicker").performTouchInput { swipeDown() }
@@ -247,7 +250,7 @@ class HomeBrowseDeviceTest {
     }
 
     @Test fun catalogPullRefreshRequestsAnotherPageAndPreservesQuery() {
-        ui.onNodeWithText("分类搜索").performClick()
+        ui.onNodeWithText("分类").performClick()
         ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogVideos.size==20 }
         ui.onNodeWithTag("searchInput").performTextInput("片库")
         ui.onNodeWithTag("searchInput").performImeAction()
@@ -261,12 +264,10 @@ class HomeBrowseDeviceTest {
     }
 
     @Test fun recommendationCategoryUsesDraftSheetAndResetsForType() {
-        val controls=ui.onNodeWithTag("recommendControls")
-        controls.performScrollToNode(hasTestTag("recommendType:movie"))
+        ui.onNodeWithTag("recommendCategoryPicker").performClick()
         ui.onNodeWithTag("recommendType:movie").performClick()
         ui.waitUntil(10000) { model.state.value.recommendType=="movie" && !model.state.value.recommendLoading }
-        controls.performScrollToNode(hasTestTag("recommendCategoryPicker"))
-        ui.onNodeWithTag("recommendCategoryPicker").performClick()
+
         ui.onNodeWithTag("recommendCategory:经典").performClick()
         assertEquals("热门",model.state.value.recommendTag)
         captureUi(ui,"recommend-category-sheet")
@@ -276,8 +277,8 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("recommendCategory:经典").performClick()
         ui.onNodeWithTag("applyRecommendCategory").performClick()
         ui.waitUntil(10000) { model.state.value.recommendTag=="经典" && !model.state.value.recommendLoading }
-        ui.onNodeWithTag("recommendCategoryPicker").assertContentDescriptionContains("推荐分类：经典")
-        controls.performScrollToNode(hasTestTag("recommendType:tv"))
+        ui.onNodeWithTag("recommendCategoryPicker").assertContentDescriptionContains("筛选推荐")
+        ui.onNodeWithTag("recommendCategoryPicker").performClick()
         ui.onNodeWithTag("recommendType:tv").performClick()
         ui.waitUntil(10000) { model.state.value.recommendType=="tv" && model.state.value.recommendTag=="热门" && !model.state.value.recommendLoading }
         val tv=ui.onNodeWithTag("recommendType:tv").getUnclippedBoundsInRoot()

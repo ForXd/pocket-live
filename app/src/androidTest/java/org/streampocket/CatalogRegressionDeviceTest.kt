@@ -56,7 +56,7 @@ class CatalogRegressionDeviceTest {
     }
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     @Test fun genreSearchFindsMatchingVideosBeyondFirstPage() {
-        ui.onNodeWithText("分类搜索").performClick()
+        ui.onNodeWithText("分类").performClick()
         ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogSource!=null }
         ui.onNodeWithTag("catalogGenrePicker").performClick()
         ui.onNodeWithTag("catalogGenre:MYSTERY").performClick()
@@ -90,7 +90,7 @@ class CatalogRegressionDeviceTest {
         assertTrue(model.state.value.catalogSourceKeys.isEmpty())
         assertEquals(setOf(primary.key,secondary.key),model.state.value.catalogVideos.map { it.source.key }.toSet())
         assertFalse(paths.contains("/disabled"))
-        ui.onNodeWithText("分类搜索").performClick()
+        ui.onNodeWithText("分类").performClick()
         ui.onNodeWithTag("searchInput").performTextReplacement("影片")
         ui.onNodeWithTag("catalogSourcePicker").performClick()
         ui.onNodeWithTag("catalogSource:${primary.key}").performClick()

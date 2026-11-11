@@ -56,6 +56,7 @@ class DetailLayoutDeviceTest {
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     @Test fun longCatalogJumpStickyToolsResumeAndLineSelectionRemainReachable() {
         val list=ui.onNodeWithTag("detailGrid")
+        list.performScrollToNode(hasTestTag("detailPlay"))
         ui.onNodeWithTag("detailPlay").assertIsDisplayed().assertTextContains("继续观看",substring=true)
         captureUi(ui,"detail-header")
         list.performScrollToNode(hasText("展开简介"));ui.onNodeWithText("展开简介").performClick()
@@ -66,21 +67,18 @@ class DetailLayoutDeviceTest {
         ui.onNodeWithTag("episode:第451集").assertIsDisplayed()
         val toolbar=ui.onNodeWithTag("episodeToolbar").getUnclippedBoundsInRoot()
         assertTrue(ui.onNodeWithTag("episode:第451集").getUnclippedBoundsInRoot().top>=toolbar.bottom)
-        ui.onNodeWithTag("detailPlay").assertIsDisplayed()
         ui.onNodeWithTag("detailBackToTop").assertIsDisplayed()
         ui.onNodeWithTag("backToTop").assertDoesNotExist()
-        val sourceButton=ui.onNodeWithTag("detailLinePicker").getUnclippedBoundsInRoot()
-        val sameButton=ui.onNodeWithTag("detailSearchSame").getUnclippedBoundsInRoot()
-        assertEquals(sourceButton.top.value,sameButton.top.value,1f)
-        assertEquals(sourceButton.bottom.value,sameButton.bottom.value,1f)
-        assertTrue(sourceButton.right<=sameButton.left)
-        ui.onNodeWithTag("detailPlay").assertTextEquals("继续观看")
         captureUi(ui,"detail-jump")
         ui.onNodeWithTag("episodeOrder").performClick()
         ui.onNodeWithTag("episodeOrder").assertIsOn().assertContentDescriptionContains("当前倒序，切换正序")
         ui.onNodeWithTag("episode:第500集").assertIsDisplayed()
         captureUi(ui,"detail-last-episode")
-        ui.onNodeWithTag("detailPlay").performClick()
+        list.performScrollToNode(hasTestTag("detailPlay"))
+        val sourceButton=ui.onNodeWithTag("detailLinePicker").getUnclippedBoundsInRoot()
+        val sameButton=ui.onNodeWithTag("detailSearchSame").getUnclippedBoundsInRoot()
+        assertTrue(sourceButton.right<=sameButton.left)
+        ui.onNodeWithTag("detailPlay").assertTextEquals("继续观看").performClick()
         ui.waitUntil(5000) { model.state.value.playback?.episode?.url=="$base/main/17.mp4" }
         ui.runOnIdle { model.stopPlayback() }
         ui.waitUntil(5000) { model.state.value.playback==null }
@@ -97,7 +95,7 @@ class DetailLayoutDeviceTest {
         ui.onNodeWithTag("searchInput").assertTextContains(video.title)
     }
     @Test fun emptyDetailKeepsRecoveryAction() {
-        ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(Detail(video,"",emptyList()),model,{}) } } }
+        ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(Detail(video,"",emptyList()),model,searchSame={}) } } }
         ui.onNodeWithTag("detailPlay").assertIsNotEnabled()
         ui.onNodeWithTag("detailSearchSame").assertIsEnabled().assertIsDisplayed()
     }

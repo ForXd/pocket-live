@@ -12,7 +12,8 @@ class SmokeTest {
     @Test fun emptyStartAndTabs() {
         ui.waitUntil(5000) { ui.onAllNodesWithTag("searchInput").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithText("订阅").performClick()
-        ui.onNodeWithTag("subscriptionInput").assertExists().performTextInput("https://example.org/sub.json")
+        ui.onNodeWithContentDescription("添加订阅").performClick()
+            ui.onNodeWithTag("subscriptionInput").assertExists().performTextInput("https://example.org/sub.json")
         ui.onNodeWithText("添加订阅").assertIsEnabled()
         ui.onNodeWithText("历史").performClick()
         ui.onNodeWithText("继续观看").assertExists()

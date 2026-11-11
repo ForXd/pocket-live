@@ -27,7 +27,7 @@ class PlayerLayoutDeviceTest {
         val base="http://fixture.test:${server.port}"
         val assets=InstrumentationRegistry.getInstrumentation().context.assets
         server.dispatcher=object:Dispatcher() {
-            override fun dispatch(request:RecordedRequest):MockResponse = if(request.requestUrl!!.encodedPath=="/api") MockResponse().setBody("""{"list":[{"vod_play_from":"高清线路","vod_play_url":"第1集${'$'}$base/test.mp4?e=1#第2集${'$'}$base/test.mp4?e=2#第3集${'$'}$base/test.mp4?e=3"}]}""")
+            override fun dispatch(request:RecordedRequest):MockResponse = if(request.requestUrl!!.encodedPath=="/api") MockResponse().setBody("""{"list":[{"vod_play_from":"高清线路","vod_play_url":"${(1..500).joinToString("#") { "第${it}集${'$'}$base/test.mp4?e=$it" }}"}]}""")
                 else MockResponse().setBody(Buffer().write(assets.open("test.mp4").use { it.readBytes() })).setHeader("Content-Type","video/mp4")
         }
         lateinit var model:AppModel
@@ -99,6 +99,16 @@ class PlayerLayoutDeviceTest {
             captureUi(ui,"player-landscape")
             assertEquals(created,PlaybackMetrics.created)
             ui.onNodeWithText("选集").performClick()
+            ui.onNodeWithTag("fullscreenEpisodePanel").assertIsDisplayed()
+            val panel=ui.onNodeWithTag("fullscreenEpisodePanel").getUnclippedBoundsInRoot()
+            val surface=ui.onNodeWithTag("playbackSurface").getUnclippedBoundsInRoot()
+            assertEquals((surface.right-surface.left).value*.5f,(panel.right-panel.left).value,2f)
+            ui.onNodeWithTag("playbackEpisodeRanges").performScrollToNode(hasTestTag("playbackRange:9"))
+            ui.onNodeWithTag("playbackRange:9").performClick()
+            ui.onNodeWithText("第451集").assertIsDisplayed()
+            captureUi(ui,"player-episodes-500")
+            ui.onNodeWithTag("playbackCurrent").performClick()
+            ui.onNodeWithText("第1集").assertIsDisplayed()
             captureUi(ui,"player-episodes")
             val nextFrames=PlaybackMetrics.frames
             ui.onNodeWithText("第2集").performClick()

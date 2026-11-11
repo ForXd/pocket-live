@@ -23,6 +23,7 @@ class HistoryGroupsUiTest {
         val id=HistoryGroups.key(a.playback.video).stableKey
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyGroup:$id"))
         ui.onNodeWithTag("continue:$id").performClick();ui.runOnIdle { assertEquals(sameEpisode,selected) }
+        ui.onNodeWithContentDescription("管理记录 剧目a").performClick()
         ui.onNodeWithText("分集（3）").performClick()
         val episodeId="$id:${HistoryGroups.episodeKey(a)}"
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continueEpisode:$episodeId"))
@@ -36,9 +37,11 @@ class HistoryGroupsUiTest {
         val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"history-code7").apply { mkdirs() }
         instrument.uiAutomation.takeScreenshot()?.let { image -> try { java.io.File(dir,"expanded.png").outputStream().use { image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { image.recycle() } }
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyGroup:$id"))
-        ui.onNode(hasText("删除记录") and hasAnyAncestor(hasTestTag("historyGroup:$id"))).performClick()
+        ui.onNodeWithContentDescription("管理记录 剧目a").performClick()
+        ui.onNodeWithText("删除记录").performClick()
         ui.onNodeWithText("删除").performClick();ui.runOnIdle { assertEquals(listOf(b),records.value) }
         ui.onNodeWithTag("historyGroups").performScrollToIndex(0)
+        ui.onNodeWithContentDescription("筛选历史").performClick()
         ui.onNodeWithText("清空历史").performClick();ui.onNodeWithText("清空").performClick()
         ui.onNodeWithText("还没有观看记录").assertExists()
         instrument.sendStatus(0,android.os.Bundle().apply { putString("history_ui_result","grouped latest continue;expanded episode continue;delete one group;clear passed;Compose semantics not OS touch") })

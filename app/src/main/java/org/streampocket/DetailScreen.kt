@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 
 /** Detail-local selection and scroll state never alter playback until the user presses play. */
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalFoundationApi::class)
-@Composable fun DetailScreen(detail:Detail,model:AppModel,searchSame:()->Unit) {
+@Composable fun DetailScreen(detail:Detail,model:AppModel,splitArtwork:Boolean=true,searchSame:()->Unit) {
     val state by model.state.collectAsState()
     val recent=remember(detail,state.saved.history) { detailResume(detail,state.saved.history) }
     var selected by rememberSaveable(detail.video.source.key,detail.video.id) { mutableIntStateOf(detail.lines.indexOfFirst { option -> option.episodes.any { it.url==recent?.playback?.episode?.url } }.coerceAtLeast(0)) }
@@ -48,11 +48,12 @@ import kotlinx.coroutines.launch
     val list=rememberLazyListState()
     val scope=rememberCoroutineScope()
     var toolbarHeight by remember { mutableIntStateOf(0) }
-    val episodeHeader=if(detail.description.isBlank()) 1 else 2
+    val wide=splitArtwork && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=840
+    val episodeHeader=if(wide || detail.description.isBlank()) 2 else 3
     val showTop by remember(episodeHeader,list) { derivedStateOf { list.firstVisibleItemIndex>episodeHeader+2 } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val backdropHeight=if(LocalDensity.current.fontScale>1.3f) 200.dp else if(maxWidth>=600.dp) 280.dp else 320.dp
-        val columns=((maxWidth.value-30)/(if(LocalDensity.current.fontScale>1.3f) 190 else 114)).toInt().coerceIn(1,6)
+        val backdropHeight=if(LocalDensity.current.fontScale>1.3f) 180.dp else if(maxWidth>=600.dp) 280.dp else 300.dp
+        val columns=(((if(wide) maxWidth.value*.57f else maxWidth.value)-40)/(if(LocalDensity.current.fontScale>1.3f) 150 else 56)).toInt().coerceIn(1,6)
         val rows=remember(episodes,columns) { episodes.chunked(columns) }
         fun showEpisodes() { scope.launch { list.scrollToItem(episodeHeader) } }
         if(sheet!=null) ModalBottomSheet(onDismissRequest={sheet=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
@@ -74,43 +75,38 @@ import kotlinx.coroutines.launch
                 }
             }
         }
-        Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxSize(),horizontalArrangement=Arrangement.spacedBy(if(wide) 24.dp else 0.dp)) {
+            if(wide) Poster(detail.video,model,Modifier.weight(.43f).fillMaxHeight().padding(start=20.dp,bottom=24.dp),shape=MaterialTheme.shapes.medium,contentScale=ContentScale.Crop,large=true)
+            Column(Modifier.weight(if(wide) .57f else 1f)) {
             Box(Modifier.weight(1f)) {
                 LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag("detailGrid"),contentPadding=PaddingValues(bottom=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     item(key="identity") {
-                        Box(Modifier.fillMaxWidth().background(Color(0xff101012))) {
-                            Poster(detail.video,model,Modifier.fillMaxWidth().height(backdropHeight),shape=RectangleShape,contentScale=ContentScale.Crop)
-                            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color(0x10101012),Color(0x00101012),Color(0xff101012)))))
-                            Column(Modifier.fillMaxWidth().padding(start=24.dp,end=24.dp,top=backdropHeight-120.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                Text(detail.video.title,style=MaterialTheme.typography.headlineLarge,color=Color.White)
+                        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) {
+                            if(!wide) Poster(detail.video,model,Modifier.fillMaxWidth().height(backdropHeight),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
+                            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,MaterialTheme.colorScheme.background))))
+                            Column(Modifier.fillMaxWidth().padding(start=24.dp,end=24.dp,top=if(wide) 20.dp else backdropHeight-100.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Text(detail.video.title,style=MaterialTheme.typography.headlineLarge,color=MaterialTheme.colorScheme.onSurface)
                                 Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
-                                    Text(detail.video.source.name,Modifier.weight(1f),style=MaterialTheme.typography.labelLarge,color=Color(0xffded8db))
+                                    Text(detail.video.source.name,Modifier.weight(1f),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                     if(detail.video.rating!=null) Text("★ ${detail.video.rating}",style=MaterialTheme.typography.labelLarge,color=Color(0xffffd580))
                                 }
-                                if(detail.video.subtitle.isNotBlank()) Text(detail.video.subtitle,style=MaterialTheme.typography.bodyMedium,color=Color(0xffded8db))
+                                if(detail.video.subtitle.isNotBlank()) Text(detail.video.subtitle,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 if(detail.video.quality.evidence!=QualityEvidence.UNKNOWN) QualityBadge(detail.video.quality,lastPlayback=true)
                             }
                         }
                     }
-                    if(detail.description.isNotBlank()) item(key="description") {
+                    if(!wide && detail.description.isNotBlank()) item(key="description") {
                         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).animateContentSize()) {
                             Text(detail.description,onTextLayout={if(!expanded) descriptionOverflows=it.hasVisualOverflow},maxLines=if(expanded) Int.MAX_VALUE else 3,
                                 overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             if(expanded || descriptionOverflows) TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
                         }
                     }
-                    stickyHeader(key="episode-controls") {
-                        Surface(color=MaterialTheme.colorScheme.background) {
-                            Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("episodeToolbar").onSizeChanged { toolbarHeight=it.height }) {
-                                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                                    Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
-                                    if(showTop) IconButton(onClick={scope.launch { list.animateScrollToItem(0) }},modifier=Modifier.testTag("detailBackToTop")) { Icon(Icons.Default.KeyboardArrowUp,"回到详情顶部") }
-                                    Text("${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                    if(episodes.size>50) TextButton(onClick={sheet="range"},modifier=Modifier.testTag("episodeJump").semantics { contentDescription="定位集数" }) { Text("定位") }
-                                    IconToggleButton(checked=descending,onCheckedChange={descending=it;showEpisodes()},modifier=Modifier.testTag("episodeOrder")) {
-                                        Icon(painterResource(R.drawable.ic_sort),if(descending) "当前倒序，切换正序" else "当前正序，切换倒序",Modifier.rotate(if(descending) 180f else 0f))
-                                    }
-                                }
+                    item(key="playback-actions") {
+                        Column(Modifier.fillMaxWidth()) {
+                            if(wide && detail.description.isNotBlank()) Text(detail.description,Modifier.padding(horizontal=20.dp),maxLines=if(expanded) Int.MAX_VALUE else 4,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            if(wide && detail.description.isNotBlank()) TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
+                            Column(Modifier.padding(horizontal=8.dp)) {
                                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                                     TextButton(onClick={sheet="line"},enabled=detail.lines.size>1,shape=MaterialTheme.shapes.medium,
                                         contentPadding=PaddingValues(horizontal=12.dp,vertical=10.dp),
@@ -123,32 +119,8 @@ import kotlinx.coroutines.launch
                                     }
                                 }
                             }
-                        }
-                    }
-                    if(episodes.isEmpty()) item { Text("当前线路暂无可播放内容",Modifier.padding(horizontal=20.dp,vertical=16.dp),color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                    itemsIndexed(rows,key={index,_->"$selected:$descending:$index"}) { _,row ->
-                        Row(Modifier.fillMaxWidth().padding(horizontal=20.dp).height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            row.forEach { episode ->
-                                val watched=latest?.playback?.episode?.url==episode.url
-                                OutlinedButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.small,
-                                    border=androidx.compose.foundation.BorderStroke(1.dp,if(watched) MaterialTheme.colorScheme.primary.copy(alpha=.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha=.6f)),
-                                    colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface,containerColor=if(watched) MaterialTheme.colorScheme.primary.copy(alpha=.1f) else Color.Transparent),
-                                    contentPadding=PaddingValues(horizontal=8.dp,vertical=12.dp),modifier=Modifier.weight(1f).fillMaxHeight().heightIn(min=56.dp).testTag("episode:${episode.name}")) {
-                                    Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                                        if(watched) Text("上次观看",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
-                                        Text(episode.name,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                        if(episode.quality.evidence!=QualityEvidence.UNKNOWN) Text(episode.quality.label,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                    }
-                                }
-                            }
-                            repeat(columns-row.size) { Spacer(Modifier.weight(1f)) }
-                        }
-                    }
-                }
-            }
             Surface(color=MaterialTheme.colorScheme.background) {
                 Column {
-                    ContentDivider()
                     Column(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull()
                         Row(Modifier.fillMaxWidth().testTag("detailPlaybackSummary"),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
@@ -169,6 +141,47 @@ import kotlinx.coroutines.launch
                     }
                 }
             }
+
+                        }
+                    }
+                    stickyHeader(key="episode-controls") {
+                        Surface(color=MaterialTheme.colorScheme.background) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("episodeToolbar").onSizeChanged { toolbarHeight=it.height }) {
+                                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                                    Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
+                                    if(showTop) IconButton(onClick={scope.launch { list.animateScrollToItem(0) }},modifier=Modifier.testTag("detailBackToTop")) { Icon(Icons.Default.KeyboardArrowUp,"回到详情顶部") }
+                                    Text("${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if(episodes.size>50) TextButton(onClick={sheet="range"},modifier=Modifier.testTag("episodeJump").semantics { contentDescription="定位集数" }) { Text("定位") }
+                                    IconToggleButton(checked=descending,onCheckedChange={descending=it;showEpisodes()},modifier=Modifier.testTag("episodeOrder")) {
+                                        Icon(painterResource(R.drawable.ic_sort),if(descending) "当前倒序，切换正序" else "当前正序，切换倒序",Modifier.rotate(if(descending) 180f else 0f))
+                                    }
+                                }
+
+                            }
+                        }
+                    }
+                    if(episodes.isEmpty()) item { Text("当前线路暂无可播放内容",Modifier.padding(horizontal=20.dp,vertical=16.dp),color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                    itemsIndexed(rows,key={index,_->"$selected:$descending:$index"}) { _,row ->
+                        Row(Modifier.fillMaxWidth().padding(horizontal=20.dp).height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                            row.forEach { episode ->
+                                val watched=latest?.playback?.episode?.url==episode.url
+                                OutlinedButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.small,
+                                    border=androidx.compose.foundation.BorderStroke(1.dp,if(watched) MaterialTheme.colorScheme.primary.copy(alpha=.5f) else Color.Transparent),
+                                    colors=ButtonDefaults.outlinedButtonColors(contentColor=if(watched) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,containerColor=if(watched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer),
+                                    contentPadding=PaddingValues(horizontal=8.dp,vertical=12.dp),modifier=Modifier.weight(1f).fillMaxHeight().heightIn(min=56.dp).testTag("episode:${episode.name}")) {
+                                    Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
+
+                                        Text(episode.name,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                        if(episode.quality.evidence!=QualityEvidence.UNKNOWN) Text(episode.quality.label,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                            repeat(columns-row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+            }
         }
+    }
     }
 }

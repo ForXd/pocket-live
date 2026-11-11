@@ -60,7 +60,7 @@ class GesturePlayerView(context:Context):PlayerView(context) {
             findViewById<android.widget.TextView>(id).setShadowLayer(resources.displayMetrics.density * 2, 0f, 1f, android.graphics.Color.BLACK)
         }
         findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)?.apply {
-            setPlayedColor(android.graphics.Color.rgb(255,83,100))
+            setPlayedColor(android.graphics.Color.rgb(239,227,208))
             setScrubberColor(android.graphics.Color.WHITE)
             setBufferedColor(0xff77777b.toInt())
         }

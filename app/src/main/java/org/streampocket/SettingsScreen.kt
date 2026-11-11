@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
     var rulesExpanded by rememberSaveable { mutableStateOf(false) }
     val sources=remember(s.saved.subscriptions) { s.saved.subscriptions.flatMap { it.sources }.filter { it.kind==SourceKind.VOD }.distinctBy { it.key } }
     LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        item { Text("设置",style=MaterialTheme.typography.headlineLarge,modifier=Modifier.padding(bottom=20.dp)) }
         item { SettingsEntry("外观设置","跟随系统、日间或夜间模式",appearance,"settingsAppearance") }
         item { SettingsEntry("应用更新",when {
             transfer.phase==UpdatePhase.DOWNLOADING -> "正在下载 · ${transfer.received/1024} KiB"
@@ -62,7 +63,7 @@ import androidx.compose.ui.unit.dp
     }
 }
 @Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,expanded:Boolean?=null) {
-    Surface(onClick=action,color=MaterialTheme.colorScheme.surfaceContainer,shape=MaterialTheme.shapes.medium,
+    Surface(onClick=action,color=MaterialTheme.colorScheme.background,shape=MaterialTheme.shapes.medium,
         modifier=Modifier.fillMaxWidth().heightIn(min=72.dp).testTag(tag).semantics { contentDescription=title }) {
         Column {
             Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {

@@ -30,11 +30,12 @@ object PosterLimits {
     const val DOWNLOAD=1_000_000
     const val SOURCE_PIXELS=16_000_000L
     const val DECODE_PIXELS=128_000L
+    const val HERO_PIXELS=512_000L
     const val TTL=24*60*60*1000L
-    fun sample(width: Int,height: Int): Int? {
+    fun sample(width: Int,height: Int,pixels:Long=DECODE_PIXELS): Int? {
         if(width<=0 || height<=0 || width.toLong()*height>SOURCE_PIXELS) return null
         var sample=1
-        while(((width+sample-1)/sample).toLong()*((height+sample-1)/sample)>DECODE_PIXELS) sample*=2
+        while(((width+sample-1)/sample).toLong()*((height+sample-1)/sample)>pixels) sample*=2
         return sample
     }
 }
@@ -71,21 +72,22 @@ class PosterStore(private val directory: File) {
         try { temp.writeBytes(bytes);if(!temp.renameTo(target)) throw IOException("Cache commit failed") }
         finally { temp.delete() }
     }
-    suspend fun load(url:String?,network:Network):Bitmap? {
+    suspend fun load(url:String?,network:Network,large:Boolean=false):Bitmap? {
         val valid=validUrl(url) ?: return null
-        val key=hash(valid);val owner=epoch.get()
+        val key=hash(valid);val memoryKey=if(large) "$key:hero" else key;val owner=epoch.get()
+        val pixels=if(large) PosterLimits.HERO_PIXELS else PosterLimits.DECODE_PIXELS
         return slots.withPermit { withContext(Dispatchers.IO) {
-            memory.get(key)?.let { return@withContext it }
+            memory.get(memoryKey)?.let { return@withContext it }
             try {
                 val bytes=read(key) ?: download(valid,network).also { ensureActive() }
                 ensureActive()
                 val bounds=BitmapFactory.Options().apply { inJustDecodeBounds=true }
                 BitmapFactory.decodeByteArray(bytes,0,bytes.size,bounds)
-                val sample=PosterLimits.sample(bounds.outWidth,bounds.outHeight) ?: return@withContext null
+                val sample=PosterLimits.sample(bounds.outWidth,bounds.outHeight,pixels) ?: return@withContext null
                 val bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size,BitmapFactory.Options().apply { inSampleSize=sample;inPreferredConfig=Bitmap.Config.ARGB_8888 }) ?: return@withContext null
                 ensureActive()
-                if(bitmap.width.toLong()*bitmap.height>PosterLimits.DECODE_PIXELS) return@withContext null
-                if(owner==epoch.get()) { memory.put(key,bitmap);save(key,bytes,owner) }
+                if(bitmap.width.toLong()*bitmap.height>pixels) return@withContext null
+                if(owner==epoch.get()) { memory.put(memoryKey,bitmap);save(key,bytes,owner) }
                 bitmap
             } catch(e:CancellationException) { throw e } catch(_:Exception) { null }
         } }
@@ -114,14 +116,14 @@ class PosterStore(private val directory: File) {
         })
     }
 }
-@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp),shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop) {
+@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp),shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false) {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=remember(model) { model.state.value.posterRefresh })
-    val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle) {
+    val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle,large) {
         value=null // A changed URL must never reuse the previous poster bitmap.
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             // A stopped screen cancels its calls; foreground entry retries a failed image.
-            if(value==null) value=model.posters.load(video.poster,model.network)
+            if(value==null) value=model.posters.load(video.poster,model.network,large)
         }
     }
     Surface(modifier,shape=shape,color=containerColor) {

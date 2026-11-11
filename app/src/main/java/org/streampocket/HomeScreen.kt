@@ -127,9 +127,9 @@ import androidx.compose.ui.unit.dp
             }
         }
         items(videos,key={it.source.key+":"+it.id}) { video ->
-            ContentCard(onClick={model.open(video)},modifier=Modifier.fillMaxWidth().testTag("searchVideo:${video.id}").animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
+            ContentCard(onClick={model.open(video)},containerColor=if(s.detail?.video?.let { it.id==video.id && it.source.key==video.source.key }==true) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.background,modifier=Modifier.fillMaxWidth().testTag("searchVideo:${video.id}").animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
                 Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                    Poster(video,model,Modifier.size(88.dp,132.dp),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer)
+                    Poster(video,model,Modifier.size(88.dp,132.dp),shape=MaterialTheme.shapes.small,containerColor=MaterialTheme.colorScheme.surfaceContainer)
                     Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                         val metadata = SearchRules.metadata(video)

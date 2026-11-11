@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.*
@@ -22,12 +24,14 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class,ExperimentalMaterial3Api::class)
 @Composable fun HistoryScreen(history:List<History>,resume:(History)->Unit,remove:(HistoryGroupKey)->Unit,clear:()->Unit,model:AppModel?=null) {
     // This screen is not composed during playback. At most 100 records are grouped
     // once per changed snapshot, never on the player's position sampling tick.
     val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val imeVisible=WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var period by rememberSaveable { mutableStateOf(HistoryPeriod.ALL) }
     var kind by rememberSaveable { mutableStateOf(HistoryKind.ALL) }
@@ -47,12 +51,21 @@ import androidx.compose.ui.unit.dp
     val scrollConnection=rememberSearchScrollConnection(searchScroll,!imeVisible && groups.isNotEmpty())
     Column(Modifier.fillMaxSize().nestedScroll(scrollConnection)) {
     Column(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-        CollapsingHomeSearch(searchScroll,statusBars=false) {
+        Row(Modifier.fillMaxWidth().heightIn(min=68.dp),verticalAlignment=Alignment.CenterVertically) {
+            Text("历史",Modifier.weight(1f),style=MaterialTheme.typography.headlineLarge)
+            IconButton(onClick={searchOpen=!searchOpen}) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
+            IconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
+        }
+        if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
         ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
             if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
         }
         }
-        if(!imeVisible) {
+        if(filtersOpen) ModalBottomSheet(onDismissRequest={filtersOpen=false}) {
+        SheetSystemBars()
+        Column(Modifier.padding(horizontal=20.dp,vertical=16.dp)) {
+        Text("筛选历史",style=MaterialTheme.typography.titleLarge)
+
         LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             items(HistoryPeriod.entries) { option -> ContentFilterChip(selected=period==option,onClick={period=option},label={Text(option.label)},modifier=Modifier.testTag("historyPeriod:${option.name}")) }
         }
@@ -66,40 +79,44 @@ import androidx.compose.ui.unit.dp
             }
             LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(6.dp)) { items(HistoryKind.entries) { option -> ContentFilterChip(selected=kind==option,onClick={kind=option},label={Text(option.label)}) } }
         }
-        }
         Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
             Text("${groups.size} 部 · ${filtered.size} 条记录",Modifier.weight(1f),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(history.isNotEmpty()) TextButton(onClick={clearing=true},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("清空历史") }
             if(query.isNotEmpty() || source!=null || period!=HistoryPeriod.ALL || kind!=HistoryKind.ALL) TextButton(onClick={query="";source=null;period=HistoryPeriod.ALL;kind=HistoryKind.ALL}) { Text("重置") }
         }
+        Button(onClick={filtersOpen=false},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("完成") }
+        }
+    }
     }
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).testTag("historyGroups")) {
         if(groups.isEmpty()) item { EmptyPanel(if(history.isEmpty()) "还没有观看记录" else "没有匹配记录",if(history.isEmpty()) "播放影片后，可在这里继续观看。" else "试试其他关键词或重置筛选。",R.drawable.ic_history) }
-        groups.forEach { group ->
+        groups.forEachIndexed { index,group ->
             val latest=group.latest
             val id=group.key.stableKey
             item(key="group:$id") {
-                ContentCard(modifier=Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
-                    Box(Modifier.fillMaxWidth().background(Color(0xff101012))) {
-                        if(model!=null) Poster(latest.playback.video,model,Modifier.fillMaxWidth().height(172.dp),shape=RectangleShape,contentScale=ContentScale.Crop)
-                        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color(0xee101012)))))
-                        Column(Modifier.fillMaxWidth().padding(start=16.dp,end=16.dp,top=88.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                            Text(latest.playback.video.title,style=MaterialTheme.typography.titleLarge,color=Color.White)
-                            Text("${latest.playback.episode.name} · ${HistoryGroups.progress(latest)}",style=MaterialTheme.typography.bodyMedium,color=Color(0xffe2dce0))
+                var menu by remember { mutableStateOf(false) }
+                Column(Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
+                    if(index==0 && model!=null) Box {
+                        Poster(latest.playback.video,model,Modifier.fillMaxWidth().aspectRatio(1.95f),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                        FilledTonalIconButton(onClick={resume(latest)},modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        if(index>0 && model!=null) Poster(latest.playback.video,model,Modifier.size(80.dp,90.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                            Text(latest.playback.video.title,style=if(index==0) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium)
+                            Text("${latest.playback.episode.name} · ${HistoryGroups.progress(latest)}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(latest.playback.video.source.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if(index>0 || model==null) IconButton(onClick={resume(latest)},modifier=Modifier.size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
+                        Box {
+                            IconButton(onClick={menu=true}) { Icon(Icons.Default.MoreVert,"管理记录 ${latest.playback.video.title}") }
+                            DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
+                                DropdownMenuItem(text={Text(if(expanded==id) "收起分集" else "分集（${group.episodes.size}）")},onClick={expanded=if(expanded==id) null else id;expandedEpisode=null;menu=false})
+                                DropdownMenuItem(text={Text("删除记录")},onClick={deleting=group.key;menu=false})
+                            }
                         }
                     }
-                    Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Text("${group.entries.map { it.playback.video.source.key }.distinct().size} 个来源 · 最近：${latest.playback.video.source.name}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        if(latest.playback.video.subtitle.isNotBlank()) Text(latest.playback.video.subtitle,style=MaterialTheme.typography.bodySmall,maxLines=2)
-                        Text(historyTime(latest.updated),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                            Button(shape=MaterialTheme.shapes.medium,onClick={resume(latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continue:$id")) {
-                            Text(if(latest.playback.video.source.kind==SourceKind.LIVE) "打开直播" else "继续观看")
-                        }
-                            TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.heightIn(min=48.dp)) { Text(if(expanded==id) "收起分集" else "分集（${group.episodes.size}）") }
-                            TextButton(onClick={deleting=group.key},modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除记录") }
-                        }
-                    }
+                    if(index>0) ContentDivider()
                 }
             }
             if(expanded==id) group.episodes.forEach { episode ->

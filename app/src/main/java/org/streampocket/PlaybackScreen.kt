@@ -9,7 +9,12 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.Dialog
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalConfiguration
@@ -209,7 +214,7 @@ import kotlinx.coroutines.delay
         playerView?.cancelGestures();episodesOpen=false
         if(episode.url!=playback.episode.url) model.play(playback.video,episode)
     }
-    if(episodesOpen && !pip) {
+    if(episodesOpen && !pip && !full) {
         LaunchedEffect(episodesOpen) { playerView?.cancelGestures() }
         Dialog(onDismissRequest={episodesOpen=false},properties=DialogProperties(usePlatformDefaultWidth=false)) {
             BackHandler { episodesOpen=false }
@@ -265,6 +270,7 @@ import kotlinx.coroutines.delay
                     }
                 }
     }
+    MaterialTheme(colorScheme=if(full || pip) NightColors else MaterialTheme.colorScheme) {
     CompositionLocalProvider(LocalContentColor provides if(full || pip) Color.White else MaterialTheme.colorScheme.onSurface) {
     Box(Modifier.fillMaxSize().background(if(full || pip) Color.Black else MaterialTheme.colorScheme.surface).testTag("playbackSurface")) {
         BoxWithConstraints(Modifier.fillMaxSize().then(if(full || pip) Modifier else Modifier.safeDrawingPadding())) {
@@ -326,9 +332,26 @@ import kotlinx.coroutines.delay
         }
         }
 
-        if(full && !pip && controlsVisible && error==null && !health.slow) {
+        AnimatedVisibility(visible=full && episodesOpen && !pip,enter=slideInHorizontally(tween(220)) { it }+fadeIn(tween(160)),exit=slideOutHorizontally(tween(180)) { it }+fadeOut(tween(120))) {
+        BoxWithConstraints(Modifier.fillMaxSize().testTag("fullscreenEpisodeOverlay")) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.18f)).clickable { episodesOpen=false })
+            Surface(Modifier.align(Alignment.CenterEnd).width(maxWidth*.5f).fillMaxHeight().testTag("fullscreenEpisodePanel"),color=Color(0xff181715).copy(alpha=.88f)) {
+                Column(Modifier.windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.End)).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("选集",style=MaterialTheme.typography.titleLarge)
+                            Text("${currentLine?.name.orEmpty()} · ${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(onClick={episodesOpen=false},modifier=Modifier.heightIn(min=48.dp)) { Text("关闭") }
+                    }
+                    PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f))
+                }
+            }
+        }
+        }
+        if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
             // A single top rail leaves Media3's transport and timeline unobstructed.
-            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().displayCutoutPadding().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha=.65f),Color.Transparent))).displayCutoutPadding().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                 IconButton(onClick={playerView?.cancelGestures();full=false},modifier=Modifier.size(48.dp).testTag("fullscreenToggle")) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"退出全屏") }
                 Text("${playback.video.title} · ${playback.episode.name}",Modifier.weight(1f),style=MaterialTheme.typography.titleSmall.copy(shadow=androidx.compose.ui.graphics.Shadow(Color.Black, androidx.compose.ui.geometry.Offset(0f,1f),3f)),maxLines=1,overflow=TextOverflow.Ellipsis)
                 PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
@@ -356,6 +379,8 @@ import kotlinx.coroutines.delay
 }
 }
 
+}
+
 @Composable private fun PlayerIconAction(icon:Int,label:String,enabled:Boolean=true,modifier:Modifier=Modifier,onClick:()->Unit) {
     IconButton(onClick=onClick,enabled=enabled,modifier=modifier.size(48.dp)) {
         Icon(painterResource(icon),contentDescription=label,modifier=Modifier.size(24.dp))
@@ -367,13 +392,23 @@ import kotlinx.coroutines.delay
     val selected=episodes.indexOfFirst { it.url==currentUrl }.coerceAtLeast(0)
     val grid=rememberLazyGridState(initialFirstVisibleItemIndex=selected)
     LaunchedEffect(currentUrl,episodes) { if(episodes.isNotEmpty()) grid.scrollToItem(selected) }
+    val scope=rememberCoroutineScope()
+    Column(modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        if(episodes.size>50) {
+            LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("playbackEpisodeRanges")) {
+                items((episodes.size+49)/50) { range ->
+                    TextButton(onClick={scope.launch { grid.scrollToItem(range*50) }},modifier=Modifier.testTag("playbackRange:$range")) { Text("${range*50+1}–${minOf((range+1)*50,episodes.size)}") }
+                }
+            }
+            TextButton(onClick={scope.launch { grid.scrollToItem(selected) }},modifier=Modifier.testTag("playbackCurrent")) { Text("回到当前集 · ${episodes.getOrNull(selected)?.name.orEmpty()}") }
+        }
     LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 144.dp else 100.dp),state=grid,
-        modifier=modifier.fillMaxWidth().testTag("playbackEpisodes"),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        modifier=Modifier.weight(1f,false).fillMaxWidth().testTag("playbackEpisodes"),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         itemsIndexed(episodes,key={index,episode->"$index:${episode.url}"}) { _,episode ->
             val playing=episode.url==currentUrl
             Surface(onClick={select(episode)},shape=MaterialTheme.shapes.medium,
-                color=if(playing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor=if(playing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                color=if(playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor=if(playing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                 modifier=Modifier.fillMaxWidth().heightIn(min=64.dp).semantics { this.selected=playing }) {
                 Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text(episode.name,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
@@ -382,4 +417,5 @@ import kotlinx.coroutines.delay
             }
         }
     }
+}
 }

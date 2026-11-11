@@ -2,6 +2,7 @@ package org.streampocket
 
 import androidx.activity.compose.setContent
 import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,11 +43,11 @@ class RealClockPerformanceTest {
                 }
             }
             Thread.sleep(5000)
-            shell("dumpsys gfxinfo org.streampocket reset")
+            shell("dumpsys gfxinfo ${instrument.targetContext.packageName} reset")
             repeat(30) { shell("input swipe 240 650 240 300 300");Thread.sleep(200) }
             Thread.sleep(2000)
             val output=java.io.File(instrument.targetContext.getExternalFilesDir(null),"baseline-real-clock-scroll-frames.txt")
-            output.writeText(shell("dumpsys gfxinfo org.streampocket framestats"))
+            output.writeText(shell("dumpsys gfxinfo ${instrument.targetContext.packageName} framestats"))
             instrument.sendStatus(0,android.os.Bundle().apply {
                 putString("frame_file",output.absolutePath);putInt("swipes",30)
                 putString("scope","simple static Compose list,real frame clock,same software renderer; comparison only,not phone performance")
@@ -63,10 +64,11 @@ class RealClockPerformanceTest {
         val server=MockWebServer();server.start();val base="http://fixture.test:${server.port}"
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
-                if(request.requestUrl!!.encodedPath=="/sub") return MockResponse().setBody((0..9).joinToString(",","{\"sources\":[","]}") { """{"name":"Source$it","url":"$base/api$it"}""" })
+                if(request.requestUrl!!.encodedPath=="/sub") return MockResponse().setBody((0..9).joinToString(",","{\"sources\":[","]}") { """{"name":"Source$it","url":"http://api$it.fixture.test:${server.port}/api$it"}""" })
                 return MockResponse().setBody((0..99).joinToString(",","{\"list\":[","]}") { """{"vod_id":"$it","vod_name":"Result $it"}""" })
             }
         }
+        kotlinx.coroutines.runBlocking { Storage(instrument.targetContext).write(Saved(allowHttp=true)) }
         val scenario=ActivityScenario.launch(MainActivity::class.java)
         lateinit var model:AppModel
         var traceStarted=false
@@ -79,7 +81,7 @@ class RealClockPerformanceTest {
                         return AppModel(activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
                     }
                 })[AppModel::class.java]
-                activity.setContent { MaterialTheme(colorScheme=darkColorScheme(primary=Color(0xffa2e5ce),background=Color(0xff101918),surface=Color(0xff172422))) { Surface { Pocket(model) } } }
+                activity.setContent { PocketTheme { Surface(Modifier.safeDrawingPadding()) { val state by model.state.collectAsState(); SearchResultsScreen(state,model,"Result",false,{},{}) } } }
             }
             awaitCondition { !model.state.value.loading }
             scenario.onActivity { model.allowHttp(true) };awaitCondition { model.state.value.saved.allowHttp }
@@ -91,12 +93,12 @@ class RealClockPerformanceTest {
             assertEquals(1000,model.state.value.results.size);assertEquals(0,model.state.value.failures)
             Thread.sleep(3000)
             val trace=InstrumentationRegistry.getArguments().getString("captureTrace")=="true"
-            if(trace) { shell("atrace --async_start -b 4096 -a org.streampocket gfx view sched disk dalvik");traceStarted=true }
-            shell("dumpsys gfxinfo org.streampocket reset")
+            if(trace) { shell("atrace --async_start -b 4096 -a ${instrument.targetContext.packageName} gfx view sched disk dalvik");traceStarted=true }
+            shell("dumpsys gfxinfo ${instrument.targetContext.packageName} reset")
             repeat(30) { shell("input swipe 240 650 240 300 300");Thread.sleep(200) }
             Thread.sleep(2000)
             val output=java.io.File(instrument.targetContext.getExternalFilesDir(null),"real-clock-scroll-frames.txt")
-            output.writeText(shell("dumpsys gfxinfo org.streampocket framestats"))
+            output.writeText(shell("dumpsys gfxinfo ${instrument.targetContext.packageName} framestats"))
             if(trace) {
                 val traceOutput=java.io.File(instrument.targetContext.getExternalFilesDir(null),"app-list-atrace.txt")
                 traceOutput.writeText(shell("atrace --async_stop"))
@@ -104,7 +106,7 @@ class RealClockPerformanceTest {
             }
             instrument.sendStatus(0,android.os.Bundle().apply {
                 putLong("first_result_ms",first);putLong("all_results_ms",complete);putInt("results",1000);putInt("swipes",30)
-                putString("frame_file",output.absolutePath);putString("scope","real Activity frame clock; debug software emulator480x800; injected DNS/controlled HTTP; no physical phone claim")
+                putString("frame_file",output.absolutePath);putString("scope","real Activity frame clock; debug emulator; viewport recorded in evidence; injected DNS/controlled HTTP; no physical phone claim")
             })
         } finally {
             if(traceStarted) shell("atrace --async_stop")

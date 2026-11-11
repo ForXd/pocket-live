@@ -89,7 +89,7 @@ class DiscoveryDeviceTest {
             ui.onNodeWithTag("searchInput").assertTextContains("movie 推荐 1-1")
             ui.onNodeWithTag("nav:0").performClick()
             if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
-            ui.onNodeWithText("分类搜索").performClick()
+            ui.onNodeWithText("分类").performClick()
             ui.waitUntil(15000) { model.state.value.categories.isNotEmpty() }
             ui.onNodeWithTag("catalogGenrePicker").performClick()
             ui.onNodeWithTag("catalogPicker").performScrollToNode(hasTestTag("sourceCategory:1"))

@@ -54,12 +54,38 @@ class UiLayoutDeviceTest {
         }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            if(InstrumentationRegistry.getArguments().getString("designCapture")=="true") {
+                ui.waitUntil(10000) { !model.state.value.recommendLoading && model.state.value.recommendations.isNotEmpty() }
+                capture("design-home")
+                ui.onNodeWithTag("openSearch").performClick()
+                ui.onNodeWithTag("searchInput").performTextInput("星河")
+                ui.onNodeWithTag("searchInput").performImeAction()
+                ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
+                capture("design-search")
+                ui.onNodeWithText("星河漫游").performClick()
+                ui.waitUntil(10000) { model.state.value.detail!=null }
+                capture("design-detail")
+                ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("detailPlay"))
+                ui.onNodeWithTag("detailPlay").assertIsDisplayed()
+                ui.runOnIdle { model.closeDetail() }
+                ui.onNodeWithTag("nav:1").performClick()
+                ui.onNodeWithTag("subscription:fixture").performClick()
+                capture("design-subscriptions")
+                ui.onNodeWithTag("nav:2").performClick()
+                capture("design-history")
+                ui.onNodeWithTag("nav:3").performClick()
+                capture("design-settings")
+                return
+            }
             assertEquals("History artwork survives persistence",video.poster,model.state.value.saved.history.single().playback.video.poster)
             ui.onNodeWithTag("navigationRail").assertDoesNotExist()
             ui.onNodeWithTag("recommendationGrid").assertExists()
             ui.onNodeWithContentDescription("外观设置").assertDoesNotExist()
             assertTrue(ui.onNodeWithTag("nav:2").getUnclippedBoundsInRoot().left<ui.onNodeWithTag("nav:1").getUnclippedBoundsInRoot().left)
             assertTrue(ui.onNodeWithTag("nav:3").getUnclippedBoundsInRoot().left>ui.onNodeWithTag("nav:2").getUnclippedBoundsInRoot().left)
+            ui.onNodeWithTag("openSearch").performClick()
+            ui.runOnIdle { ui.activity.onBackPressedDispatcher.onBackPressed() }
+            ui.onNodeWithTag("openSearch").assertIsDisplayed().performClick()
             ui.onNodeWithTag("searchInput").performTextInput("星河")
             capture("00-keyboard")
             ui.onNodeWithContentDescription("开始搜索").assertHeightIsAtLeast(48.dp).performClick()
@@ -69,13 +95,14 @@ class UiLayoutDeviceTest {
             capture("01-search")
             ui.onNodeWithText("星河漫游").performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
+            ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("detailPlay"))
             ui.onNodeWithTag("detailPlay").assertIsDisplayed()
             ui.onNodeWithTag("detailPlay").assertTextContains("继续观看",substring=true)
             ui.onNodeWithTag("detailGrid").performScrollToIndex(0)
             capture("06-detail")
             ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
             ui.waitUntil(5000) { model.state.value.detail==null }
-            ui.onNodeWithText("订阅",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:1").performClick()
             ui.onNodeWithText("订阅管理").assertDoesNotExist()
             capture("02-subscriptions")
             ui.onNodeWithText("播放与网络").assertDoesNotExist()
@@ -96,17 +123,12 @@ class UiLayoutDeviceTest {
             ui.onNodeWithText("存储与缓存").performClick()
             ui.onNodeWithTag("settingsList").performScrollToNode(hasText("清缓存（保留配置）"))
             ui.onNodeWithText("清缓存（保留配置）").assertHeightIsAtLeast(48.dp)
-            ui.onNodeWithText("历史",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:2").performClick()
             ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continue:${HistoryGroups.key(video).stableKey}"))
             ui.onNodeWithTag("continue:${HistoryGroups.key(video).stableKey}").assertHeightIsAtLeast(48.dp)
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             ui.onNodeWithText("观看历史").assertDoesNotExist()
             capture("04-history")
-            ui.onNodeWithTag("historyGroups").performTouchInput { swipeUp(durationMillis=600) }
-            ui.onNodeWithTag("historySearch").assertIsNotDisplayed()
-            capture("history-search-collapsed")
-            ui.onNodeWithTag("historyGroups").performTouchInput { swipeDown(durationMillis=600) }
-            ui.onNodeWithTag("historySearch").assertIsDisplayed()
 
             ui.onNodeWithTag("nav:0").performClick()
             if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
@@ -115,6 +137,7 @@ class UiLayoutDeviceTest {
             capture("05-discovery")
             ui.onNodeWithText("最近观看").assertDoesNotExist()
             ui.onNodeWithTag("nav:2").performClick()
+            ui.onNodeWithContentDescription("搜索历史").performClick()
             ui.onNodeWithTag("historySearch").performTextInput("星河")
             ui.onNodeWithTag("historySearch").performImeAction()
             ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continue:${HistoryGroups.key(video).stableKey}"))
@@ -159,6 +182,7 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
             capture("08-aligned-grid")
             grid.performScrollToIndex(0)
+            ui.onNodeWithTag("recommendCategoryPicker").performClick()
             ui.onNodeWithContentDescription("刷新推荐").assertHeightIsAtLeast(48.dp).performClick()
             ui.waitUntil(10000) { !model.state.value.recommendLoading }
             ui.onNode(hasScrollToIndexAction() and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange))

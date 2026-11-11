@@ -54,6 +54,7 @@ class QualityUiDeviceTest {
             ui.waitUntil(60000) { model.state.value.saved.allowHttp }
             ui.onNodeWithText("订阅").performClick()
             capture("subscriptions-empty")
+            ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithTag("subscriptionInput").performTextReplacement("$base/sub")
             ui.onNodeWithText("添加订阅").performScrollTo().performClick()
             ui.waitUntil(60000) { model.state.value.saved.subscriptions.size==1 }

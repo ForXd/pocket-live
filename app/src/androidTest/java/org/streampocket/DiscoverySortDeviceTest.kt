@@ -45,7 +45,7 @@ class DiscoverySortDeviceTest {
             ui.onNodeWithText("默认顺序").performClick()
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("recommendation:a"))
             choose("评分最高",true)
-            ui.onNodeWithText("分类搜索").performClick()
+            ui.onNodeWithText("分类").performClick()
             choose("最近更新",false)
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:b"))
             val b=ui.onNodeWithTag("catalogVideo:b").getUnclippedBoundsInRoot().top
