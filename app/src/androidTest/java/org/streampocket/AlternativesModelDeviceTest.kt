@@ -25,6 +25,7 @@ class AlternativesModelDeviceTest {
                 return MockResponse().setBody("""{"list":[{"vod_play_from":"线路$path","vod_play_url":"$episodes"}]}""")
             }
         }
+        kotlinx.coroutines.runBlocking { Storage(instrument.targetContext.applicationContext as Application).write(Saved(allowHttp=true)) }
         val store=ViewModelStore()
         lateinit var model:AppModel
         fun main(block:()->Unit)=instrument.runOnMainSync(block)

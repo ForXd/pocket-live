@@ -16,7 +16,7 @@ object PlaybackAlternatives {
         return n==number(candidate.name)
     }
     fun from(detail:Detail,current:Playback):List<PlaybackAlternative> {
-        if(title(detail.video.title)!=title(current.video.title)) return emptyList()
+        if(!VideoGroups.playbackMatch(detail.video,current.video)) return emptyList()
         return detail.lines.mapNotNull { line ->
             line.episodes.firstOrNull { matches(current.episode,it) && it.url!=current.episode.url }?.let { PlaybackAlternative(detail.video,line.name,it) }
         }.distinctBy { it.episode.url }.take(MAX_OPTIONS)

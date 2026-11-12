@@ -7,18 +7,14 @@ data class HistoryGroupKey(val sourceKey:String,val videoId:String) {
 }
 data class HistoryGroup(val key:HistoryGroupKey,val entries:List<History>) {
     val latest:History get()=entries.first()
-    val episodes:List<HistoryEpisodeGroup> get()=entries.groupBy(HistoryGroups::episodeKey).map { (key,items) -> HistoryEpisodeGroup(key,items) }
+    val episodes:List<HistoryEpisodeGroup> get()=entries.groupBy { (if(VideoGroups.identity(it.playback.video).season!=null) VideoGroups.workKey(it.playback.video)+":" else "")+HistoryGroups.episodeKey(it) }.map { (key,items) -> HistoryEpisodeGroup(key,items) }
 }
 data class HistoryEpisodeGroup(val key:String,val entries:List<History>) {
     val latest:History get()=entries.first()
 }
 object HistoryGroups {
     fun key(video:Video):HistoryGroupKey {
-        val title=java.text.Normalizer.normalize(video.title,java.text.Normalizer.Form.NFKC)
-            .filterNot { it.isWhitespace() || Character.isSpaceChar(it) }.lowercase(java.util.Locale.ROOT)
-        // Keep season/year/version text. IDs are local to each source, never cross-source identity.
-        return if(video.source.kind==SourceKind.VOD && title.isNotEmpty()) HistoryGroupKey("vod-title",title)
-            else HistoryGroupKey(video.source.key,video.id)
+        return HistoryGroupKey("video-family",VideoGroups.familyKey(video))
     }
     /** Only unambiguous episode labels merge; seasons, specials and multipart suffixes stay distinct. */
     fun episodeKey(history:History):String {

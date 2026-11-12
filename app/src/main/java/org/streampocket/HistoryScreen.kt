@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
     val sources=remember(history) { history.map { it.playback.video.source }.distinctBy { it.key } }
 
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedHistoryWork by rememberSaveable { mutableStateOf<String?>(null) }
     var expandedEpisode by rememberSaveable { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<HistoryGroupKey?>(null) }
     var clearing by remember { mutableStateOf(false) }
@@ -96,34 +97,43 @@ import androidx.compose.ui.unit.dp
         groups.forEachIndexed { index,group ->
             val latest=group.latest
             val id=group.key.stableKey
+            val seasonVideos=group.entries.map { it.playback.video }.distinctBy { VideoGroups.workKey(it) }
+            val selectedVideo=seasonVideos.firstOrNull { VideoGroups.workKey(it)==selectedHistoryWork } ?: latest.playback.video
+            val seasonEntries=group.entries.filter { VideoGroups.sameWork(it.playback.video,selectedVideo) }
+            val seasonEpisodes=HistoryGroup(group.key,seasonEntries).episodes
             item(key="group:$id") {
+                val shown=if(expanded==id) seasonEntries.first() else latest
                 var menu by remember { mutableStateOf(false) }
                 Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainer).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
                     if(index==0 && model!=null && expanded!=id) Box {
-                        Poster(latest.playback.video,model,Modifier.fillMaxWidth().then(if(wide) Modifier.height(220.dp) else Modifier.aspectRatio(1.95f)),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
-                        GlassIconButton(onClick={resume(latest)},colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=androidx.compose.ui.graphics.Color.Black.copy(alpha=.48f),contentColor=NightColors.primary),modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
+                        Poster(shown.playback.video,model,Modifier.fillMaxWidth().then(if(wide) Modifier.height(220.dp) else Modifier.aspectRatio(1.95f)),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                        GlassIconButton(onClick={resume(shown)},colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=androidx.compose.ui.graphics.Color.Black.copy(alpha=.48f),contentColor=NightColors.primary),modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
                     }
-                    Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        if((index>0 || expanded==id) && model!=null) Poster(latest.playback.video,model,Modifier.size(80.dp,90.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                            Text(latest.playback.video.title,style=if(index==0) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium)
-                            Text(latest.playback.episode.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            WatchProgress(latest.playback)
-                            Text(latest.playback.video.source.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if(index>0 || model==null || expanded==id) IconButton(onClick={resume(latest)},modifier=Modifier.size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                        Text(VideoGroups.familyTitle(shown.playback.video),Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
                         Box {
-                            IconButton(onClick={menu=true}) { Icon(Icons.Default.MoreVert,"管理记录 ${latest.playback.video.title}") }
+                            IconButton(onClick={menu=true}) { Icon(Icons.Default.MoreVert,"管理记录 ${shown.playback.video.title}") }
                             GlassMenu(expanded=menu,onDismissRequest={menu=false}) {
                                 DropdownMenuItem(text={Text("删除记录")},onClick={deleting=group.key;menu=false})
                             }
                         }
                     }
+                    Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        if((index>0 || expanded==id) && model!=null) Poster(shown.playback.video,model,Modifier.size(64.dp,88.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                            Text((VideoGroups.identity(shown.playback.video).season?.let { "第 $it 季 · " } ?: "")+shown.playback.episode.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(HistoryGroups.progress(shown),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            WatchProgress(shown.playback)
+                            Text(shown.playback.video.source.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if(index>0 || model==null || expanded==id) IconButton(onClick={resume(shown)},modifier=Modifier.size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
+
+                    }
+                    if(expanded==id) SeasonChips(seasonVideos,selectedVideo,{selectedHistoryWork=VideoGroups.workKey(it);expandedEpisode=null})
                     TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.testTag("expandHistory:$id")) { Text(if(expanded==id) "收起分集进度" else "分集进度 · ${group.episodes.size} 集") }
                 }
             }
-            if(expanded==id) group.episodes.forEach { episode ->
+            if(expanded==id) seasonEpisodes.forEach { episode ->
                 val episodeId="$id:${episode.key}"
                 item(key="episode-group:$episodeId") {
                     ContentCard(Modifier.fillMaxWidth().padding(start=12.dp).testTag("historyEpisodeGroup:$episodeId")) {

@@ -16,6 +16,7 @@ data class UiState(val recommendPreview:Video?=null,val recommendSynopsis:String
     val sourceAvailability:Map<String,Boolean> = emptyMap(), val probes:Map<String,ProbeStatus> = emptyMap(), val probeRunning:Boolean=false, val probeResolutions:Map<String,String> = emptyMap(),
     val searchQuery: String = "", val searchOrder: SearchOrder = SearchOrder.RELEVANCE,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
+    val relatedVideos:List<Video> = emptyList(), val relatedLoading:Boolean=false, val relatedError:String?=null,
     val detail: Detail? = null, val detailLoading: Boolean = false, val detailError:String? = null, val playback: Playback? = null,
     val catalogSource: Source? = null, val categories: List<Category> = emptyList(), val catalogVideos: List<Video> = emptyList(),
     val catalogSourceKeys: Set<String> = emptySet(), val catalogCompleted:Int=0, val catalogTotal:Int=0, val catalogGenres: Set<Genre> = emptySet(), val catalogScanned: Int = 0, val catalogCategory: String? = null, val catalogQuery: String = "", val catalogMore: Boolean = false, val catalogLoading: Boolean = false, val catalogError: String? = null,
@@ -517,7 +518,63 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
             catch(e: Exception) { if(owner == recommendOwner) _state.update { it.copy(recommendLoading=false, recommendError=safeError(e)) } }
         }
     }
-    fun open(video: Video) = loadDetail(video)
+    private var relatedJob:Job?=null
+    private var relatedFamily:String?=null
+    private var relatedGeneration=0L
+    fun related(video:Video,refresh:Boolean=false) {
+        if(video.source.kind!=SourceKind.VOD) return
+        val family=VideoGroups.familyKey(video)
+        val snapshot=state.value
+        val known=VideoGroups.options(video,snapshot.results+snapshot.saved.history.map { it.playback.video }+snapshot.relatedVideos).take(200)
+        if(relatedFamily==family && !refresh) {
+            _state.update { it.copy(relatedVideos=VideoGroups.options(video,it.relatedVideos+known).take(200)) };return
+        }
+        relatedJob?.cancel();relatedFamily=family;val owner=++relatedGeneration
+        _state.update { it.copy(relatedVideos=known,relatedLoading=true,relatedError=null) }
+        relatedJob=viewModelScope.launch {
+            var failures=0
+            try {
+                withTimeout(20_000) {
+                    val slots=Semaphore(3)
+                    supervisorScope {
+                        distinctSearchDomains(sourceHealth.ordered(snapshot.saved.enabledSources(SourceKind.VOD),QueryKind.SEARCH),network::actualDomain)
+                            .take(12).forEach { source -> launch {
+                                slots.withPermit {
+                                    try {
+                                        val found=withTimeout(8_000) { searchRepository.search(source,VideoGroups.familyTitle(video)) }
+                                        ensureActive()
+                                        if(owner==relatedGeneration) _state.update { it.copy(relatedVideos=VideoGroups.options(video,it.relatedVideos+found).take(200)) }
+                                    } catch(e:TimeoutCancellationException) { failures++ }
+                                    catch(e:CancellationException) { throw e }
+                                    catch(_:Exception) { failures++ }
+                                }
+                            } }
+                    }
+                }
+            } catch(_:TimeoutCancellationException) { failures++ }
+            finally {
+                if(owner==relatedGeneration) _state.update { it.copy(relatedLoading=false,relatedError=if(failures>0) "部分来源未响应，可重试查找" else null) }
+            }
+        }
+    }
+    fun pauseRelatedDiscovery() {
+        if(relatedJob?.isActive!=true) return
+        relatedGeneration++;relatedJob?.cancel();relatedJob=null;relatedFamily=null
+        _state.update { it.copy(relatedLoading=false) }
+    }
+    private fun cancelRelated() {
+        relatedGeneration++;relatedJob?.cancel();relatedJob=null;relatedFamily=null
+        _state.update { it.copy(relatedVideos=emptyList(),relatedLoading=false,relatedError=null) }
+    }
+    suspend fun browseDetail(video:Video):Detail = withTimeout(15_000) {
+        withContext(Dispatchers.Default) { CmsParser.detail(network.text(network.api(video.source,"ids",video.id)),video) }
+    }
+    fun playDetail(detail:Detail,episode:Episode) {
+        cancelDetailRequest()
+        _state.update { it.copy(detail=detail,detailLoading=false,detailError=null) }
+        play(detail.video,episode)
+    }
+    fun open(video: Video) { related(video);loadDetail(video) }
     private fun cancelDetailRequest() {
         detailOwner=null;detailSession=null;detailJob?.cancel();detailJob=null
     }
@@ -544,6 +601,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         _state.update { it.copy(alternativeSession=null,alternatives=emptyList(),alternativesLoading=false,alternativesError=null) }
     }
     fun openAlternatives(sessionId:String) {
+        pauseRelatedDiscovery()
         val current=state.value.playback?.takeIf { it.sessionId==sessionId && it.video.source.kind==SourceKind.VOD } ?: return
         closeAlternatives(); val owner=alternativesOwner
         val snapshot=state.value
@@ -606,9 +664,9 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                                 slots.withPermit {
                                     try {
                                         withTimeout(12_000) {
-                                            val known=snapshot.results.filter { it.source.key==source.key && PlaybackAlternatives.title(it.title)==PlaybackAlternatives.title(current.video.title) }
+                                            val known=snapshot.results.filter { it.source.key==source.key && VideoGroups.playbackMatch(it,current.video) }
                                             val videos=if(known.isNotEmpty()) known else searchRepository.search(source, current.video.title)
-                                            for(video in videos.filter { PlaybackAlternatives.title(it.title)==PlaybackAlternatives.title(current.video.title) }
+                                            for(video in videos.filter { VideoGroups.playbackMatch(it,current.video) }
                                                 .filterNot { it.source.key==current.video.source.key && it.id==current.video.id }.take(2)) {
                                                 val d=withContext(Dispatchers.Default) { CmsParser.detail(network.text(network.api(source,"ids",video.id)),video) }
                                                 ensureActive();add(PlaybackAlternatives.from(d,current))
@@ -640,8 +698,9 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         if(matching==null) loadDetail(next.video,next.sessionId)
     }
     fun retryPlaybackDetail() { state.value.playback?.let { loadDetail(it.video,it.sessionId) } }
-    fun closeDetail() { cancelDetailRequest();_state.update { it.copy(detail=null,detailLoading=false,detailError=null) } }
+    fun closeDetail() { cancelRelated();cancelDetailRequest();_state.update { it.copy(detail=null,detailLoading=false,detailError=null) } }
     fun play(video: Video, episode: Episode) {
+        pauseRelatedDiscovery()
         closeAlternatives()
         if(detailSession!=null) { cancelDetailRequest();_state.update { it.copy(detailLoading=false) } }
         val p = Playback(video,episode)
@@ -650,6 +709,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         _state.update { it.copy(playback = p.copy(position = old?.let { HistoryGroups.resume(it).position } ?: 0, duration=old?.playback?.duration ?: 0)) }
     }
     fun resume(history: History) {
+        pauseRelatedDiscovery()
         closeAlternatives()
         val p=HistoryGroups.resume(history);own(p)
         _state.update { it.copy(playback=p) } // Playback never waits for the catalog request.
@@ -704,6 +764,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         _state.update { s -> s.copy(playback = s.playback?.let { if(it.sessionId == sessionId) it.copy(autoPlay = play) else it }) }
     }
     fun stopPlayback() {
+        pauseRelatedDiscovery()
         closeAlternatives()
         refreshMeasuredCatalog(state.value.playback);qualityFlushJob?.cancel()
         if(detailSession!=null) cancelDetailRequest()

@@ -65,8 +65,10 @@ import androidx.compose.ui.unit.dp
     var sortMenu by remember { mutableStateOf(false) }
     val matches = remember(s.results, query) { s.results.filter { SearchRules.relevance(it, query) > 0 } }
     val candidates = if (showOthers) s.results else matches
-    val counts = remember(candidates) { candidates.flatMap { Genres.of(it) }.groupingBy { it }.eachCount() }
+    val candidateGroups=remember(candidates) { VideoGroups.group(candidates) }
+    val counts = remember(candidateGroups) { candidateGroups.flatMap { group -> group.flatMap { Genres.of(it) }.distinct() }.groupingBy { it }.eachCount() }
     val videos = remember(candidates, category) { candidates.filter { category == Genre.ALL || Genres.matches(it, category) } }
+    val groups=remember(videos) { VideoGroups.group(videos) }
     val progress by animateFloatAsState(if(s.total==0) 0f else s.completed.toFloat()/s.total,tween(180),label="searchProgress")
     val grid=rememberLazyGridState()
     val scope=rememberCoroutineScope()
@@ -75,7 +77,7 @@ import androidx.compose.ui.unit.dp
         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("searchToolbar")) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     val failureHint = if (s.failures > 0) " · ${s.failures} 个失败" else ""
-                    Text("${videos.size} 条结果 · "+(if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源")+failureHint, Modifier.weight(1f),
+                    Text("${groups.size} 部 · ${videos.size} 个片源 · "+(if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源")+failureHint, Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     IconButton(onClick=back,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回推荐") }
                     if (s.results.isNotEmpty()) Box {
@@ -95,7 +97,7 @@ import androidx.compose.ui.unit.dp
                     items(Genre.entries.filter { it != Genre.UNKNOWN || it == category || (counts[it] ?: 0) > 0 }) { option ->
                         ContentFilterChip(selected=category==option,onClick={category=option},
                             modifier=Modifier.testTag("searchCategory:${option.name}"),
-                            label={Text("${option.label} ${if(option==Genre.ALL) candidates.size else counts[option] ?: 0}")})
+                            label={Text("${option.label} ${if(option==Genre.ALL) candidateGroups.size else counts[option] ?: 0}")})
                     }
                 }
                 if(matches.size < s.results.size) TextButton(onClick={showOthers=!showOthers},modifier=Modifier.testTag("showOtherResults")) {
@@ -126,27 +128,39 @@ import androidx.compose.ui.unit.dp
                 if(!s.searching) GlassButton(shape=MaterialTheme.shapes.medium,onClick=subscriptions) { Text("管理订阅") }
             }
         }
-        items(videos,key={it.source.key+":"+it.id}) { video ->
-            ContentCard(onClick={model.open(video)},containerColor=if(s.detail?.video?.let { it.id==video.id && it.source.key==video.source.key }==true) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.background,modifier=Modifier.fillMaxWidth().testTag("searchVideo:${video.id}").animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null)) {
-                Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                    Poster(video,model,Modifier.size(88.dp,132.dp),shape=MaterialTheme.shapes.small,containerColor=MaterialTheme.colorScheme.surfaceContainer)
-                    Column(Modifier.weight(1f).padding(top=12.dp,end=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                        Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-                        val metadata = SearchRules.metadata(video)
-                        if(metadata.isNotEmpty()) Text(metadata.replace(" · ","  "),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
-                        Text(video.source.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
-                        MediaProbeIndicator(s.probes[video.probeKey()],textModifier=Modifier.testTag("probe:${video.id}"))
-                        if(s.probes[video.probeKey()]==ProbeStatus.READY) Text(s.probeResolutions[video.probeKey()]?.let { "播放清单 · $it" } ?: "清晰度未确认",
-                            style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeResolution:${video.id}"))
-                        if(video.quality.evidence==QualityEvidence.UNKNOWN) { if(s.probes[video.probeKey()]!=ProbeStatus.READY) Text("清晰度未知",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                        else QualityBadge(video.quality,lastPlayback=true)
-                    }
-                }
-            }
+        items(groups,key={VideoGroups.familyKey(it.first())}) { group ->
+            SearchWorkCard(group,s,model,Modifier.animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null))
         }
     }
     val showTop by remember { derivedStateOf { grid.firstVisibleItemIndex>3 } }
     BackToTop(showTop,Modifier.align(Alignment.BottomEnd)) { scope.launch { grid.animateScrollToItem(0);onTop() } }
+        }
+    }
+}
+
+@Composable private fun SearchWorkCard(group:List<Video>,state:UiState,model:AppModel,modifier:Modifier) {
+    var selectedWork by rememberSaveable(VideoGroups.familyKey(group.first())) { mutableStateOf(VideoGroups.workKey(group.first())) }
+    var expanded by rememberSaveable(VideoGroups.familyKey(group.first())) { mutableStateOf(false) }
+    LaunchedEffect(state.detail?.video) { state.detail?.video?.takeIf { VideoGroups.familyKey(it)==VideoGroups.familyKey(group.first()) }?.let { selectedWork=VideoGroups.workKey(it) } }
+    val options=group.filter { VideoGroups.workKey(it)==selectedWork }.ifEmpty { listOf(group.first()) }
+    val video=options.first()
+    ContentCard(modifier.fillMaxWidth().testTag("searchGroup:${VideoGroups.familyKey(video)}")) {
+        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            ContentCard(onClick={model.open(video)},containerColor=androidx.compose.ui.graphics.Color.Transparent,modifier=Modifier.fillMaxWidth().testTag("searchVideo:${video.id}")) {
+                Row(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Poster(video,model,Modifier.size(84.dp,122.dp),shape=MaterialTheme.shapes.small)
+                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                        Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+                        val metadata=SearchRules.metadata(video)
+                        if(metadata.isNotEmpty()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
+                        Text("${options.size} 个来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        GlassButton(onClick={model.open(video)},modifier=Modifier.heightIn(min=48.dp),shape=MaterialTheme.shapes.small) { Text(if(VideoGroups.identity(video).season!=null || SearchRules.category(video)==MediaCategory.SERIES) "查看剧集" else "查看详情") }
+                    }
+                }
+            }
+            SeasonChips(group,video,{selectedWork=VideoGroups.workKey(it);expanded=false})
+            SourceChoices(options,state.detail?.video,state,{model.open(it)},if(expanded) Int.MAX_VALUE else 2)
+            if(options.size>2) TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth()) { Text(if(expanded) "收起来源" else "查看全部 ${options.size} 个来源") }
         }
     }
 }

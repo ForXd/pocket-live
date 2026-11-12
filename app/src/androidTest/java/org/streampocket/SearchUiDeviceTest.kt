@@ -87,7 +87,10 @@ class SearchUiDeviceTest {
             ui.onNodeWithText("高清优先",useUnmergedTree=true).performClick()
             assertEquals("noise",model.state.value.results.first().id)
             ui.onNodeWithTag("searchVideo:noise").assertExists()
-            ui.onNodeWithContentDescription("清空并返回推荐").performClick()
+            // The search bar collapses after scrolling; reveal it before physical touch.
+            ui.onNodeWithTag("searchResults").performTouchInput { swipeDown() }
+            ui.onNodeWithContentDescription("清空并返回推荐").assertIsDisplayed().performClick()
+            capture("03-returned-home")
             ui.onNodeWithText("分类").performClick()
             ui.waitUntil(10000) { model.state.value.categories.isNotEmpty() }
             ui.onNodeWithTag("searchInput").performTextReplacement("星河")

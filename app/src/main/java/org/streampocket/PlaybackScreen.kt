@@ -127,7 +127,7 @@ import kotlinx.coroutines.delay
     DisposableEffect(controller,lifecycle) {
         val observer=LifecycleEventObserver { _,event -> when(event) {
             Lifecycle.Event.ON_START -> controller.start()
-            Lifecycle.Event.ON_STOP -> { model.closeAlternatives();playerView?.cancelGestures();levels.restoreBrightness();controller.stop(activity.isChangingConfigurations) }
+            Lifecycle.Event.ON_STOP -> { model.pauseRelatedDiscovery();model.closeAlternatives();playerView?.cancelGestures();levels.restoreBrightness();controller.stop(activity.isChangingConfigurations) }
             else -> Unit
         } }
         lifecycle.addObserver(observer)
@@ -140,9 +140,6 @@ import kotlinx.coroutines.delay
     val inlineVideoHeight=(configuration.screenWidthDp / (16f/9f)).coerceAtLeast(224f).coerceAtMost(configuration.screenHeightDp * 0.42f).dp
     val matchingDetail=state.detail?.takeIf { it.video.source.key==playback.video.source.key && it.video.id==playback.video.id }
     val hasEpisodes=matchingDetail?.lines?.any { line -> line.episodes.any { it.url==playback.episode.url } }==true
-    val currentLine=matchingDetail?.lines?.firstOrNull { line -> line.episodes.any { it.url==playback.episode.url } }
-    val episodes=currentLine?.episodes.orEmpty()
-    val episodeHistory=remember(state.saved.history,playback.video,state.playback) { episodeProgress(playback.video,state.saved.history).toMutableMap().apply { state.playback?.takeIf { it.duration>0 }?.let { put(it.episode.url,it) } } }
     val previous=adjacentEpisode(state.detail,playback,-1)
     val next=adjacentEpisode(state.detail,playback,1)
     val bufferingText=if(health.buffering) "正在缓冲 · ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒"
@@ -231,10 +228,6 @@ import kotlinx.coroutines.delay
             }
         }
     }
-    val selectEpisode:(Episode)->Unit = { episode ->
-        playerView?.cancelGestures();episodesOpen=false
-        if(episode.url!=playback.episode.url) model.play(playback.video,episode)
-    }
     if(episodesOpen && !pip && !full) {
         LaunchedEffect(episodesOpen) { playerView?.cancelGestures() }
         FrostedDialog(onDismissRequest={episodesOpen=false}) {
@@ -244,11 +237,11 @@ import kotlinx.coroutines.delay
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                             Text("选集",style=MaterialTheme.typography.titleLarge)
-                            Text("${currentLine?.name.orEmpty()} · ${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("正在播放 · ${playback.video.title}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
                         }
                         TextButton(onClick={episodesOpen=false},modifier=Modifier.heightIn(min=48.dp)) { Text("关闭") }
                     }
-                    PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,episodeHistory,Modifier.weight(1f,false))
+                    PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f,false))
                 }
             }
         }
@@ -347,7 +340,7 @@ import kotlinx.coroutines.delay
                     HorizontalDivider(Modifier.padding(horizontal=20.dp),color=MaterialTheme.colorScheme.outlineVariant)
                     Column(Modifier.weight(1f).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         Text("本线路选集",style=MaterialTheme.typography.titleMedium)
-                        PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,episodeHistory,Modifier.weight(1f))
+                        PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f))
                     }
                 }
             }
@@ -359,11 +352,11 @@ import kotlinx.coroutines.delay
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text("选集",style=MaterialTheme.typography.titleLarge)
-                    Text("${currentLine?.name.orEmpty()} · ${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("正在播放 · ${playback.video.title}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
                 }
                 TextButton(onClick={episodesOpen=false},modifier=Modifier.heightIn(min=48.dp)) { Text("关闭") }
             }
-            PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,episodeHistory,Modifier.weight(1f))
+            PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f))
         }
         if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
             // Keep navigation/title above the video; episode/source actions live below the timeline.
@@ -413,7 +406,8 @@ import kotlinx.coroutines.delay
 
 /** Presentation only; selection delegates to the existing session owner. */
 @Composable private fun PlaybackEpisodeGrid(episodes:List<Episode>,currentUrl:String,select:(Episode)->Unit,history:Map<String,Playback>,modifier:Modifier=Modifier) {
-    val selected=episodes.indexOfFirst { it.url==currentUrl }.coerceAtLeast(0)
+    val playingIndex=episodes.indexOfFirst { it.url==currentUrl }
+    val selected=playingIndex.coerceAtLeast(0)
     val grid=rememberLazyGridState(initialFirstVisibleItemIndex=selected)
     LaunchedEffect(currentUrl,episodes) { if(episodes.isNotEmpty()) grid.scrollToItem(selected) }
     val scope=rememberCoroutineScope()
@@ -424,7 +418,7 @@ import kotlinx.coroutines.delay
                     TextButton(onClick={scope.launch { grid.scrollToItem(range*50) }},modifier=Modifier.testTag("playbackRange:$range")) { Text("${range*50+1}–${minOf((range+1)*50,episodes.size)}") }
                 }
             }
-            TextButton(onClick={scope.launch { grid.scrollToItem(selected) }},modifier=Modifier.testTag("playbackCurrent")) { Text("回到当前集 · ${episodes.getOrNull(selected)?.name.orEmpty()}") }
+            TextButton(onClick={scope.launch { grid.scrollToItem(selected) }},modifier=Modifier.testTag("playbackCurrent")) { Text(if(playingIndex>=0) "回到当前集 · ${episodes.getOrNull(selected)?.name.orEmpty()}" else "回到开头") }
         }
     LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 144.dp else 100.dp),state=grid,
         modifier=Modifier.weight(1f,false).fillMaxWidth().testTag("playbackEpisodes"),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -434,4 +428,47 @@ import kotlinx.coroutines.delay
         }
     }
 }
+}
+
+/** Browsing another season/source is isolated from the active Media3 session until an episode is chosen. */
+@Composable private fun PlayerCollectionBrowser(current:Playback,detail:Detail?,state:UiState,model:AppModel,close:()->Unit,modifier:Modifier=Modifier) {
+    var chosen by remember(current.sessionId) { mutableStateOf(current.video) }
+    var browsing by remember(current.sessionId) { mutableStateOf(detail) }
+    var loading by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    var attempt by remember { mutableIntStateOf(0) }
+    var lineIndex by remember(chosen) { mutableIntStateOf(if(chosen.probeKey()==current.video.probeKey()) detail?.lines?.indexOfFirst { line -> line.episodes.any { it.url==current.episode.url } }?.coerceAtLeast(0) ?: 0 else 0) }
+    LaunchedEffect(current.video) { model.related(current.video) }
+    LaunchedEffect(chosen,attempt,detail) {
+        problem=null
+        if(chosen.probeKey()==detail?.video?.probeKey()) { browsing=detail;loading=false }
+        else {
+            loading=true;browsing=null
+            try { browsing=model.browseDetail(chosen) }
+            catch(e:kotlinx.coroutines.TimeoutCancellationException) { problem="加载超时，请重试或选择其他来源" }
+            catch(e:kotlinx.coroutines.CancellationException) { throw e }
+            catch(e:Exception) { problem=safeError(e) }
+            finally { loading=false }
+        }
+    }
+    val shown=browsing
+    val selectedLine=shown?.lines?.getOrNull(lineIndex)
+    val entries=selectedLine?.episodes.orEmpty()
+    val progress=remember(chosen,state.saved.history,current) { episodeProgress(chosen,state.saved.history).toMutableMap().apply { if(chosen.probeKey()==current.video.probeKey() && current.duration>0) put(current.episode.url,current) } }
+    Column(modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        // Limit the source/season header's height so the episode grid always retains room.
+        Column(Modifier.heightIn(max=if(LocalDensity.current.fontScale>1.3f) 104.dp else 160.dp).verticalScroll(rememberScrollState())) {
+            CollectionControls(chosen,state,model,{chosen=it})
+            if((shown?.lines?.size ?: 0)>1) LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                items(shown!!.lines.size) { index -> ContentFilterChip(selected=index==lineIndex,onClick={lineIndex=index},label={Text(shown.lines[index].name)}) }
+            }
+        }
+        Text("正在浏览 · ${chosen.title}"+(if(loading || problem!=null) "" else " · ${entries.size} 集"),style=MaterialTheme.typography.labelMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+        when {
+            loading -> Text("正在加载 ${chosen.title}…",style=MaterialTheme.typography.bodySmall)
+            problem!=null -> { Text(problem!!,style=MaterialTheme.typography.bodySmall);TextButton(onClick={attempt++}) { Text("重试") } }
+            entries.isEmpty() -> Text("当前来源暂无剧集，可选择其他来源",style=MaterialTheme.typography.bodySmall)
+            else -> PlaybackEpisodeGrid(entries,current.episode.url,{episode -> shown?.let { if(it.video.probeKey()!=current.video.probeKey() || episode.url!=current.episode.url) model.playDetail(it,episode);close() }},progress,Modifier.weight(1f))
+        }
+    }
 }

@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val backdropHeight=if(LocalDensity.current.fontScale>1.3f) 180.dp else if(maxWidth>=600.dp) 280.dp else 300.dp
         val columns=(((if(wide) maxWidth.value*.57f else maxWidth.value)-40)/(if(LocalDensity.current.fontScale>1.3f) 150 else 80)).toInt().coerceIn(1,6)
-        val navigationThreshold=with(LocalDensity.current) { (backdropHeight-80.dp).roundToPx() }
+        val navigationThreshold=with(LocalDensity.current) { (backdropHeight-164.dp).roundToPx() }
         val pinnedNavigation by remember(list,wide,navigationThreshold) { derivedStateOf {
             !wide && (list.firstVisibleItemIndex>0 || list.firstVisibleItemScrollOffset>navigationThreshold)
         } }
@@ -114,6 +114,7 @@ import kotlinx.coroutines.launch
                     }
                     item(key="playback-actions") {
                         Column(Modifier.fillMaxWidth()) {
+                            Box(Modifier.padding(horizontal=20.dp)) { CollectionControls(detail.video,state,model,model::open) }
                             if(wide && detail.description.isNotBlank()) Text(detail.description,Modifier.padding(horizontal=20.dp),maxLines=if(expanded) Int.MAX_VALUE else 4,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             if(wide && detail.description.isNotBlank()) TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
                             Column(Modifier.padding(horizontal=8.dp)) {
@@ -125,7 +126,7 @@ import kotlinx.coroutines.launch
                                     }
                                     TextButton(onClick=searchSame,shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(horizontal=12.dp,vertical=10.dp),
                                         modifier=Modifier.heightIn(min=48.dp).testTag("detailSearchSame")) {
-                                        Text("同名换源",maxLines=1,overflow=TextOverflow.Ellipsis)
+                                        Text("重新搜索",maxLines=1,overflow=TextOverflow.Ellipsis)
                                     }
                                 }
                             }
