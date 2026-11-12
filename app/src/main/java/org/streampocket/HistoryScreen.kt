@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 @Composable fun HistoryScreen(history:List<History>,resume:(History)->Unit,remove:(HistoryGroupKey)->Unit,clear:()->Unit,model:AppModel?=null) {
     // This screen is not composed during playback. At most 100 records are grouped
     // once per changed snapshot, never on the player's position sampling tick.
+    val wide=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=700
     val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val imeVisible=WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
     var searchOpen by rememberSaveable { mutableStateOf(false) }
@@ -99,7 +100,7 @@ import androidx.compose.ui.unit.dp
                 var menu by remember { mutableStateOf(false) }
                 Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainer).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
                     if(index==0 && model!=null && expanded!=id) Box {
-                        Poster(latest.playback.video,model,Modifier.fillMaxWidth().aspectRatio(1.95f),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                        Poster(latest.playback.video,model,Modifier.fillMaxWidth().then(if(wide) Modifier.height(220.dp) else Modifier.aspectRatio(1.95f)),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         GlassIconButton(onClick={resume(latest)},colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=androidx.compose.ui.graphics.Color.Black.copy(alpha=.48f),contentColor=NightColors.primary),modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
                     }
                     Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
