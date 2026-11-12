@@ -19,6 +19,12 @@ class GesturePlayerView(context:Context):PlayerView(context) {
     var feedback:(String)->Unit = {}
     var gesturesEnabled=true
         set(value) { if(field!=value) cancelGestures();field=value }
+    var verticalGesturesEnabled=false
+        set(value) { if(field!=value) cancelGestures();field=value }
+    var beginVertical:(Boolean)->Unit = {}
+    var adjustVertical:(Float)->String = { "" }
+    private var verticalAxis=0 // 0 undecided, 1 vertical, -1 horizontal
+    private var verticalCancelled=false
     private val timer=Handler(Looper.getMainLooper())
     private var held=false
     private var direction=1
@@ -49,7 +55,15 @@ class GesturePlayerView(context:Context):PlayerView(context) {
             direction=if(e.x<width/2f) -1 else 1;held=true;timer.post(repeatSeek)
         }
         override fun onScroll(e1:MotionEvent?,e2:MotionEvent,distanceX:Float,distanceY:Float):Boolean {
-            held=false;timer.removeCallbacks(repeatSeek);return true
+            held=false;timer.removeCallbacks(repeatSeek)
+            if(!verticalGesturesEnabled || verticalCancelled || player!==gestureOwner || e1==null) return true
+            val dx=e2.x-e1.x;val dy=e2.y-e1.y
+            if(verticalAxis==0) {
+                verticalAxis=if(kotlin.math.abs(dy)>kotlin.math.abs(dx)*1.2f) 1 else -1
+                if(verticalAxis==1) beginVertical(e1.x<width/2f)
+            }
+            if(verticalAxis==1) feedback(adjustVertical(-dy/(height*.65f).coerceAtLeast(1f)))
+            return true
         }
     })
     init {
@@ -68,13 +82,14 @@ class GesturePlayerView(context:Context):PlayerView(context) {
         controllerShowTimeoutMs=3000
         setControllerAnimationEnabled(false)
         setShowNextButton(false);setShowPreviousButton(false)
-        contentDescription="视频，单击显示控制，左右双击跳转10秒，长按连续跳转"
+        contentDescription="视频，单击显示控制，左右双击跳转10秒，长按连续跳转，全屏左侧上下滑动调亮度、右侧调音量"
     }
     override fun dispatchTouchEvent(event:MotionEvent):Boolean {
         if(!gesturesEnabled) return super.dispatchTouchEvent(event)
         if(event.actionMasked==MotionEvent.ACTION_DOWN) {
             controlsTouch=isControllerFullyVisible && hitsControl(findViewById(androidx.media3.ui.R.id.exo_controller),event.rawX.toInt(),event.rawY.toInt())
             gestureOwner=player
+            verticalAxis=0;verticalCancelled=false
         }
         if(controlsTouch) return super.dispatchTouchEvent(event)
         if(event.pointerCount>1) { cancelGestures();return true }
@@ -91,13 +106,13 @@ class GesturePlayerView(context:Context):PlayerView(context) {
         return v is ViewGroup && (0 until v.childCount).any { hitsControl(v.getChildAt(it),x,y) }
     }
     fun cancelGestures() {
-        held=false;timer.removeCallbacksAndMessages(null)
+        held=false;verticalCancelled=true;timer.removeCallbacksAndMessages(null)
         val e=MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,0f,0f,0)
         detector.onTouchEvent(e);e.recycle();gestureOwner=null
     }
     override fun onSizeChanged(w:Int,h:Int,oldw:Int,oldh:Int) { cancelGestures();super.onSizeChanged(w,h,oldw,oldh) }
     override fun onWindowFocusChanged(hasWindowFocus:Boolean) { if(!hasWindowFocus) cancelGestures();super.onWindowFocusChanged(hasWindowFocus) }
-    override fun onDetachedFromWindow() { cancelGestures();seekRelative={ "" };feedback={};super.onDetachedFromWindow() }
+    override fun onDetachedFromWindow() { cancelGestures();seekRelative={ "" };feedback={};beginVertical={};adjustVertical={ "" };super.onDetachedFromWindow() }
 }
 
 internal fun boundedSeek(position:Long,delta:Long,duration:Long,seekable:Boolean):Long? {

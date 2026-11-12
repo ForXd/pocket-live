@@ -53,14 +53,14 @@ internal val NightColors=darkColorScheme(
     surfaceContainerHigh=Color(0xff302d27),surfaceContainerHighest=Color(0xff3b3730),surfaceDim=Color(0xff181715),surfaceBright=Color(0xff403b33),
     outline=Color(0xff918a7e),outlineVariant=Color(0xff49443b))
 internal val DayColors=lightColorScheme(
-    primary=Color(0xff574735),onPrimary=Color(0xfffffbf3),primaryContainer=Color(0xffe9dfce),onPrimaryContainer=Color(0xff352b20),
-    secondary=Color(0xff6b6051),onSecondary=Color.White,secondaryContainer=Color(0xffe8e1d4),onSecondaryContainer=Color(0xff382f24),
-    tertiary=Color(0xff79613c),onTertiary=Color.White,
-    background=Color(0xfff8f5ee),onBackground=Color(0xff24221d),surface=Color(0xfff8f5ee),onSurface=Color(0xff24221d),
-    surfaceVariant=Color(0xffe8e2d6),onSurfaceVariant=Color(0xff6b655b),surfaceTint=Color(0xff574735),
-    surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xfff0ece3),surfaceContainer=Color(0xffeae5da),
-    surfaceContainerHigh=Color(0xffe4ded1),surfaceContainerHighest=Color(0xffded6c7),surfaceDim=Color(0xffe0d8ca),surfaceBright=Color(0xfffffcf6),
-    outline=Color(0xff8a8071),outlineVariant=Color(0xffd3c9b9))
+    primary=Color.Black,onPrimary=Color.White,primaryContainer=Color(0xffeeeeee),onPrimaryContainer=Color.Black,
+    secondary=Color(0xff555555),onSecondary=Color.White,secondaryContainer=Color(0xfff2f2f2),onSecondaryContainer=Color.Black,
+    tertiary=Color(0xff555555),onTertiary=Color.White,
+    background=Color.White,onBackground=Color.Black,surface=Color.White,onSurface=Color.Black,
+    surfaceVariant=Color(0xfff2f2f2),onSurfaceVariant=Color(0xff595959),surfaceTint=Color.Transparent,
+    surfaceContainerLowest=Color.White,surfaceContainerLow=Color.White,surfaceContainer=Color(0xfffafafa),
+    surfaceContainerHigh=Color(0xfff5f5f5),surfaceContainerHighest=Color(0xffeeeeee),surfaceDim=Color(0xfff5f5f5),surfaceBright=Color.White,
+    outline=Color(0xff808080),outlineVariant=Color(0xffe5e5e5))
 
 @Composable fun PocketTheme(mode:ThemeMode?=null,content:@Composable ()->Unit) {
     val stored=rememberThemeMode()

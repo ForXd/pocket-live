@@ -76,6 +76,10 @@ import kotlinx.coroutines.delay
     var keepPosition by remember { mutableStateOf(true) }
     var error by remember(playback.sessionId) { mutableStateOf<String?>(null) }
     var full by rememberSaveable { mutableStateOf(false) }
+    val levels=remember(activity) { PlaybackLevels(activity) }
+    DisposableEffect(full,pip,levels) {
+        onDispose { levels.restoreBrightness() }
+    }
     val originalOrientation = rememberSaveable { activity.requestedOrientation }
     // Configuration changes resize the existing player instead of releasing/recreating it.
     // Restore the caller's policy (including unlocked/tablet layouts), not a portrait lock.
@@ -104,6 +108,9 @@ import kotlinx.coroutines.delay
     LaunchedEffect(full,pip,playerView,playback.sessionId) {
         playerView?.cancelGestures()
         playerView?.gesturesEnabled=!pip
+        playerView?.verticalGesturesEnabled=full && !pip
+        playerView?.beginVertical=levels::begin
+        playerView?.adjustVertical=levels::adjust
         if(full || pip) playerView?.hideController()
     }
     BackHandler { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) full=false else model.stopPlayback() }
@@ -119,7 +126,7 @@ import kotlinx.coroutines.delay
     DisposableEffect(controller,lifecycle) {
         val observer=LifecycleEventObserver { _,event -> when(event) {
             Lifecycle.Event.ON_START -> controller.start()
-            Lifecycle.Event.ON_STOP -> { model.closeAlternatives();playerView?.cancelGestures();controller.stop(activity.isChangingConfigurations) }
+            Lifecycle.Event.ON_STOP -> { model.closeAlternatives();playerView?.cancelGestures();levels.restoreBrightness();controller.stop(activity.isChangingConfigurations) }
             else -> Unit
         } }
         lifecycle.addObserver(observer)
@@ -324,7 +331,7 @@ import kotlinx.coroutines.delay
                 modifier=Modifier.fillMaxSize()
             )
             if(gestureFeedback.isNotEmpty() && !pip) {
-                Text(gestureFeedback,color=Color.White,modifier=Modifier.align(Alignment.Center).background(Color.Black.copy(alpha=0.7f)).padding(12.dp))
+                Text(gestureFeedback,color=Color.White,modifier=Modifier.align(Alignment.Center).offset(y=(-64).dp).background(Color.Black.copy(alpha=0.7f),androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal=24.dp,vertical=16.dp))
             }
             }
             if(!full && !pip && !wide) {

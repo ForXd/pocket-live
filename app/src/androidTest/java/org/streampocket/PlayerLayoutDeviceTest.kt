@@ -121,6 +121,21 @@ class PlayerLayoutDeviceTest {
             ui.waitUntil(5000) { ui.activity.window.decorView.width>ui.activity.window.decorView.height }
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
+            val initialBrightness=ui.activity.window.attributes.screenBrightness
+            ui.runOnIdle {
+                val pv=view(ui.activity.window.decorView)!!
+                assertTrue(pv.verticalGesturesEnabled)
+                pv.hideController()
+                val now=android.os.SystemClock.uptimeMillis()
+                listOf(android.view.MotionEvent.ACTION_DOWN to pv.height*.7f,
+                    android.view.MotionEvent.ACTION_MOVE to pv.height*.2f,
+                    android.view.MotionEvent.ACTION_UP to pv.height*.2f).forEachIndexed { index,(action,y) ->
+                    val event=android.view.MotionEvent.obtain(now,now+index*60L,action,pv.width*.25f,y,0)
+                    pv.dispatchTouchEvent(event);event.recycle()
+                }
+                assertTrue(ui.activity.window.attributes.screenBrightness>=.5f)
+                pv.showController()
+            }
             captureUi(ui,"player-landscape")
             val actions=ui.onNodeWithTag("fullscreenBottomActions").fetchSemanticsNode().boundsInRoot
             ui.runOnIdle {
@@ -196,6 +211,10 @@ class PlayerLayoutDeviceTest {
             } else {
                 // Large-screen Android may retain landscape after leaving fullscreen.
                 ui.onNodeWithTag("playerSidePanel").assertIsDisplayed()
+            }
+            ui.runOnIdle {
+                assertEquals(initialBrightness,ui.activity.window.attributes.screenBrightness,0f)
+                assertFalse(view(ui.activity.window.decorView)!!.verticalGesturesEnabled)
             }
             ui.onNodeWithContentDescription("返回选集").performClick()
             ui.waitUntil(10000) { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }

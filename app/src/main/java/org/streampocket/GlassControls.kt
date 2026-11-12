@@ -15,12 +15,12 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 
 /** Controls share the parent backdrop, using light translucent tint rather than opaque paint. */
-@Composable internal fun glassFill(selected:Boolean=false)=MaterialTheme.colorScheme.primary.copy(alpha=if(selected) .20f else .10f)
+@Composable internal fun glassFill(selected:Boolean=false)=MaterialTheme.colorScheme.primary.copy(alpha=if(MaterialTheme.colorScheme.surface.luminance()<.5f) { if(selected) .20f else .10f } else { if(selected) .12f else .04f })
 @Composable internal fun GlassButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium,border:BorderStroke?=null,
     colors:ButtonColors=ButtonDefaults.outlinedButtonColors(containerColor=glassFill(),contentColor=MaterialTheme.colorScheme.onSurface),
     contentPadding:PaddingValues=PaddingValues(horizontal=16.dp,vertical=12.dp),content:@Composable RowScope.()->Unit) {
-    val sheen=Brush.verticalGradient(listOf(MaterialTheme.colorScheme.onSurface.copy(alpha=.12f),Color.Transparent))
+    val sheen=Brush.verticalGradient(listOf(MaterialTheme.colorScheme.onSurface.copy(alpha=if(MaterialTheme.colorScheme.surface.luminance()<.5f) .12f else 0f),Color.Transparent))
     OutlinedButton(onClick,modifier.heightIn(min=48.dp).clip(shape).background(sheen),enabled,shape,colors,border=border,contentPadding=contentPadding,content=content)
 }
 @Composable internal fun GlassIconButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,

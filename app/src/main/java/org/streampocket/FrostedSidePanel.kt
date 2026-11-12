@@ -60,7 +60,7 @@ internal enum class GlassPlacement { CENTER, SIDE, BOTTOM }
         dialog.setCanceledOnTouchOutside(true)
         dialog.setOnCancelListener { dismiss() }
         val background=GradientDrawable().apply { cornerRadius=radius;setStroke(with(density) { 1.dp.roundToPx() },stroke) }
-        val backdrop=activity?.window?.let { GlassBackdropDrawable(it,window,radius) }
+        val backdrop=activity?.window?.takeIf { dark }?.let { GlassBackdropDrawable(it,window,radius) }
         window.setBackgroundDrawable(if(backdrop!=null) LayerDrawable(arrayOf(backdrop,background)) else background)
         var captureJob:Job?=null
         var nativeBlur=false
@@ -71,21 +71,21 @@ internal enum class GlassPlacement { CENTER, SIDE, BOTTOM }
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         fun material() {
             val translucent=nativeBlur || backdrop?.bitmap!=null
-            val top=if(dark) Color(0xff55544f) else Color(0xfffffdf7)
-            val bottom=if(dark) Color(0xff252623) else Color(0xffe8e5dc)
+            val top=if(dark) Color(0xff55544f) else Color.White
+            val bottom=if(dark) Color(0xff252623) else Color.White
             background.orientation=GradientDrawable.Orientation.TL_BR
-            background.colors=intArrayOf(top.copy(alpha=if(translucent) .70f else .96f).toArgb(),bottom.copy(alpha=if(translucent) .82f else .98f).toArgb())
+            background.colors=intArrayOf(top.copy(alpha=if(!dark) 1f else if(translucent) .70f else .96f).toArgb(),bottom.copy(alpha=if(!dark) 1f else if(translucent) .82f else .98f).toArgb())
         }
         fun update(enabled:Boolean) {
-            nativeBlur=enabled
+            nativeBlur=enabled && dark
             window.setDimAmount(.16f)
             if(Build.VERSION.SDK_INT>=31) {
-                window.setBackgroundBlurRadius(if(enabled) blurRadius else 0)
-                if(enabled && !immersive) window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND) else window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                window.attributes=window.attributes.apply { setBlurBehindRadius(if(enabled && !immersive) (blurRadius/2) else 0) }
+                window.setBackgroundBlurRadius(if(nativeBlur) blurRadius else 0)
+                if(nativeBlur && !immersive) window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND) else window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                window.attributes=window.attributes.apply { setBlurBehindRadius(if(nativeBlur && !immersive) (blurRadius/2) else 0) }
             }
             captureJob?.cancel()
-            if(enabled) backdrop?.bitmap=null
+            if(nativeBlur) backdrop?.bitmap=null
             else if(backdrop!=null && backdrop.bitmap==null) captureJob=scope.launch(Dispatchers.Main.immediate) {
                 val image=withTimeoutOrNull(1_500) { captureGlassBackdrop(activity!!.window) }
                 ensureActive()
@@ -97,6 +97,10 @@ internal enum class GlassPlacement { CENTER, SIDE, BOTTOM }
         val listener=Consumer<Boolean> { update(it) }
         material();window.setDimAmount(.16f)
         dialog.show()
+        WindowCompat.getInsetsController(window,view).apply {
+            isAppearanceLightStatusBars=!dark
+            isAppearanceLightNavigationBars=!dark
+        }
         window.setLayout(widthPx,if(placement==GlassPlacement.SIDE) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT)
         if(immersive) WindowCompat.getInsetsController(window,view).apply {
             systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
