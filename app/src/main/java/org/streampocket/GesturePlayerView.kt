@@ -60,6 +60,7 @@ class GesturePlayerView(context:Context):PlayerView(context) {
             val dx=e2.x-e1.x;val dy=e2.y-e1.y
             if(verticalAxis==0) {
                 verticalAxis=if(kotlin.math.abs(dy)>kotlin.math.abs(dx)*1.2f) 1 else -1
+                if(verticalAxis==1 && e1.x/width !in 0f..0.25f && e1.x/width !in 0.75f..1f) verticalAxis=-1
                 if(verticalAxis==1) beginVertical(e1.x<width/2f)
             }
             if(verticalAxis==1) feedback(adjustVertical(-dy/(height*.65f).coerceAtLeast(1f)))

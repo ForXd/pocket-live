@@ -480,7 +480,13 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                         withContext(Dispatchers.Default) { recommendationMetadata(network.text(endpoint)) }
                     } } catch(e:TimeoutCancellationException) { null } catch(e:CancellationException) { throw e } catch(_:Exception) { null }
                 }
-                val summary=try { withTimeout(10_000) { withContext(Dispatchers.Default) { recommendationSynopsis(network.text(url)) } } }
+                val summary=try { withTimeout(10_000) { withContext(Dispatchers.Default) {
+                    if(url.startsWith("https://movie.douban.com/subject/") && video.id.matches(Regex("[0-9]{1,20}"))) {
+                        val api=try { recommendationApiSynopsis(network.text("https://m.douban.com/rexxar/api/v2/movie/${video.id}"),video.id) }
+                            catch(e:CancellationException) { throw e } catch(_:Exception) { null }
+                        api ?: recommendationSynopsis(network.text(url))
+                    } else recommendationSynopsis(network.text(url))
+                } } }
                     catch(e:TimeoutCancellationException) { null }
                     catch(e:CancellationException) { throw e }
                     catch(_:Exception) { null }
@@ -641,7 +647,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         val p = Playback(video,episode)
         own(p)
         val old = state.value.saved.history.firstOrNull { it.playback.key == p.key }
-        _state.update { it.copy(playback = p.copy(position = old?.playback?.position ?: 0)) }
+        _state.update { it.copy(playback = p.copy(position = old?.let { HistoryGroups.resume(it).position } ?: 0, duration=old?.playback?.duration ?: 0)) }
     }
     fun resume(history: History) {
         closeAlternatives()
@@ -649,12 +655,12 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         _state.update { it.copy(playback=p) } // Playback never waits for the catalog request.
         loadDetail(p.video,p.sessionId)
     }
-    fun checkpoint(p: Playback, position: Long, autoPlay: Boolean = false) {
+    fun checkpoint(p: Playback, position: Long, autoPlay: Boolean = false, duration:Long = 0) {
         if(historyOwners[p.key]?.let { it != p.sessionId } == true) return
         val currentSession=state.value.playback?.takeIf { it.sessionId==p.sessionId } ?: p
         val measured=measuredSessions[p.sessionId]
         val current=if(measured==null) currentSession else currentSession.copy(video=currentSession.video.copy(quality=measured),episode=currentSession.episode.copy(quality=measured))
-        val next = current.copy(position = if(p.video.source.kind == SourceKind.LIVE) 0 else position.coerceAtLeast(0), autoPlay = autoPlay)
+        val next = current.copy(duration=if(duration>0) duration else current.duration, position = if(p.video.source.kind == SourceKind.LIVE) 0 else position.coerceAtLeast(0), autoPlay = autoPlay)
         if(state.value.playback?.sessionId == p.sessionId) _state.update { it.copy(playback = next) }
         historyWriter.submit(next.key,next)
     }

@@ -34,12 +34,12 @@ object HistoryGroups {
         .groupBy { key(it.playback.video) }.map { (key,entries) -> HistoryGroup(key,entries) }
     fun remove(saved:Saved,groupKey:HistoryGroupKey)=saved.copy(history=saved.history.filterNot { key(it.playback.video)==groupKey })
     fun resume(history:History)=history.playback.copy(
-        position=if(history.playback.video.source.kind==SourceKind.LIVE) 0 else history.playback.position.coerceAtLeast(0),
+        position=if(history.playback.video.source.kind==SourceKind.LIVE || (history.playback.duration>0 && history.playback.position>=history.playback.duration)) 0 else history.playback.position.coerceAtLeast(0),
         autoPlay=true,sessionId=java.util.UUID.randomUUID().toString())
     fun progress(history:History):String {
         if(history.playback.video.source.kind==SourceKind.LIVE) return "直播 · 打开当前直播"
         val seconds=history.playback.position.coerceAtLeast(0)/1000
         val time=if(seconds>=3600) String.format(java.util.Locale.ROOT,"%d:%02d:%02d",seconds/3600,seconds%3600/60,seconds%60) else String.format(java.util.Locale.ROOT,"%02d:%02d",seconds/60,seconds%60)
-        return "已看到 $time"
+        return if(history.playback.duration>0) { if(history.playback.position>=history.playback.duration) "已看完" else "已看到 $time · ${(watchFraction(history.playback)!!*100).toInt()}%" } else "已看到 $time · 总时长未知"
     }
 }

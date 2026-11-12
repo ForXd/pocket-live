@@ -41,6 +41,8 @@ class PlaybackLevelsDeviceTest {
                     event(MotionEvent.ACTION_UP,x+dx,300f+dy)
                 }
                 try {
+                    swipe(500f,0f,-500f)
+                    assertEquals("Center is inert",original,activity.window.attributes.screenBrightness,0f)
                     swipe(200f,0f,-500f)
                     assertEquals(1f,activity.window.attributes.screenBrightness,0f)
                     assertTrue(message.startsWith("亮度"))

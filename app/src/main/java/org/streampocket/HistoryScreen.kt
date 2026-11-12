@@ -2,6 +2,8 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
@@ -95,44 +97,49 @@ import androidx.compose.ui.unit.dp
             val id=group.key.stableKey
             item(key="group:$id") {
                 var menu by remember { mutableStateOf(false) }
-                Column(Modifier.fillMaxWidth().testTag("historyGroup:$id")) {
-                    if(index==0 && model!=null) Box {
+                Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainer).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
+                    if(index==0 && model!=null && expanded!=id) Box {
                         Poster(latest.playback.video,model,Modifier.fillMaxWidth().aspectRatio(1.95f),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         GlassIconButton(onClick={resume(latest)},colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=androidx.compose.ui.graphics.Color.Black.copy(alpha=.48f),contentColor=NightColors.primary),modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
                     }
                     Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        if(index>0 && model!=null) Poster(latest.playback.video,model,Modifier.size(80.dp,90.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                        if((index>0 || expanded==id) && model!=null) Poster(latest.playback.video,model,Modifier.size(80.dp,90.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                             Text(latest.playback.video.title,style=if(index==0) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium)
-                            Text("${latest.playback.episode.name} · ${HistoryGroups.progress(latest)}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(latest.playback.episode.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(HistoryGroups.progress(latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            WatchProgress(latest.playback)
                             Text(latest.playback.video.source.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if(index>0 || model==null) IconButton(onClick={resume(latest)},modifier=Modifier.size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
+                        if(index>0 || model==null || expanded==id) IconButton(onClick={resume(latest)},modifier=Modifier.size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
                         Box {
                             IconButton(onClick={menu=true}) { Icon(Icons.Default.MoreVert,"管理记录 ${latest.playback.video.title}") }
                             GlassMenu(expanded=menu,onDismissRequest={menu=false}) {
-                                DropdownMenuItem(text={Text(if(expanded==id) "收起分集" else "分集（${group.episodes.size}）")},onClick={expanded=if(expanded==id) null else id;expandedEpisode=null;menu=false})
                                 DropdownMenuItem(text={Text("删除记录")},onClick={deleting=group.key;menu=false})
                             }
                         }
                     }
-                    if(index>0) ContentDivider()
+                    TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.testTag("expandHistory:$id")) { Text(if(expanded==id) "收起分集进度" else "分集进度 · ${group.episodes.size} 集") }
                 }
             }
             if(expanded==id) group.episodes.forEach { episode ->
                 val episodeId="$id:${episode.key}"
                 item(key="episode-group:$episodeId") {
                     ContentCard(Modifier.fillMaxWidth().padding(start=12.dp).testTag("historyEpisodeGroup:$episodeId")) {
-                        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick={expandedEpisode=if(expandedEpisode==episodeId) null else episodeId},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("expandEpisode:$episodeId")) {
+                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                                    Text(episode.latest.playback.episode.name,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)
-                                    Text("${episode.entries.size} 条来源记录 · 最近：${episode.latest.playback.video.source.name}",style=MaterialTheme.typography.bodySmall)
+                                    Text(episode.latest.playback.episode.name,style=MaterialTheme.typography.titleMedium)
+                                    Text(HistoryGroups.progress(episode.latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                Text(if(expandedEpisode==episodeId) "收起" else "展开")
+                                IconButton(onClick={resume(episode.latest)},modifier=Modifier.size(48.dp).testTag("continueEpisode:$episodeId")) {
+                                    Icon(painterResource(R.drawable.ic_play),if(watchFraction(episode.latest.playback)==1f) "重新播放本集" else "继续本集")
+                                }
                             }
-                            Text(HistoryGroups.progress(episode.latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(horizontal=12.dp))
-                            TextButton(onClick={resume(episode.latest)},modifier=Modifier.heightIn(min=48.dp).testTag("continueEpisode:$episodeId")) { Text("继续本集") }
+                            WatchProgress(episode.latest.playback)
+                            if(episode.entries.size>1) TextButton(onClick={expandedEpisode=if(expandedEpisode==episodeId) null else episodeId},modifier=Modifier.testTag("expandEpisode:$episodeId")) {
+                                Text(if(expandedEpisode==episodeId) "收起来源" else "查看 ${episode.entries.size} 个来源")
+                            }
                         }
                     }
                 }
@@ -141,6 +148,7 @@ import androidx.compose.ui.unit.dp
                         Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                             Text(entry.playback.video.source.name,style=MaterialTheme.typography.titleSmall)
                             Text(entry.playback.episode.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+                            WatchProgress(entry.playback)
                             Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.bodySmall)
                         }
                     }

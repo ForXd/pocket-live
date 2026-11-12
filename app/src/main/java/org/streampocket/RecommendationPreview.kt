@@ -61,3 +61,9 @@ internal fun recommendationMetadata(json:String):String? {
         }
     }
 }
+
+internal fun recommendationApiSynopsis(json:String,id:String):String? {
+    val subject=JsonData.parse(json).obj() ?: return null
+    if(subject.scalar("id")!=id) return null
+    return subject.scalar("intro").trim().take(6000).takeIf { it.isNotBlank() }
+}

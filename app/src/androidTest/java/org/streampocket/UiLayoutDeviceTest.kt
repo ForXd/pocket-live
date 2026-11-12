@@ -22,9 +22,9 @@ class UiLayoutDeviceTest {
         val base="http://fixture.test:${server.port}"
         val source=Source("示例来源","$base/api")
         val video=Video(source,"1","星河漫游", "更新至第12集",poster="$base/poster.png")
-        val history=History(Playback(video,Episode("第3集","$base/video3.mp4"),72000),System.currentTimeMillis())
+        val history=History(Playback(video,Episode("第3集","$base/video3.mp4"),72000,duration=180_000),System.currentTimeMillis())
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
-        runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history),allowHttp=true)) }
+        runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history,history.copy(playback=history.playback.copy(episode=Episode("第2集","$base/video2.mp4"),position=45_000),updated=history.updated-1),history.copy(playback=history.playback.copy(episode=Episode("第1集","$base/video.mp4"),position=180_000),updated=history.updated-2)),allowHttp=true)) }
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse = if(request.path=="/poster.png") MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
             else if(request.path!!.startsWith("/synopsis")) MockResponse().setBody("<span property=\"v:summary\">一次穿越群星的旅程。每个故事，都值得被认真观看。</span>")
@@ -98,6 +98,11 @@ class UiLayoutDeviceTest {
                 capture("design-subscriptions")
                 ui.onNodeWithTag("nav:2").performClick()
                 capture("design-history")
+                val historyKey=HistoryGroups.key(video).stableKey
+                ui.onNodeWithTag("expandHistory:$historyKey").performClick()
+                ui.onNodeWithTag("historyEpisodeGroup:$historyKey:${HistoryGroups.episodeKey(history)}").assertExists()
+                capture("design-history-episodes")
+                ui.onNodeWithTag("expandHistory:$historyKey").performClick()
                 ui.onNodeWithTag("nav:3").performClick()
                 capture("design-settings")
                 ui.onNodeWithTag("settingsAppearance").performClick()
@@ -128,7 +133,7 @@ class UiLayoutDeviceTest {
                 instrument.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
                 return
             }
-            assertEquals("History artwork survives persistence",video.poster,model.state.value.saved.history.single().playback.video.poster)
+            assertEquals("History artwork survives persistence",video.poster,model.state.value.saved.history.first().playback.video.poster)
             ui.onNodeWithTag("navigationRail").assertDoesNotExist()
             ui.onNodeWithTag("recommendationGrid").assertExists()
             ui.onNodeWithContentDescription("外观设置").assertDoesNotExist()

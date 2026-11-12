@@ -67,6 +67,7 @@ import kotlinx.coroutines.delay
     val state by model.state.collectAsState()
     var playerView by remember(playback.sessionId) { mutableStateOf<GesturePlayerView?>(null) }
     var controlsVisible by remember(playback.sessionId) { mutableStateOf(false) }
+    var knownDuration by remember(playback.sessionId) { mutableLongStateOf(playback.duration) }
     var gestureFeedback by remember(playback.sessionId) { mutableStateOf("") }
     LaunchedEffect(gestureFeedback) { if(gestureFeedback.isNotEmpty()) { delay(1000);gestureFeedback="" } }
     var episodesOpen by remember { mutableStateOf(false) }
@@ -93,7 +94,7 @@ import kotlinx.coroutines.delay
     }
     val controller = remember(playback.sessionId) {
         PlaybackController(context.applicationContext,model.network,playback,
-            checkpoint={ position,autoPlay -> model.checkpoint(playback,position,autoPlay) },
+            checkpoint={ position,autoPlay -> model.checkpoint(playback,position,autoPlay,knownDuration) },
             intent={ model.playbackIntent(playback.sessionId,it) },
             playing={ if(it) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) },
@@ -101,7 +102,7 @@ import kotlinx.coroutines.delay
             videoSize={ width,height -> model.measuredQuality(playback.sessionId,width,height) },
             automaticAds=state.saved.adFilter,
             adPaths=if(state.saved.adFilter) state.saved.adRules[playback.video.source.key].orEmpty().toSet() else emptySet(),
-            filterReport={filterSummary=it},health={health=it},smoothMode=state.smoothPlayback)
+            filterReport={filterSummary=it},health={health=it},smoothMode=state.smoothPlayback,durationChanged={knownDuration=it})
     }
     LaunchedEffect(controller,state.smoothPlayback) { controller.setSmoothMode(state.smoothPlayback) }
     fun showAlternatives() { episodesOpen=false;optionsOpen=false;playerView?.hideController();playerView?.cancelGestures();controller.checkpointNow();model.openAlternatives(playback.sessionId) }
@@ -141,10 +142,11 @@ import kotlinx.coroutines.delay
     val hasEpisodes=matchingDetail?.lines?.any { line -> line.episodes.any { it.url==playback.episode.url } }==true
     val currentLine=matchingDetail?.lines?.firstOrNull { line -> line.episodes.any { it.url==playback.episode.url } }
     val episodes=currentLine?.episodes.orEmpty()
+    val episodeHistory=remember(state.saved.history,playback.video,state.playback) { episodeProgress(playback.video,state.saved.history).toMutableMap().apply { state.playback?.takeIf { it.duration>0 }?.let { put(it.episode.url,it) } } }
     val previous=adjacentEpisode(state.detail,playback,-1)
     val next=adjacentEpisode(state.detail,playback,1)
     val bufferingText=if(health.buffering) "正在缓冲 · ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒"
-    val openEpisodes={ playerView?.cancelGestures();playerView?.hideController();episodesOpen=true }
+    val openEpisodes={ controller.checkpointNow();playerView?.cancelGestures();playerView?.hideController();episodesOpen=true }
     val openOptions={ playerView?.cancelGestures();playerView?.hideController();optionsOpen=true }
     val leavePlayback={ playerView?.cancelGestures();model.stopPlayback() }
     val stepPrevious={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) };Unit }
@@ -246,7 +248,7 @@ import kotlinx.coroutines.delay
                         }
                         TextButton(onClick={episodesOpen=false},modifier=Modifier.heightIn(min=48.dp)) { Text("关闭") }
                     }
-                    PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f,false))
+                    PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,episodeHistory,Modifier.weight(1f,false))
                 }
             }
         }
@@ -345,7 +347,7 @@ import kotlinx.coroutines.delay
                     HorizontalDivider(Modifier.padding(horizontal=20.dp),color=MaterialTheme.colorScheme.outlineVariant)
                     Column(Modifier.weight(1f).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         Text("本线路选集",style=MaterialTheme.typography.titleMedium)
-                        PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f))
+                        PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,episodeHistory,Modifier.weight(1f))
                     }
                 }
             }
@@ -361,7 +363,7 @@ import kotlinx.coroutines.delay
                 }
                 TextButton(onClick={episodesOpen=false},modifier=Modifier.heightIn(min=48.dp)) { Text("关闭") }
             }
-            PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,Modifier.weight(1f))
+            PlaybackEpisodeGrid(episodes,playback.episode.url,selectEpisode,episodeHistory,Modifier.weight(1f))
         }
         if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
             // Keep navigation/title above the video; episode/source actions live below the timeline.
@@ -410,7 +412,7 @@ import kotlinx.coroutines.delay
 }
 
 /** Presentation only; selection delegates to the existing session owner. */
-@Composable private fun PlaybackEpisodeGrid(episodes:List<Episode>,currentUrl:String,select:(Episode)->Unit,modifier:Modifier=Modifier) {
+@Composable private fun PlaybackEpisodeGrid(episodes:List<Episode>,currentUrl:String,select:(Episode)->Unit,history:Map<String,Playback>,modifier:Modifier=Modifier) {
     val selected=episodes.indexOfFirst { it.url==currentUrl }.coerceAtLeast(0)
     val grid=rememberLazyGridState(initialFirstVisibleItemIndex=selected)
     LaunchedEffect(currentUrl,episodes) { if(episodes.isNotEmpty()) grid.scrollToItem(selected) }
@@ -435,6 +437,7 @@ import kotlinx.coroutines.delay
                 modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { this.selected=playing }) {
                 Column(Modifier.padding(horizontal=12.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text(episode.name,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    history[episode.url]?.let { WatchProgress(it,compact=true) }
                 }
             }
         }

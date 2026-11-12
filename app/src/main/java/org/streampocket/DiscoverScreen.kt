@@ -337,7 +337,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 /** Artwork meets the outer clip; no inset surface or independently rounded poster. */
 @Composable private fun DiscoveryCard(modifier:Modifier=Modifier,onClick:()->Unit,content:@Composable ColumnScope.()->Unit) {
-    ContentCard(modifier=modifier,onClick=onClick,containerColor=MaterialTheme.colorScheme.background,content=content)
+    ContentCard(modifier=modifier,onClick=onClick,containerColor=MaterialTheme.colorScheme.surfaceContainer,content=content)
 }
 
 @Composable private fun RecommendationRating(video:Video,modifier:Modifier=Modifier,prefix:String="recommend") {

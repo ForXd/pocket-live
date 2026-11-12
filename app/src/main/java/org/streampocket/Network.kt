@@ -57,9 +57,9 @@ class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns
                 val url = request.url
                 if((url.host.contains(':') || url.host.matches(Regex("[0-9.]+"))) && !PublicNetwork.publicAddress(InetAddress.getByName(url.host))) throw IOException("Local network blocked")
                 if(validUrl(url.toString()) == null || (!url.isHttps && !allowHttp())) throw IOException("URL policy")
-                if(url.host == "movie.douban.com" || url.host.endsWith(".doubanio.com")) {
+                if(url.host == "m.douban.com" || url.host == "movie.douban.com" || url.host.endsWith(".doubanio.com")) {
                     request = request.newBuilder().header("User-Agent", "Mozilla/5.0")
-                        .header("Referer", "https://movie.douban.com/").build()
+                        .header("Referer", if(url.host=="m.douban.com") "https://m.douban.com/" else "https://movie.douban.com/").build()
                 }
                 val response = chain.proceed(request)
                 if(response.code !in listOf(301,302,303,307,308)) return@addInterceptor response

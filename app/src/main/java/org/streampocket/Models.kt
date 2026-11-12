@@ -15,7 +15,7 @@ data class Episode(val name: String, val url: String, val quality: VideoQuality 
 data class Line(val name: String, val episodes: List<Episode>)
 data class Detail(val video: Video, val description: String, val lines: List<Line>)
 data class Playback(val video: Video, val episode: Episode, val position: Long = 0,
-    val autoPlay: Boolean = true, val sessionId: String = java.util.UUID.randomUUID().toString()) {
+    val autoPlay: Boolean = true, val sessionId: String = java.util.UUID.randomUUID().toString(), val duration:Long = 0) {
     val key: String = hash("${video.source.key}|${video.id}|${episode.url}")
 }
 data class History(val playback: Playback, val updated: Long)

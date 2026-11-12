@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.dp
     }
 }
 @Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,expanded:Boolean?=null) {
-    Surface(onClick=action,color=MaterialTheme.colorScheme.background,shape=MaterialTheme.shapes.medium,
+    Surface(onClick=action,color=MaterialTheme.colorScheme.surfaceContainer,shape=MaterialTheme.shapes.medium,
         modifier=Modifier.fillMaxWidth().heightIn(min=72.dp).testTag(tag).semantics { contentDescription=title }) {
         Column {
             Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {

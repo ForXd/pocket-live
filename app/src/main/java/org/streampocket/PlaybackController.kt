@@ -28,6 +28,7 @@ class PlaybackController(
     private val filterReport:(String)->Unit = {},
     private val health:(PlaybackHealth)->Unit = {},
     private var smoothMode:Boolean = false,
+    private val durationChanged:(Long)->Unit = {},
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var mediaCalls:MediaCallOwner?=null
@@ -151,7 +152,8 @@ class PlaybackController(
                 }
                 override fun onIsPlayingChanged(value: Boolean) { if(player===p && !closed) playing(value) }
                 override fun onPlaybackStateChanged(state: Int) {
-                    if(player===p && !closed && state == Player.STATE_ENDED) { position=0; checkpoint(0,false) }
+                    if(player===p && !closed && state==Player.STATE_READY && !liveMedia && p.duration>0) durationChanged(hlsEdit.originalPosition(p.duration))
+                    if(player===p && !closed && state == Player.STATE_ENDED) { position=resumePosition(liveMedia,hlsEdit.originalPosition(if(p.duration>0) p.duration else p.currentPosition)); saveCheckpoint(p,position,false) }
                 }
             }
             listener=events; p.addListener(events)
@@ -189,18 +191,22 @@ class PlaybackController(
                             lastCheckpoint=now
                             PlaybackMetrics.samples++
                             position=resumePosition(liveMedia,hlsEdit.originalPosition(p.currentPosition))
-                            checkpoint(position,p.playWhenReady)
+                            saveCheckpoint(p,position,p.playWhenReady)
                         }
                     }
                 } finally { PlaybackMetrics.samplers-- }
             }
         } catch(e: Exception) { stop(false); failed("播放器初始化失败，可重试或快速换源") }
     }
+    private fun saveCheckpoint(p:Player,at:Long,autoPlay:Boolean) {
+        if(!liveMedia && p.duration>0) durationChanged(hlsEdit.originalPosition(p.duration))
+        checkpoint(at,autoPlay)
+    }
     fun checkpointNow() {
         val p=player ?: return
         if(closed || initialSeek) return
         position=resumePosition(liveMedia,hlsEdit.originalPosition(p.currentPosition))
-        checkpoint(position,p.playWhenReady)
+        saveCheckpoint(p,position,p.playWhenReady)
     }
     fun setSmoothMode(enabled:Boolean) {
         smoothMode=enabled
@@ -252,9 +258,9 @@ class PlaybackController(
         health(PlaybackHealth())
         try {
             if(p != null) {
-                position=if(p.playbackState == Player.STATE_ENDED) 0 else if(initialSeek) position else resumePosition(liveMedia,hlsEdit.originalPosition(p.currentPosition))
+                position=if(initialSeek) position else resumePosition(liveMedia,hlsEdit.originalPosition(p.currentPosition))
                 autoStart=rotating && p.playWhenReady
-                checkpoint(position,autoStart)
+                saveCheckpoint(p,position,autoStart)
             }
         } finally {
             try {

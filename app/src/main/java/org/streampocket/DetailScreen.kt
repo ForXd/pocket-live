@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalFoundationApi::class)
 @Composable fun DetailScreen(detail:Detail,model:AppModel,splitArtwork:Boolean=true,searchSame:()->Unit) {
     val state by model.state.collectAsState()
+    val progressByEpisode=remember(detail.video,state.saved.history) { episodeProgress(detail.video,state.saved.history) }
     val recent=remember(detail,state.saved.history) { detailResume(detail,state.saved.history) }
     var selected by rememberSaveable(detail.video.source.key,detail.video.id) { mutableIntStateOf(detail.lines.indexOfFirst { option -> option.episodes.any { it.url==recent?.playback?.episode?.url } }.coerceAtLeast(0)) }
     var descending by rememberSaveable(detail.video.source.key,detail.video.id) { mutableStateOf(false) }
@@ -92,7 +93,7 @@ import kotlinx.coroutines.launch
                     item(key="identity") {
                         Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) {
                             if(!wide) Poster(detail.video,model,Modifier.fillMaxWidth().height(backdropHeight),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
-                            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,MaterialTheme.colorScheme.background))))
+                            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,MaterialTheme.colorScheme.background),startY=with(LocalDensity.current) { (backdropHeight-160.dp).toPx() },endY=with(LocalDensity.current) { (backdropHeight-100.dp).toPx() })))
                             Column(Modifier.fillMaxWidth().padding(start=24.dp,end=24.dp,top=if(wide) 20.dp else backdropHeight-100.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                 Text(detail.video.title,style=MaterialTheme.typography.headlineLarge,color=MaterialTheme.colorScheme.onSurface)
                                 Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -142,6 +143,7 @@ import kotlinx.coroutines.launch
                                 }
                             }
                         }
+                        latest?.let { WatchProgress(it.playback) }
                         GlassButton(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=MaterialTheme.shapes.medium,
                             modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("detailPlay")) {
                             Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp))
@@ -181,6 +183,7 @@ import kotlinx.coroutines.launch
                                     Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
 
                                         Text(episode.name,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                        progressByEpisode[episode.url]?.let { WatchProgress(it,compact=true) }
                                         if(episode.quality.evidence!=QualityEvidence.UNKNOWN) Text(episode.quality.label,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
                                     }
                                 }

@@ -216,8 +216,17 @@ class PlayerLayoutDeviceTest {
                 assertEquals(initialBrightness,ui.activity.window.attributes.screenBrightness,0f)
                 assertFalse(view(ui.activity.window.decorView)!!.verticalGesturesEnabled)
             }
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.player!!.apply { seekTo(duration);play() } }
+            ui.waitUntil(10000) { model.state.value.playback?.let { it.duration>0 && it.position>=it.duration }==true }
+            val completedKey=model.state.value.playback!!.key
             ui.onNodeWithContentDescription("返回选集").performClick()
             ui.waitUntil(10000) { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }
+            ui.waitUntil(10000) { model.state.value.saved.history.any { it.playback.key==completedKey && watchFraction(it.playback)==1f } }
+            kotlinx.coroutines.runBlocking {
+                val persisted=Storage(ui.activity.application).read().history.first { it.playback.key==completedKey }
+                assertEquals(1f,watchFraction(persisted.playback)!!,0f)
+                assertEquals(0L,HistoryGroups.resume(persisted).position)
+            }
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     }
 }
