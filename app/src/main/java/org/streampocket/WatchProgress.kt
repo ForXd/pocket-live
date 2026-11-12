@@ -50,7 +50,7 @@ internal fun episodeProgress(video:Video,history:List<History>):Map<String,Playb
         }.padding(horizontal=8.dp,vertical=12.dp),horizontalAlignment=androidx.compose.ui.Alignment.CenterHorizontally,
             verticalArrangement=Arrangement.spacedBy(4.dp)) {
             Text(episode.name,style=MaterialTheme.typography.labelLarge,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            if(label!=null) Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2)
+            if(label!=null) Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurface.copy(alpha=.8f),maxLines=2)
             if(showQuality && episode.quality.evidence!=QualityEvidence.UNKNOWN) Text(episode.quality.label,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
