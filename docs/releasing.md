@@ -86,3 +86,12 @@ adb logcat -d -s PackageManager PackageInstallerSession ActivityManager | grep o
 - 预取数据最高约 96 MiB，按堆与低内存状态缩减；原播放器缓冲与解码内存另外计算。详细边界见 docs/ui-v0.42.0.md。
 - 验收后保留 v0.42.0、v0.41.0、v0.40.0 三个 Release，删除 v0.39.0 Release 附件、保留 Git tag。
 - 证据目录 artifacts/v0.42.0/：final-device.log、player-font2.log、player-capture/、dark/、light/、public/、published-upgrade.log、installed-version.txt。
+
+## v0.43.0（2026-11-12）
+
+- 白底黑字日间主题与全屏亮度 / 音量手势。发布源码提交 `6a80c44`，versionCode 51，包名 `org.streampocket`，沿用正式签名。
+- APK 2,787,976 字节，SHA-256 `c6a52ebb78af45b7d3dc46c8bae08303ac038f3af2fa290833768646aca06a16`。签名证书 SHA-256 `7dd2deb1eb4668ae56f830f09ba9c0a5a322763392d8846074c1da2daef02b7f`。
+- 131 项单元测试、debug / release lint、14 项界面 / 手势 / 播放设备测试、2 项更新器测试通过。截图复核白色页面与弹窗，纵向反馈避开播放按钮。
+- 公开 APK、SHA256SUMS 和 latest/download/update.json 均重新下载并验证版本、字节数及哈希。已登录 GitHub latest API 核对版本与提交；匿名 API 返回 403 限流，未将其计为通过，公开更新清单正常可用。
+- 专用 emulator-5554 从已安装正式版 0.42.0 经应用更新和系统安装器升级至 0.43.0（51），测试 7.707 秒通过，订阅 / 历史保留。首次安装时间仍为 `2026-10-28 22:23:52`，没有通过 adb 覆盖安装正式包。
+- 验收后保留 v0.43.0、v0.42.0、v0.41.0 三个 Release；删除 v0.40.0 Release 附件但保留 Git tag。证据保存在本地 `artifacts/v0.43.0/`。
