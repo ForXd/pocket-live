@@ -95,3 +95,12 @@ adb logcat -d -s PackageManager PackageInstallerSession ActivityManager | grep o
 - 公开 APK、SHA256SUMS 和 latest/download/update.json 均重新下载并验证版本、字节数及哈希。已登录 GitHub latest API 核对版本与提交；匿名 API 返回 403 限流，未将其计为通过，公开更新清单正常可用。
 - 专用 emulator-5554 从已安装正式版 0.42.0 经应用更新和系统安装器升级至 0.43.0（51），测试 7.707 秒通过，订阅 / 历史保留。首次安装时间仍为 `2026-10-28 22:23:52`，没有通过 adb 覆盖安装正式包。
 - 验收后保留 v0.43.0、v0.42.0、v0.41.0 三个 Release；删除 v0.40.0 Release 附件但保留 Git tag。证据保存在本地 `artifacts/v0.43.0/`。
+
+## v0.44.0（2026-11-12）
+
+- 正式源码提交 `1d08058`，versionCode 52，包名 `org.streampocket`。包含左右边缘手势、灰底白卡、分集波浪背景进度、整项导航高亮、一步展开历史及推荐简介接口修复。
+- APK 2,787,976 字节，SHA-256 `c8e9241250b0efbe901fd1bb329b67e69d9acdf729a295652735c5e6dabd7557`。沿用证书 SHA-256 `7dd2deb1eb4668ae56f830f09ba9c0a5a322763392d8846074c1da2daef02b7f`。
+- 134 项单元测试、debug / release lint 通过。实际时长持久化、旧记录兼容、播放完成后满进度、重播归零、中心手势抑制、历史操作、简介 API、500 集选集、预取及资源回收设备回归通过。日夜、两倍字号、宽屏截图与交互已复核；宽屏海报高度问题修正后重跑通过。
+- 发布后匿名下载 APK、SHA256SUMS、latest/download/update.json，版本、字节数、哈希完全匹配。已登录 latest API 核对提交；匿名 API 403 限流，不计为通过，公开更新清单正常。
+- 首次应用内检查沿用旧进程的“已是最新正式版”状态，测试未通过；停止旧进程后重新走正式更新入口，0.43.0 → 0.44.0（52）系统安装确认测试 11.135 秒通过。首次安装时间保持 `2026-10-28 22:23:52`，未 adb 覆盖安装或清理正式包数据。
+- 验收后保留 v0.44.0、v0.43.0、v0.42.0 三个 Release，删除 v0.41.0 Release 附件，Git tag 保留。证据在本地 `artifacts/v0.44.0/`。
