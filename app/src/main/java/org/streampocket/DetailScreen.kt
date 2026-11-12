@@ -176,17 +176,8 @@ import kotlinx.coroutines.launch
                         Row(Modifier.fillMaxWidth().padding(horizontal=20.dp).height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             row.forEach { episode ->
                                 val watched=latest?.playback?.episode?.url==episode.url
-                                GlassButton(onClick={model.play(detail.video,episode)},shape=MaterialTheme.shapes.small,
-                                    border=null,
-                                    colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface,containerColor=glassFill(watched)),
-                                    contentPadding=PaddingValues(horizontal=8.dp,vertical=12.dp),modifier=Modifier.weight(1f).fillMaxHeight().heightIn(min=56.dp).testTag("episode:${episode.name}")) {
-                                    Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
-
-                                        Text(episode.name,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                        progressByEpisode[episode.url]?.let { WatchProgress(it,compact=true) }
-                                        if(episode.quality.evidence!=QualityEvidence.UNKNOWN) Text(episode.quality.label,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                                    }
-                                }
+                                EpisodeProgressButton(episode,progressByEpisode[episode.url],watched,{model.play(detail.video,episode)},
+                                    modifier=Modifier.weight(1f).fillMaxHeight().heightIn(min=56.dp).testTag("episode:${episode.name}"),showQuality=true)
                             }
                             repeat(columns-row.size) { Spacer(Modifier.weight(1f)) }
                         }

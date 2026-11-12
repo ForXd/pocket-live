@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
@@ -39,5 +41,22 @@ import androidx.compose.ui.unit.dp
         verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
         if(ready) Box(Modifier.size(6.dp).background(green,androidx.compose.foundation.shape.CircleShape))
         Text(status?.label ?: "未探测",textModifier,style=MaterialTheme.typography.labelMedium,color=foreground)
+    }
+}
+
+/** One selected surface includes both icon and label, with a single accessible tab target. */
+@Composable internal fun PocketNavigationItem(selected:Boolean,label:String,onClick:()->Unit,
+    modifier:Modifier=Modifier,icon:@Composable ()->Unit) {
+    val tint=if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val fill by androidx.compose.animation.animateColorAsState(if(selected) glassFill(true) else Color.Transparent,
+        animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection")
+    androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint) {
+        Column(modifier.heightIn(min=68.dp).clip(MaterialTheme.shapes.large).background(fill)
+            .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick)
+            .padding(horizontal=6.dp,vertical=8.dp),horizontalAlignment=androidx.compose.ui.Alignment.CenterHorizontally,
+            verticalArrangement=Arrangement.spacedBy(4.dp,androidx.compose.ui.Alignment.CenterVertically)) {
+            icon()
+            Text(label,style=MaterialTheme.typography.labelMedium,fontWeight=if(selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,maxLines=1)
+        }
     }
 }

@@ -430,16 +430,7 @@ import kotlinx.coroutines.delay
         modifier=Modifier.weight(1f,false).fillMaxWidth().testTag("playbackEpisodes"),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         itemsIndexed(episodes,key={index,episode->"$index:${episode.url}"}) { _,episode ->
             val playing=episode.url==currentUrl
-            Surface(onClick={select(episode)},shape=MaterialTheme.shapes.small,
-                color=glassFill(playing),
-                border=null,
-                contentColor=MaterialTheme.colorScheme.onSurface,
-                modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { this.selected=playing }) {
-                Column(Modifier.padding(horizontal=12.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                    Text(episode.name,style=MaterialTheme.typography.titleSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    history[episode.url]?.let { WatchProgress(it,compact=true) }
-                }
-            }
+            EpisodeProgressButton(episode,history[episode.url],playing,{select(episode)},Modifier.fillMaxWidth().heightIn(min=52.dp))
         }
     }
 }

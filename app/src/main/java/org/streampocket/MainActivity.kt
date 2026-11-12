@@ -198,15 +198,16 @@ class MainActivity : ComponentActivity() {
         },
         bottomBar = { if(!wide && !imeVisible && s.detail==null && !s.detailLoading) NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp,modifier=Modifier.testTag("mainNavigation")) {
             listOf(0,2,1,3).forEach { i ->
-                NavigationBarItem(colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,indicatorColor=glassFill(true)),selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
-                    modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(destinations[i],fontWeight=if(tab==i) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal)})
+                PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
+                    Modifier.weight(1f).padding(horizontal=8.dp,vertical=4.dp).testTag("nav:$i"),icon={navIcon(i)})
             }
         } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->
         Row(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize().imePadding()) {
         if(wide) NavigationRail(containerColor=MaterialTheme.colorScheme.background,windowInsets=WindowInsets(0,0,0,0),modifier=Modifier.testTag("mainNavigation")) {
             Spacer(Modifier.height(24.dp))
-            listOf(0,2,1,3).forEach { i -> NavigationRailItem(selected=tab==i,onClick={focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},modifier=Modifier.testTag("nav:$i"),icon={navIcon(i)},label={Text(destinations[i],fontWeight=if(tab==i) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal)},colors=NavigationRailItemDefaults.colors(indicatorColor=glassFill(true))) }
+            listOf(0,2,1,3).forEach { i -> PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
+                Modifier.padding(horizontal=8.dp,vertical=4.dp).width(64.dp).testTag("nav:$i"),icon={navIcon(i)}) }
         }
         val destination=when {
             s.detailLoading -> "detailLoading"
