@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable fun SearchResultsScreen(s:UiState,model:AppModel,query:String,compact:Boolean,back:()->Unit,subscriptions:()->Unit,onTop:()->Unit={}) {
     var category by rememberSaveable(query) { mutableStateOf(Genre.ALL) }
+
     var showOthers by rememberSaveable(query) { mutableStateOf(false) }
     val probeLifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(model,query,probeLifecycle) {
@@ -65,10 +66,10 @@ import androidx.compose.ui.unit.dp
     var sortMenu by remember { mutableStateOf(false) }
     val matches = remember(s.results, query) { s.results.filter { SearchRules.relevance(it, query) > 0 } }
     val candidates = if (showOthers) s.results else matches
-    val candidateGroups=remember(candidates) { VideoGroups.group(candidates) }
+    val candidateGroups=remember(candidates) { VideoGroups.searchGroups(candidates) }
     val counts = remember(candidateGroups) { candidateGroups.flatMap { group -> group.flatMap { Genres.of(it) }.distinct() }.groupingBy { it }.eachCount() }
     val videos = remember(candidates, category) { candidates.filter { category == Genre.ALL || Genres.matches(it, category) } }
-    val groups=remember(videos) { VideoGroups.group(videos) }
+    val groups=remember(videos) { VideoGroups.searchGroups(videos) }
     val progress by animateFloatAsState(if(s.total==0) 0f else s.completed.toFloat()/s.total,tween(180),label="searchProgress")
     val grid=rememberLazyGridState()
     val scope=rememberCoroutineScope()
@@ -88,19 +89,16 @@ import androidx.compose.ui.unit.dp
                         }
                     }
                 }
-        if(s.probeRunning || s.probes.isNotEmpty()) Text(
-            if(s.probeRunning) "正在探测播放资源 · 已找到 ${s.probes.values.count { it==ProbeStatus.READY }}/2" else if(s.probes.values.count { it==ProbeStatus.READY }>=2) "已找到 2 个媒体可用结果 · 已停止探测" else "探测完成 · 可用结果优先",
-            style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeSummary"))
         if(s.results.isNotEmpty()) Column {
             Column {
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("searchCategories")) {
                     items(Genre.entries.filter { it != Genre.UNKNOWN || it == category || (counts[it] ?: 0) > 0 }) { option ->
-                        ContentFilterChip(selected=category==option,onClick={category=option},
+                        ContentFilterChip(selected=category==option,onClick={category=option;model.requestSourceProbe(null)},
                             modifier=Modifier.testTag("searchCategory:${option.name}"),
                             label={Text("${option.label} ${if(option==Genre.ALL) candidateGroups.size else counts[option] ?: 0}")})
                     }
                 }
-                if(matches.size < s.results.size) TextButton(onClick={showOthers=!showOthers},modifier=Modifier.testTag("showOtherResults")) {
+                if(matches.size < s.results.size) TextButton(onClick={showOthers=!showOthers;model.requestSourceProbe(null)},modifier=Modifier.testTag("showOtherResults")) {
                     Text(if(showOthers) "仅看匹配片名" else "展开其他源站结果 · ${s.results.size-matches.size}")
                 }
             }
@@ -129,7 +127,7 @@ import androidx.compose.ui.unit.dp
             }
         }
         items(groups,key={VideoGroups.familyKey(it.first())}) { group ->
-            SearchWorkCard(group,s,model,Modifier.animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null))
+            SearchWorkCard(group,s,model,s.probeWork,{model.requestSourceProbe(it)},Modifier.animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null))
         }
     }
     val showTop by remember { derivedStateOf { grid.firstVisibleItemIndex>3 } }
@@ -138,15 +136,15 @@ import androidx.compose.ui.unit.dp
     }
 }
 
-@Composable private fun SearchWorkCard(group:List<Video>,state:UiState,model:AppModel,modifier:Modifier) {
-    var selectedWork by rememberSaveable(VideoGroups.familyKey(group.first())) { mutableStateOf(VideoGroups.workKey(group.first())) }
-    var expanded by rememberSaveable(VideoGroups.familyKey(group.first())) { mutableStateOf(false) }
+@Composable private fun SearchWorkCard(group:List<Video>,state:UiState,model:AppModel,expandedWork:String?,expand:(String?)->Unit,modifier:Modifier) {
+    var selectedWork by rememberSaveable(VideoGroups.familyKey(group.first())) { mutableStateOf(state.probeWork?.takeIf { key -> group.any { VideoGroups.workKey(it)==key } } ?: VideoGroups.workKey(group.first())) }
     LaunchedEffect(state.detail?.video) { state.detail?.video?.takeIf { VideoGroups.familyKey(it)==VideoGroups.familyKey(group.first()) }?.let { selectedWork=VideoGroups.workKey(it) } }
-    val options=group.filter { VideoGroups.workKey(it)==selectedWork }.ifEmpty { listOf(group.first()) }
+    val options=VideoGroups.searchSources(selectedWork,group).ifEmpty { listOf(group.first()) }
+    val expanded=expandedWork!=null && options.any { VideoGroups.workKey(it)==expandedWork }
     val video=options.first()
     ContentCard(modifier.fillMaxWidth().testTag("searchGroup:${VideoGroups.familyKey(video)}")) {
         Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-            ContentCard(onClick={model.open(video)},containerColor=androidx.compose.ui.graphics.Color.Transparent,modifier=Modifier.fillMaxWidth().testTag("searchVideo:${video.id}")) {
+            ContentCard(onClick={expand(if(expanded) null else selectedWork)},containerColor=androidx.compose.ui.graphics.Color.Transparent,modifier=Modifier.fillMaxWidth().testTag("searchVideo:${video.id}")) {
                 Row(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.CenterVertically) {
                     Poster(video,model,Modifier.size(84.dp,122.dp),shape=MaterialTheme.shapes.small)
                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
@@ -154,13 +152,20 @@ import androidx.compose.ui.unit.dp
                         val metadata=SearchRules.metadata(video)
                         if(metadata.isNotEmpty()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
                         Text("${options.size} 个来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        GlassButton(onClick={model.open(video)},modifier=Modifier.heightIn(min=48.dp),shape=MaterialTheme.shapes.small) { Text(if(VideoGroups.identity(video).season!=null || SearchRules.category(video)==MediaCategory.SERIES) "查看剧集" else "查看详情") }
+                        GlassButton(onClick={expand(if(expanded) null else selectedWork)},modifier=Modifier.heightIn(min=48.dp),shape=MaterialTheme.shapes.small) { Text(if(expanded) "收起来源" else "查看来源") }
                     }
                 }
             }
-            SeasonChips(group,video,{selectedWork=VideoGroups.workKey(it);expanded=false})
-            SourceChoices(options,state.detail?.video,state,{model.open(it)},if(expanded) Int.MAX_VALUE else 2)
-            if(options.size>2) TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth()) { Text(if(expanded) "收起来源" else "查看全部 ${options.size} 个来源") }
+            SeasonChips(group,video,{selectedWork=VideoGroups.workKey(it);expand(null)},search=true)
+            if(expanded) {
+                val ready=options.any { state.probes[it.probeKey()]==ProbeStatus.READY }
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    Text(if(ready) "已找到可用来源 · 已停止探测" else if(state.probeRunning && state.probeWork==selectedWork) "正在检测播放来源…" else "暂未确认可用来源，可手动尝试",
+                        Modifier.weight(1f).testTag("probeSummary"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    if(!state.probeRunning && !ready) TextButton(onClick={model.requestSourceProbe(selectedWork,retry=true)}) { Text("重试") }
+                }
+                SourceChoices(options.sortedBy { if(state.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 },state.detail?.video,state,{model.open(it)},Int.MAX_VALUE)
+            }
         }
     }
 }

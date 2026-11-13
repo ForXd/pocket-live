@@ -35,6 +35,7 @@ class PlaybackController(
     private var lookAhead:HlsLookAhead?=null
     private var sample: Job? = null
     private var recovery: Job? = null
+    private var preparation: Job? = null
     private var player: ExoPlayer? = null
     private var view: PlayerView? = null
     private var listener: Player.Listener? = null
@@ -161,8 +162,20 @@ class PlaybackController(
                 .setSpatializationBehavior(C.SPATIALIZATION_BEHAVIOR_NEVER).build(),true)
             p.setHandleAudioBecomingNoisy(true)
             view?.player=p
-            val item=MediaItem.fromUri(session.episode.url)
-            if(androidx.media3.common.util.Util.inferContentType(android.net.Uri.parse(session.episode.url))==C.CONTENT_TYPE_HLS) {
+            p.playWhenReady=autoStart;autoStart=false
+            preparation=scope.launch {
+            try {
+            val inferred=androidx.media3.common.util.Util.inferContentType(android.net.Uri.parse(session.episode.url))
+            val mime=session.episode.mimeType ?: if(inferred==C.CONTENT_TYPE_OTHER && !android.net.Uri.parse(session.episode.url).path.orEmpty().endsWith(".mp4",ignoreCase=true)) {
+                try { withTimeout(5_000) { PlaybackProbe(network).mediaType(session.episode.url) } }
+                catch(e:TimeoutCancellationException) { null }
+                catch(e:CancellationException) { throw e }
+                catch(_:Exception) { null }
+            } else null
+            ensureActive()
+            if(closed || player!==p) return@launch
+            val item=MediaItem.Builder().setUri(session.episode.url).setMimeType(mime).build()
+            if(mime==MimeTypes.APPLICATION_M3U8 || inferred==C.CONTENT_TYPE_HLS) {
                 val parser=if((automaticAds || adPaths.isNotEmpty()) && !liveMedia)
                     SafeHlsParserFactory(session.episode.url,adPaths,automaticAds) { hlsEdit=it }
                     else androidx.media3.exoplayer.hls.playlist.DefaultHlsPlaylistParserFactory()
@@ -171,9 +184,11 @@ class PlaybackController(
                 p.setMediaSource(hls.createMediaSource(item))
             } else p.setMediaItem(item)
             if(liveMedia) p.seekToDefaultPosition() else p.seekTo(position)
-            prefetch.setActive(autoStart)
+            prefetch.setActive(p.playWhenReady)
             p.prepare()
-            p.playWhenReady=autoStart; autoStart=false
+            } catch(e:CancellationException) { throw e }
+            catch(_:Exception) { if(player===p && !closed) { stop(false);failed("播放器初始化失败，可重试或快速换源") } }
+            }
             sample=scope.launch {
                 PlaybackMetrics.samplers++
                 var bufferingSince=0L
@@ -248,6 +263,7 @@ class PlaybackController(
     }
     fun stop(rotating: Boolean) {
         (view as? GesturePlayerView)?.cancelGestures()
+        preparation?.cancel();preparation=null
         recovery?.cancel();recovery=null
         sample?.cancel(); sample=null // Synchronous cancellation before touching the player.
         val p=player

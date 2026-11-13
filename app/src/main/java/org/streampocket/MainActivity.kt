@@ -218,7 +218,16 @@ class MainActivity : ComponentActivity() {
         Box(Modifier.weight(1f).fillMaxSize().destinationArrival(destination)) {
             if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
             if(s.loading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); Text("正在读取本地数据…") }; return@Box }
-            if(s.detailLoading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); TextButton(onClick=model::closeDetail) { Text("取消详情请求") } }; return@Box }
+            if(s.detailLoading) {
+                Box(Modifier.fillMaxSize().testTag("detailLoading"),contentAlignment=Alignment.Center) {
+                    Column(Modifier.padding(24.dp).widthIn(max=320.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                        CircularProgressIndicator(modifier=Modifier.size(40.dp),strokeWidth=3.dp,trackColor=MaterialTheme.colorScheme.onSurface.copy(alpha=.10f))
+                        Text("正在加载剧集…",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick=model::closeDetail) { Text("取消详情请求") }
+                    }
+                }
+                return@Box
+            }
             val detail = s.detail
             if(detail != null) {
                 Box(Modifier.fillMaxSize()) {

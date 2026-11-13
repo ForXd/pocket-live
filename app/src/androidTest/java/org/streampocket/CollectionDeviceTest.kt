@@ -78,6 +78,10 @@ class CollectionDeviceTest {
             }
             ui.onNodeWithTag("season:2:").performClick()
             ui.onNodeWithTag("searchVideo:s2").assertExists()
+            ui.onNodeWithTag("sourceChoice:${b.key}:s2").assertDoesNotExist()
+            ui.onNodeWithTag("searchVideo:s2").performClick()
+            ui.waitUntil(15000) { !model.state.value.probeRunning && model.state.value.probes.values.any { it==ProbeStatus.READY } }
+            capture("01b-sources")
             ui.onNodeWithTag("sourceChoice:${b.key}:s2").performScrollTo().performClick()
             ui.waitUntil(10000) { model.state.value.detail?.video?.id=="s2" && model.state.value.detail?.video?.source?.key==b.key }
             ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("season:1:"))

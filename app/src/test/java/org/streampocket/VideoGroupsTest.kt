@@ -38,6 +38,17 @@ class VideoGroupsTest {
         assertFalse(VideoGroups.playbackMatch(enriched,enriched.copy(subtitle="2025")))
         assertFalse(VideoGroups.playbackMatch(enriched,enriched.copy(title="Show Season 2")))
     }
+    @Test fun searchMergesOnlyUnambiguousMissingMetadata() {
+        val known=video("后会友期","2026").copy(typeName="电影")
+        val unknown=video("后会友期").copy(id="unknown")
+        assertEquals(1,VideoGroups.searchGroups(listOf(unknown,known)).size)
+        assertEquals(2,VideoGroups.searchSources(VideoGroups.workKey(known),listOf(unknown,known)).size)
+        val remake=known.copy(id="remake",subtitle="2020")
+        assertEquals(3,VideoGroups.searchGroups(listOf(unknown,known,remake)).size)
+        val seasons=listOf(video("Show Season 1","2015"),video("Show 第1季").copy(id="unknown"),video("Show Season 2","2016"))
+        assertEquals(1,VideoGroups.searchGroups(seasons).size)
+        assertEquals(listOf(2,1),VideoGroups.searchSeasons(seasons).map { it.size })
+    }
     @Test fun historiesAcrossSeasonsShareCardButNeverShareEpisodeProgress() {
         val a=History(Playback(video("风骚律师 第1季"),Episode("第1集","https://a/1"),1000,duration=10000),1)
         val b=History(Playback(video("风骚律师 第2季"),Episode("第1集","https://a/2"),9000,duration=10000),2)

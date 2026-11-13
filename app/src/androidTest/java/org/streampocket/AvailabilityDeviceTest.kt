@@ -34,7 +34,7 @@ class AvailabilityDeviceTest {
                             if(id=="slow") MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
                             else MockResponse().setBody("""{"list":[{"vod_play_from":"主线路","vod_play_url":"第1集${'$'}$base/${if(id=="1") "bad-media" else "redirect"}"}]}""")
                         } else if(url.queryParameter("wd")=="慢速") MockResponse().setBody("""{"list":[{"vod_id":"slow","vod_name":"慢速剧集"}]}""")
-                        else MockResponse().setBody("""{"list":[${(1..5).joinToString(",") { """{"vod_id":"$it","vod_name":"星河剧集 $it"}""" }}]}""")
+                        else MockResponse().setBody("""{"list":[${(1..5).joinToString(",") { """{"vod_id":"$it","vod_name":"星河剧集"}""" }}]}""")
                     }
                     "/bad-media" -> MockResponse().setBody("<html>error</html>")
                     "/redirect" -> MockResponse().setResponseCode(302).setHeader("Location","/stream/master.m3u8")
@@ -58,20 +58,25 @@ class AvailabilityDeviceTest {
         }
         ui.waitUntil(10000) { !model.state.value.loading }
     }
+    private fun expandWork(id:String) {
+        ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.any { it.id==id } }
+        ui.onNodeWithTag("searchVideo:$id").performScrollTo().performClick()
+    }
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
-    @Test fun probesTwoMediaResultsThenStopsAndShowsHealthWithoutPlayers() {
+    @Test fun expandedWorkFindsOneThenStopsAndShowsHealthWithoutPlayers() {
         val created=PlaybackMetrics.created
         ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("星河")
         ui.onNodeWithTag("searchInput").performImeAction()
-        ui.waitUntil(15000) { model.state.value.probes.values.count { it==ProbeStatus.READY }==2 && !model.state.value.probeRunning && !model.state.value.searching }
-        assertTrue(details.size in 3..5)
-        assertTrue(model.state.value.results.take(2).all { model.state.value.probes[it.probeKey()]==ProbeStatus.READY })
+        expandWork("1")
+        ui.waitUntil(15000) { model.state.value.probes.values.count { it==ProbeStatus.READY }==1 && !model.state.value.probeRunning && !model.state.value.searching }
+        assertTrue(details.size in 1..4)
+
         assertEquals(5,model.state.value.results.size)
         assertEquals(2,model.state.value.total)
-        assertEquals("1920×1080",model.state.value.probeResolutions[model.state.value.results.first().probeKey()])
+        assertEquals("1920×1080",model.state.value.probeResolutions[model.state.value.results.first { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.probeKey()])
         assertEquals(created,PlaybackMetrics.created)
-        val first=model.state.value.results.first().id
+        val first=model.state.value.results.first { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.id
         ui.onNodeWithTag("probe:$first",useUnmergedTree=true).assertTextEquals("媒体可用")
         ui.onNodeWithTag("probeResolution:$first",useUnmergedTree=true).assertTextEquals("播放清单 · 1920×1080")
         captureUi(ui,"search-probes")
@@ -84,10 +89,11 @@ class AvailabilityDeviceTest {
             return
         }
 
-        val readyIds=model.state.value.results.take(2).map { it.id }
+        val readyIds=model.state.value.results.filter { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.map { it.id }
         val before=readyIds.associateWith { id->details.count { it==id } }
         ui.onNodeWithContentDescription("开始搜索").performClick()
-        ui.waitUntil(10000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==2 }
+        expandWork("1")
+        ui.waitUntil(10000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==1 }
         readyIds.forEach { id->assertEquals("Successful probes are reused",before[id],details.count { it==id }) }
 
         ui.onNodeWithTag("nav:1").performClick()
@@ -102,6 +108,7 @@ class AvailabilityDeviceTest {
         ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("慢速")
         ui.onNodeWithTag("searchInput").performImeAction()
+        expandWork("slow")
         ui.waitUntil(10000) { details.contains("slow") && model.state.value.probeRunning }
         ui.onNodeWithTag("nav:1").performClick()
         ui.waitUntil(10000) { !model.state.value.probeRunning && model.activeProbeCalls()==0 }
@@ -114,13 +121,15 @@ class AvailabilityDeviceTest {
         ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("慢速")
         ui.onNodeWithTag("searchInput").performImeAction()
+        expandWork("slow")
         ui.waitUntil(10000) { details.contains("slow") && model.state.value.probeRunning }
         ui.onNodeWithTag("searchInput").performTextReplacement("星河")
         ui.onNodeWithTag("searchInput").performImeAction()
-        ui.waitUntil(15000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==2 }
+        expandWork("1")
+        ui.waitUntil(15000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==1 }
         assertEquals("星河",model.state.value.searchQuery)
         assertTrue(model.state.value.probes.keys.none { it.endsWith(":slow") })
-        assertTrue(model.state.value.results.take(2).all { model.state.value.probes[it.probeKey()]==ProbeStatus.READY })
+
         ui.waitUntil(10000) { model.activeProbeCalls()==0 }
     }
 

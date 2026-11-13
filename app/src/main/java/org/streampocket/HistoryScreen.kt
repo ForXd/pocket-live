@@ -2,6 +2,12 @@
 package org.streampocket
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
@@ -45,6 +51,7 @@ import androidx.compose.ui.unit.dp
     val groups=remember(filtered) { HistoryGroups.group(filtered) }
     val sources=remember(history) { history.map { it.playback.video.source }.distinctBy { it.key } }
 
+    var revealed by rememberSaveable { mutableStateOf<String?>(null) }
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedHistoryWork by rememberSaveable { mutableStateOf<String?>(null) }
     var expandedEpisode by rememberSaveable { mutableStateOf<String?>(null) }
@@ -104,6 +111,7 @@ import androidx.compose.ui.unit.dp
             item(key="group:$id") {
                 val shown=if(expanded==id) seasonEntries.first() else latest
                 var menu by remember { mutableStateOf(false) }
+                SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{remove(group.key);revealed=null}) {
                 Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainer).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
                     if(index==0 && model!=null && expanded!=id) Box {
                         Poster(shown.playback.video,model,Modifier.fillMaxWidth().then(if(wide) Modifier.height(220.dp) else Modifier.aspectRatio(1.95f)),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
@@ -132,6 +140,7 @@ import androidx.compose.ui.unit.dp
                     if(expanded==id) SeasonChips(seasonVideos,selectedVideo,{selectedHistoryWork=VideoGroups.workKey(it);expandedEpisode=null})
                     TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.testTag("expandHistory:$id")) { Text(if(expanded==id) "收起分集进度" else "分集进度 · ${group.episodes.size} 集") }
                 }
+            }
             }
             if(expanded==id) seasonEpisodes.forEach { episode ->
                 val episodeId="$id:${episode.key}"
@@ -170,4 +179,23 @@ import androidx.compose.ui.unit.dp
     }
     deleting?.let { key -> GlassAlertDialog(onDismissRequest={deleting=null},title={Text("删除这部剧的记录？")},text={Text("删除这部剧在所有合并来源下的观看断点，其他剧目保留。")},confirmButton={TextButton(onClick={remove(key);deleting=null}) { Text("删除") }},dismissButton={TextButton(onClick={deleting=null}) { Text("取消") }}) }
     if(clearing) GlassAlertDialog(onDismissRequest={clearing=false},title={Text("清空观看历史？")},text={Text("所有剧目的观看断点将被删除，订阅仍会保留。")},confirmButton={TextButton(onClick={clear();clearing=false}) { Text("清空") }},dismissButton={TextButton(onClick={clearing=false}) { Text("取消") }})
+}
+
+/** A swipe only reveals the action; deleting always requires an explicit tap. */
+@Composable private fun SwipeHistoryCard(id:String,revealed:Boolean,onReveal:(Boolean)->Unit,onDelete:()->Unit,content:@Composable ()->Unit) {
+    val width=with(LocalDensity.current) { 88.dp.toPx() }
+    var offset by remember { mutableFloatStateOf(if(revealed) -width else 0f) }
+    LaunchedEffect(revealed,width) {
+        androidx.compose.animation.core.animate(offset,if(revealed) -width else 0f) { value,_->offset=value }
+    }
+    Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).testTag("swipeHistory:$id")) {
+        if(offset < -1f) TextButton(onClick=onDelete,modifier=Modifier.align(Alignment.CenterEnd).width(80.dp).heightIn(min=64.dp).testTag("deleteHistory:$id"),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除") }
+        Box(Modifier.offset { IntOffset(offset.roundToInt(),0) }.draggable(
+            state=rememberDraggableState { offset=(offset+it).coerceIn(-width,0f) },orientation=Orientation.Horizontal,
+            onDragStopped={ velocity ->
+                val open=if(kotlin.math.abs(velocity)>600f) velocity<0 else offset < -width/2
+                onReveal(open)
+                androidx.compose.animation.core.animate(offset,if(open) -width else 0f) { value,_->offset=value }
+            })) { content() }
+    }
 }

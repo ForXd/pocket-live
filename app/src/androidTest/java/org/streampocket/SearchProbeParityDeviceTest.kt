@@ -20,7 +20,7 @@ class SearchProbeParityDeviceTest {
         val end=android.os.SystemClock.elapsedRealtime()+15000
         while(!condition()) { if(android.os.SystemClock.elapsedRealtime()>end) fail("Timed out waiting for search probes");Thread.sleep(20) }
     }
-    @Test fun firstLineFailureDoesNotHidePlayableLinesAndThreeRequestsStopAtTwo() {
+    @Test fun collapsedSearchDoesNotProbeAndExpandedWorkStopsAtOne() {
         val started=CountDownLatch(3);val release=CountDownLatch(1)
         val server=MockWebServer().apply { start() };val base="http://search.test:${server.port}"
         server.dispatcher=object:Dispatcher() {
@@ -30,7 +30,7 @@ class SearchProbeParityDeviceTest {
                     "/recommend"->MockResponse().setBody("{\"subjects\":[]}")
                     "/api"-> {
                         val id=url.queryParameter("ids")
-                        if(id==null) MockResponse().setBody("""{"list":[${(1..6).joinToString(",") { """{"vod_id":"$it","vod_name":"Film $it"}""" }}]}""")
+                        if(id==null) MockResponse().setBody("""{"list":[${(1..6).joinToString(",") { """{"vod_id":"$it","vod_name":"Film"}""" }}]}""")
                         else MockResponse().setBody("""{"list":[{"vod_play_from":"dead${'$'}${'$'}${'$'}working","vod_play_url":"1${'$'}$base/html${'$'}${'$'}${'$'}1${'$'}$base/media/$id"}]}""")
                     }
                     "/html"->MockResponse().setBody("<html>unavailable</html>")
@@ -46,12 +46,18 @@ class SearchProbeParityDeviceTest {
             await { !model.state.value.loading }
             val created=PlaybackMetrics.created
             main { model.search("Film");model.setSearchProbeActive(true) }
-            assertTrue("Search must start three media probes concurrently",started.await(8,TimeUnit.SECONDS))
+            await { !model.state.value.searching && model.state.value.results.size==6 }
+            Thread.sleep(200)
+            assertEquals(0,model.activeProbeCalls())
+            assertTrue(model.state.value.probes.isEmpty())
+            main { model.requestSourceProbe(VideoGroups.workKey(model.state.value.results.first())) }
+            assertTrue("Expanded work starts three bounded media probes",started.await(8,TimeUnit.SECONDS))
             assertEquals(3,model.activeProbeCalls())
             release.countDown()
             await { !model.state.value.probeRunning && model.activeProbeCalls()==0 }
-            assertEquals(2,model.state.value.probes.values.count { it==ProbeStatus.READY })
-            assertTrue(model.state.value.results.take(2).all { model.state.value.probes[it.probeKey()]==ProbeStatus.READY })
+            assertEquals(1,model.state.value.probes.values.count { it==ProbeStatus.READY })
+            val checked=model.state.value.probeEpisodes.values.single()
+            assertTrue("Must keep the successful second line",checked.url.contains("/media/"))
             assertFalse(model.state.value.probes.containsValue(ProbeStatus.CHECKING))
             assertEquals(created,PlaybackMetrics.created)
             val count=server.requestCount;Thread.sleep(200);assertEquals(count,server.requestCount)

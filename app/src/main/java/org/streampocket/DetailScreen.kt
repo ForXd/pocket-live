@@ -38,8 +38,14 @@ import kotlinx.coroutines.launch
 @Composable fun DetailScreen(detail:Detail,model:AppModel,splitArtwork:Boolean=true,searchSame:()->Unit) {
     val state by model.state.collectAsState()
     val progressByEpisode=remember(detail.video,state.saved.history) { episodeProgress(detail.video,state.saved.history) }
+    val verified=state.probeEpisodes[detail.video.probeKey()]
     val recent=remember(detail,state.saved.history) { detailResume(detail,state.saved.history) }
-    var selected by rememberSaveable(detail.video.source.key,detail.video.id) { mutableIntStateOf(detail.lines.indexOfFirst { option -> option.episodes.any { it.url==recent?.playback?.episode?.url } }.coerceAtLeast(0)) }
+    var selected by rememberSaveable(detail.video.source.key,detail.video.id) {
+        val checkedIndex=detail.lines.indexOfFirst { option -> option.episodes.any { it.url==verified?.url } }
+        val namedIndex=detail.lines.indexOfFirst { it.name==state.probeLines[detail.video.probeKey()] }
+        val recentIndex=detail.lines.indexOfFirst { option -> option.episodes.any { it.url==recent?.playback?.episode?.url } }
+        mutableIntStateOf(listOf(checkedIndex,namedIndex,recentIndex,0).first { it>=0 })
+    }
     var descending by rememberSaveable(detail.video.source.key,detail.video.id) { mutableStateOf(false) }
     var expanded by rememberSaveable(detail.video.source.key,detail.video.id) { mutableStateOf(false) }
     var sheet by rememberSaveable(detail.video.source.key,detail.video.id) { mutableStateOf<String?>(null) }
@@ -133,7 +139,7 @@ import kotlinx.coroutines.launch
             Surface(color=MaterialTheme.colorScheme.background) {
                 Column {
                     Column(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                        val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull()
+                        val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull { it.url==verified?.url } ?: line?.episodes?.firstOrNull()
                         Row(Modifier.fillMaxWidth().testTag("detailPlaybackSummary"),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
                             primary?.let { episode ->
                                 Text(episode.name,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)

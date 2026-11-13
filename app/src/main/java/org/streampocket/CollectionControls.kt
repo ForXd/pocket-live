@@ -14,12 +14,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-@Composable fun SeasonChips(videos:List<Video>,selected:Video,choose:(Video)->Unit) {
-    val seasons=remember(videos) { VideoGroups.seasons(videos) }
+@Composable fun SeasonChips(videos:List<Video>,selected:Video,choose:(Video)->Unit,search:Boolean=false) {
+    val seasons=remember(videos,search) { if(search) VideoGroups.searchSeasons(videos) else VideoGroups.seasons(videos) }
     if(seasons.size>1) LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth().testTag("seasonPicker")) {
         items(seasons,key={VideoGroups.workKey(it.first())}) { options ->
             val video=options.first();val identity=VideoGroups.identity(video)
-            ContentFilterChip(selected=VideoGroups.sameWork(video,selected),onClick={choose(options.firstOrNull { it.source.key==selected.source.key } ?: video)},
+            ContentFilterChip(selected=VideoGroups.sameWork(video,selected),onClick={choose(if(search) video else options.firstOrNull { it.source.key==selected.source.key } ?: video)},
                 label={Text(identity.label+(if(seasons.count { VideoGroups.identity(it.first()).season==identity.season }>1 && identity.year.isNotEmpty()) " · ${identity.year}" else ""))},
                 modifier=Modifier.testTag("season:${identity.season}:${identity.year}"))
         }

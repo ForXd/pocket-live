@@ -8,7 +8,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 enum class ProbeStatus(val label:String) { CHECKING("探测中"), READY("媒体可用"), FAILED("探测失败"), UNKNOWN("待确认") }
-data class ProbeResult(val status:ProbeStatus,val resolution:String?=null)
+data class ProbeResult(val status:ProbeStatus,val resolution:String?=null,val episode:Episode?=null,val mimeType:String?=null,val lineName:String?=null)
 internal fun probeResolution(line:String):String? {
     val match=Regex("(?:^|,)RESOLUTION=(\\d{2,5})x(\\d{2,5})(?:,|$)").find(line.substringAfter(':')) ?: return null
     val width=match.groupValues[1].toInt();val height=match.groupValues[2].toInt()
@@ -31,24 +31,35 @@ internal class PlaybackProbe(private val network:Network) {
         var unknown=false
         // One candidate per line, using the same bounded media inspection as quick switch.
         // A dead or web-only first line must not hide a working alternative line.
-        for(episode in detail.lines.mapNotNull { it.episodes.firstOrNull() }.distinctBy { it.url }) {
+        val visited=mutableSetOf<String>()
+        for(line in detail.lines) {
+            val episode=line.episodes.firstOrNull() ?: continue
+            if(!visited.add(episode.url)) continue
             val checked=try { withTimeout(ProbePolicy.MEDIA_TIMEOUT_MS) { inspect(episode) } }
                 catch(e:TimeoutCancellationException) { ensureActive();ProbeResult(ProbeStatus.FAILED) }
                 catch(e:CancellationException) { throw e }
                 catch(_:Exception) { ProbeResult(ProbeStatus.FAILED) }
-            if(checked.status==ProbeStatus.READY) return@withContext checked
+            if(checked.status==ProbeStatus.READY) return@withContext checked.copy(lineName=line.name)
             if(checked.status==ProbeStatus.UNKNOWN) unknown=true
         }
         ProbeResult(if(unknown) ProbeStatus.UNKNOWN else ProbeStatus.FAILED)
     }
-    suspend fun inspect(episode:Episode):ProbeResult = withContext(Dispatchers.Default) { media(episode.url,0) }
+    suspend fun inspect(episode:Episode):ProbeResult = withContext(Dispatchers.Default) {
+        val result=media(episode.url,0)
+        result.copy(episode=episode.copy(mimeType=result.mimeType))
+    }
+    /** Format detection only; native HLS still reads the original URI and handles redirects. */
+    suspend fun mediaType(url:String):String? = withContext(Dispatchers.IO) {
+        val bytes=sample(url,4096).second
+        if(bytes.toString(Charsets.UTF_8).trimStart('\uFEFF',' ','\n','\r').startsWith("#EXTM3U")) "application/x-mpegURL" else null
+    }
     private suspend fun media(url:String,depth:Int):ProbeResult {
         if(depth>2) return ProbeResult(ProbeStatus.UNKNOWN)
         val sample=sample(url)
         val bytes=sample.second
         val text=bytes.toString(Charsets.UTF_8).trimStart('\uFEFF',' ','\n','\r')
         if(text.startsWith("#EXTM3U")) {
-            if(text.lineSequence().any { it.startsWith("#EXT-X-KEY:") && !it.contains("METHOD=NONE") }) return ProbeResult(ProbeStatus.UNKNOWN)
+            if(text.lineSequence().any { it.startsWith("#EXT-X-KEY:") && !it.contains("METHOD=NONE") }) return ProbeResult(ProbeStatus.UNKNOWN,mimeType="application/x-mpegURL")
             val lines=text.lineSequence().map { it.trim() }.toList()
             val master=lines.any { it.startsWith("#EXT-X-STREAM-INF:") }
             if(!master && lines.none { it.startsWith("#EXTINF:") }) return ProbeResult(ProbeStatus.UNKNOWN)
@@ -56,15 +67,15 @@ internal class PlaybackProbe(private val network:Network) {
             val resolved=sample.first.resolve(target)?.toString() ?: return ProbeResult(ProbeStatus.UNKNOWN)
             val checked=media(resolved,depth+1)
             val declaration=if(master) lines.takeWhile { it!=target }.lastOrNull { it.startsWith("#EXT-X-STREAM-INF:") }?.let(::probeResolution) else null
-            return checked.copy(resolution=if(checked.status==ProbeStatus.READY) checked.resolution ?: declaration else null)
+            return checked.copy(resolution=if(checked.status==ProbeStatus.READY) checked.resolution ?: declaration else null,mimeType="application/x-mpegURL")
         }
         if(text.startsWith("<?xml") || text.startsWith("<MPD")) return ProbeResult(ProbeStatus.UNKNOWN)
         return ProbeResult(if(validMediaPrefix(bytes)) ProbeStatus.READY else ProbeStatus.FAILED)
     }
-    private suspend fun sample(url:String):Pair<HttpUrl,ByteArray> = suspendCancellableCoroutine { continuation ->
+    private suspend fun sample(url:String,limit:Int=65536):Pair<HttpUrl,ByteArray> = suspendCancellableCoroutine { continuation ->
         val normalized=validUrl(url)
         if(normalized==null) { continuation.resumeWithException(IOException("Invalid media URL"));return@suspendCancellableCoroutine }
-        val call=network.client.newCall(Request.Builder().url(normalized).header("Range","bytes=0-65535").build())
+        val call=network.client.newCall(Request.Builder().url(normalized).header("Range","bytes=0-${limit-1}").build())
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object:Callback {
             override fun onFailure(call:Call,e:IOException) { if(continuation.isActive) continuation.resumeWithException(e) }
@@ -75,7 +86,7 @@ internal class PlaybackProbe(private val network:Network) {
                         val body=r.body ?: throw IOException("Empty media")
                         r.request.url to body.byteStream().use { input ->
                             val out=java.io.ByteArrayOutputStream();val chunk=ByteArray(4096)
-                            while(out.size()<65536) { val count=input.read(chunk,0,minOf(chunk.size,65536-out.size()));if(count<0) break;out.write(chunk,0,count);if(validMediaPrefix(out.toByteArray())) break }
+                            while(out.size()<limit) { val count=input.read(chunk,0,minOf(chunk.size,limit-out.size()));if(count<0) break;out.write(chunk,0,count);if(validMediaPrefix(out.toByteArray())) break }
                             out.toByteArray() }
                     }
                     if(continuation.isActive) continuation.resume(result)

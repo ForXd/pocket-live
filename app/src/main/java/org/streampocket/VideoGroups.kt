@@ -48,5 +48,34 @@ object VideoGroups {
     }
     fun group(videos:List<Video>):List<List<Video>> = videos.distinctBy { it.probeKey() }.groupBy(::familyKey).values.toList()
     fun seasons(videos:List<Video>):List<List<Video>> = videos.groupBy(::workKey).values.sortedWith(compareBy({ identity(it.first()).season ?: 0 },{ identity(it.first()).year }))
+    /** Missing provider metadata joins only one unambiguous, more complete work.
+     * Known remakes, editions and seasons never collapse into one playback choice. */
+    fun searchSeasons(videos:List<Video>):List<List<Video>> {
+        val strict=videos.distinctBy { it.probeKey() }.groupBy(::workKey)
+        val buckets=strict.entries.groupBy { identity(it.value.first()).let { id -> id.base to id.season } }
+        val target=mutableMapOf<String,String>()
+        for(bucket in buckets.values) for(entry in bucket) {
+            val video=entry.value.first();val id=identity(video)
+            if(video.source.kind!=SourceKind.VOD || video.title.isBlank()) continue
+            val richer=bucket.filter { candidate ->
+                val other=candidate.value.first();val x=identity(other)
+                candidate.key!=entry.key && playbackMatch(video,other) &&
+                    (id.year.isEmpty() || x.year==id.year) && (id.kind==MediaCategory.OTHER || x.kind==id.kind) &&
+                    ((id.year.isEmpty() && x.year.isNotEmpty()) || (id.kind==MediaCategory.OTHER && x.kind!=MediaCategory.OTHER))
+            }
+            if(richer.size==1) target[entry.key]=richer.single().key
+        }
+        fun resolved(key:String):String { var next=key;repeat(3) { next=target[next] ?: return next };return next }
+        return strict.entries.groupBy { resolved(it.key) }.map { (key,entries) ->
+            strict.getValue(key)+entries.filter { it.key!=key }.flatMap { it.value }
+        }.sortedWith(compareBy({ identity(it.first()).season ?: 0 },{ identity(it.first()).year }))
+    }
+    fun searchGroups(videos:List<Video>):List<List<Video>> {
+        val order=videos.mapIndexed { index,video -> video.probeKey() to index }.toMap()
+        return searchSeasons(videos).groupBy { familyKey(it.first()) }.values.map { it.flatten() }
+            .sortedBy { group -> group.minOf { order[it.probeKey()] ?: Int.MAX_VALUE } }
+    }
+    fun searchSources(work:String?,videos:List<Video>):List<Video> = if(work==null) emptyList() else
+        searchSeasons(videos).firstOrNull { options -> options.any { workKey(it)==work } }.orEmpty()
     fun options(current:Video,videos:List<Video>)=(listOf(current)+videos).distinctBy { it.probeKey() }.filter { familyKey(it)==familyKey(current) }
 }
