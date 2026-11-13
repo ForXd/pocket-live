@@ -114,3 +114,13 @@ adb logcat -d -s PackageManager PackageInstallerSession ActivityManager | grep o
 - 9 项功能设备回归、7 项预取与 4 项资源测试及 2 项更新器测试通过；生命周期修正后资源与跨季 / 换源重点回归为 OK (6 tests)。最终日间、夜间、2 倍字号、宽屏均有实际截图与流程结果。独立视觉与 UX 走查见 docs/ui-v0.45.0.md。
 - 初次资源回归发现补查请求未随播放开始停止，以及返回详情重新触发查找；现已取消未完成补查并改为明确入口触发。最终 20 轮播放器创建 / 释放 52/52，弱引用、活动媒体和换源请求归零，Java 堆采样约 8.2/8.2/7.7/9.0 MB；不外推为所有设备无泄漏保证。
 - 按规则保留 v0.45.0、v0.44.0、v0.43.0 Release，删除 v0.42.0 Release 附件，Git tag 保留。本地证据 artifacts/v0.45.0/。
+
+## v0.46.0（2026-11-13）
+
+- 正式应用提交 `3b1b29d948b298d989f8d362a4c9bef5a5a0e133`；versionCode 54，包名 `org.streampocket`，沿用原正式证书。搜索按作品 / 季展开后探测一个可用来源即停止，修正 HLS 格式及线路交接，增加历史左滑删除和居中详情加载。
+- APK 2,804,360 字节，SHA-256 `99b37d50e8fea952ef90e249333d70dc44ad4b75b0711dc68ad8c7d412f0aa55`。apksigner 与包内版本校验通过；release lint 0 错误 / 65 警告，140 项单元测试通过。
+- 公开 APK、SHA256SUMS、latest/download/update.json 均匿名重新下载并核对一致；匿名 latest API 返回 403，未计为成功。登录 latest API 验证 v0.46.0 和目标应用提交，更新清单及真实升级另外验证分发可用。上一版 v0.45.0 APK 下载与既有哈希一致。
+- emulator-5554 / API 37 从已安装正式版 0.45.0 经应用内真实下载、系统安装器确认升级至 0.46.0，PublishedUpgradeDeviceTest 8.699 秒通过。包管理器确认 code 54，lastUpdateTime `2026-11-13 10:39:01`，firstInstallTime 保持 `2026-10-28 22:23:52`。未卸载或 ADB 覆盖安装正式包。
+- 24 项综合设备回归通过；最后补充地址刷新保护后，交接 / 更新器专项 8 项通过；两倍字号搜索 / 全屏播放器 2 项与宽屏流程 1 项通过。受控无后缀 HLS 已从旧版 READY 后 3003 复现到新版实际出帧，同时验证第二线路、重定向、地址更新与关闭期间取消。
+- 20 轮资源回归播放器创建 / 释放 60/60，残留弱引用、活动媒体 / 换源请求为 0；Java 堆约 8.6 / 8.9 / 9.8 / 9.3 MB。外部片源及实机覆盖边界见 docs/ui-v0.46.0.md，不将受控片名夹具描述成“后会友期”外部提供方验证。
+- 验收后保留 v0.46.0、v0.45.0、v0.44.0 Release，删除 v0.43.0 Release 附件并保留 Git tag。本地证据在 artifacts/v0.46.0/，含 public/verification.txt、published-upgrade.log 与 installed-version.txt。
