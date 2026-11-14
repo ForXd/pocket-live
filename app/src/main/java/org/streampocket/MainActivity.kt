@@ -12,7 +12,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalConfiguration
@@ -198,10 +197,12 @@ class MainActivity : ComponentActivity() {
             }
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
-        bottomBar = { if(!wide && !imeVisible && s.detail==null && !s.detailLoading) NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceContainerLow,tonalElevation=0.dp,windowInsets=WindowInsets(0,0,0,0),modifier=Modifier.navigationBarsPadding().padding(horizontal=10.dp,vertical=5.dp).shadow(5.dp,RoundedCornerShape(30.dp)).testTag("mainNavigation")) {
+        bottomBar = { if(!wide && !imeVisible && s.detail==null && !s.detailLoading) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=20.dp,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(32.dp),color=MaterialTheme.colorScheme.surfaceContainerLow,shadowElevation=3.dp) {
+            Row(Modifier.fillMaxWidth().selectableGroup().padding(6.dp),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
             listOf(0,2,1,3).forEach { i ->
                 PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
-                    Modifier.weight(1f).padding(horizontal=8.dp,vertical=4.dp).testTag("nav:$i"),icon={navIcon(i)})
+                    Modifier.weight(1f).testTag("nav:$i"),icon={navIcon(i)})
+            }
             }
         } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->

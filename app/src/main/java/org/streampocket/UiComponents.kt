@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.sp
 @Composable fun SettingsGroup(title:String,summary:String,content:@Composable ColumnScope.()->Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val rotation by animateFloatAsState(if(expanded) 180f else 0f,tween(220),label="settingsChevron")
-    Card(Modifier.fillMaxWidth(),shape=MaterialTheme.shapes.medium,colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer)) {
+    ContentCard(Modifier.fillMaxWidth()) {
         TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth().heightIn(min=64.dp),shape=MaterialTheme.shapes.large,contentPadding=PaddingValues(16.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(title,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)
@@ -70,14 +70,16 @@ import androidx.compose.ui.unit.sp
     }
 }
 
+internal val ContentCardShape = RoundedCornerShape(22.dp)
+
 /** Shared quiet surface for discovery, search and viewing history. */
 @Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerLow,content:@Composable ColumnScope.()->Unit) {
     val colors=CardDefaults.cardColors(containerColor=containerColor)
     val elevation = CardDefaults.cardElevation(defaultElevation = if (containerColor.alpha == 0f) 0.dp else 2.dp)
-    if(onClick==null) Card(modifier=modifier,shape=RoundedCornerShape(22.dp),elevation=elevation,colors=colors,content=content)
+    if(onClick==null) Card(modifier=modifier,shape=ContentCardShape,elevation=elevation,colors=colors,content=content)
     else {
         val interactions=remember { MutableInteractionSource() }
-        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=RoundedCornerShape(22.dp),elevation=elevation,colors=colors,content=content)
+        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=ContentCardShape,elevation=elevation,colors=colors,content=content)
     }
 }
 @Composable fun ContentDivider(modifier:Modifier=Modifier) {

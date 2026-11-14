@@ -112,7 +112,7 @@ import androidx.compose.ui.unit.dp
                 val shown=if(expanded==id) seasonEntries.first() else latest
                 var menu by remember { mutableStateOf(false) }
                 SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{remove(group.key);revealed=null}) {
-                Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainer).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
+                Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
                     if(index==0 && model!=null && expanded!=id) Box {
                         Poster(shown.playback.video,model,Modifier.fillMaxWidth().then(if(wide) Modifier.height(220.dp) else Modifier.aspectRatio(1.95f)),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         GlassIconButton(onClick={resume(shown)},colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=androidx.compose.ui.graphics.Color.Black.copy(alpha=.48f),contentColor=NightColors.primary),modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
@@ -126,7 +126,7 @@ import androidx.compose.ui.unit.dp
                             }
                         }
                     }
-                    Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         if((index>0 || expanded==id) && model!=null) Poster(shown.playback.video,model,Modifier.size(64.dp,88.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                             Text((VideoGroups.identity(shown.playback.video).season?.let { "第 $it 季 · " } ?: "")+shown.playback.episode.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -188,7 +188,8 @@ import androidx.compose.ui.unit.dp
     LaunchedEffect(revealed,width) {
         androidx.compose.animation.core.animate(offset,if(revealed) -width else 0f) { value,_->offset=value }
     }
-    Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).testTag("swipeHistory:$id")) {
+    Surface(Modifier.fillMaxWidth(),shape=ContentCardShape,shadowElevation=2.dp,color=MaterialTheme.colorScheme.surfaceContainerLow) {
+    Box(Modifier.fillMaxWidth().testTag("swipeHistory:$id")) {
         if(offset < -1f) TextButton(onClick=onDelete,modifier=Modifier.align(Alignment.CenterEnd).width(80.dp).heightIn(min=64.dp).testTag("deleteHistory:$id"),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除") }
         Box(Modifier.offset { IntOffset(offset.roundToInt(),0) }.draggable(
             state=rememberDraggableState { offset=(offset+it).coerceIn(-width,0f) },orientation=Orientation.Horizontal,
@@ -197,5 +198,6 @@ import androidx.compose.ui.unit.dp
                 onReveal(open)
                 androidx.compose.animation.core.animate(offset,if(open) -width else 0f) { value,_->offset=value }
             })) { content() }
+    }
     }
 }

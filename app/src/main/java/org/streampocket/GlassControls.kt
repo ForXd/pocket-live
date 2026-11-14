@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.dp
     val fill by androidx.compose.animation.animateColorAsState(if(selected) glassFill(true) else Color.Transparent,
         animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection")
     androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint) {
-        Column(modifier.heightIn(min=68.dp).clip(MaterialTheme.shapes.large).background(fill)
+        Column(modifier.heightIn(min=64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp)).background(fill)
             .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick)
             .padding(horizontal=6.dp,vertical=8.dp),horizontalAlignment=androidx.compose.ui.Alignment.CenterHorizontally,
             verticalArrangement=Arrangement.spacedBy(4.dp,androidx.compose.ui.Alignment.CenterVertically)) {

@@ -130,7 +130,7 @@ class PosterStore(private val directory: File) {
         }
     }
     Surface(modifier,shape=shape,color=if(frosted) androidx.compose.ui.graphics.Color.Transparent else containerColor) {
-        bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",contentScale=contentScale) }
+        bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",modifier=Modifier.fillMaxSize(),contentScale=contentScale) }
             ?: if(!frosted) Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) { Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant) } else Unit
     }
 }

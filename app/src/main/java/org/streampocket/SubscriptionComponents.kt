@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable internal fun SubscriptionHeader(sub:Subscription,expanded:Boolean,enabledCount:Int,importing:Boolean,onExpand:()->Unit,onUpdate:()->Unit,onCancel:()->Unit,onDelete:()->Unit) {
     var menuOpen by remember(sub.id) { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=if(expanded) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.background)) {
+    ContentCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(4.dp),verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick=onExpand,modifier=Modifier.weight(1f).heightIn(min=80.dp).testTag("subscription:${sub.id}").semantics { stateDescription=if(expanded) "已展开" else "已收起" },shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(12.dp)) {
                 Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,if(expanded) "收起来源" else "展开来源",Modifier.size(24.dp))
@@ -49,7 +49,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable internal fun SubscriptionSourceRow(source:Source,enabled:Boolean,onToggle:()->Unit,onRules:(()->Unit)?=null,availability:Boolean?=null) {
     var menuOpen by remember(source.key) { mutableStateOf(false) }
-    Surface(Modifier.fillMaxWidth().padding(start=16.dp),shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.background) {
+    Surface(Modifier.fillMaxWidth().padding(start=16.dp),shape=ContentCardShape,color=MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
             Row(Modifier.weight(1f).toggleable(value=enabled,role=Role.Switch,onValueChange={onToggle()}).semantics { contentDescription="启用或停用 ${source.name}" }.padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {

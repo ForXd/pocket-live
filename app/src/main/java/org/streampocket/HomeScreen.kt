@@ -4,6 +4,7 @@ package org.streampocket
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -42,7 +43,7 @@ import androidx.compose.ui.unit.dp
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
                             IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
                         }
-                        GlassIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),shape=MaterialTheme.shapes.small,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
+                        IconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                     }
                 })
         }
@@ -144,8 +145,8 @@ import androidx.compose.ui.unit.dp
     val video=options.first()
     ContentCard(modifier.fillMaxWidth().testTag("searchGroup:${VideoGroups.familyKey(video)}")) {
         Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-            ContentCard(onClick={expand(if(expanded) null else selectedWork)},containerColor=androidx.compose.ui.graphics.Color.Transparent,modifier=Modifier.fillMaxWidth().testTag("searchVideo:${video.id}")) {
-                Row(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clickable { expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
+                horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
                     Poster(video,model,Modifier.size(84.dp,122.dp),shape=MaterialTheme.shapes.small)
                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
                         Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
@@ -154,7 +155,6 @@ import androidx.compose.ui.unit.dp
                         Text("${options.size} 个来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         GlassButton(onClick={expand(if(expanded) null else selectedWork)},modifier=Modifier.heightIn(min=48.dp),shape=MaterialTheme.shapes.small) { Text(if(expanded) "收起来源" else "查看来源") }
                     }
-                }
             }
             SeasonChips(group,video,{selectedWork=VideoGroups.workKey(it);expand(null)},search=true)
             if(expanded) {
