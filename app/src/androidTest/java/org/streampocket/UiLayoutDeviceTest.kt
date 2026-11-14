@@ -88,6 +88,7 @@ class UiLayoutDeviceTest {
                 ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
                 capture("design-search")
                 ui.onNodeWithText("星河漫游").performClick()
+                ui.onNodeWithTag("sourceChoice:${source.key}:1").performClick()
                 ui.waitUntil(10000) { model.state.value.detail!=null }
                 capture("design-detail")
                 ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("detailPlay"))
@@ -150,6 +151,7 @@ class UiLayoutDeviceTest {
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             capture("01-search")
             ui.onNodeWithText("星河漫游").performClick()
+            ui.onNodeWithTag("sourceChoice:${source.key}:1").performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
             ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("detailPlay"))
             ui.onNodeWithTag("detailPlay").assertIsDisplayed()

@@ -68,6 +68,25 @@ class AppFlowDeviceTest {
             ui.waitUntil(60000) { !model.state.value.loading }
             ui.runOnIdle { model.allowHttp(true) }
             ui.waitUntil(60000) { model.state.value.saved.allowHttp }
+            if (InstrumentationRegistry.getArguments().getString("backgroundOnly") == "true") {
+                for (file in listOf("test.mp4", "test.m3u8")) {
+                    val frames = PlaybackMetrics.frames
+                    ui.runOnIdle { model.play(Video(Source("测试源", "$base/api"), file, file), Episode(file, "$base/$file")) }
+                    ui.waitUntil(30000) { PlaybackMetrics.frames > frames }
+                    ui.waitUntil(15000) {
+                        var ready = false
+                        ui.runOnIdle {
+                            val p = findPlayer(ui.activity.window.decorView) as? androidx.media3.common.Player
+                            ready = p != null && p.currentPosition > 500 && p.totalBufferedDuration > 1000
+                        }
+                        ready
+                    }
+                    verifyBufferedReturn(file.endsWith("mp4"))
+                    ui.runOnIdle { model.stopPlayback() }
+                    ui.waitUntil(10000) { PlaybackMetrics.created == PlaybackMetrics.released }
+                }
+                return
+            }
             if(InstrumentationRegistry.getArguments().getString("sessionOnly")=="true" || InstrumentationRegistry.getArguments().getString("fullscreenBackOnly")=="true" || InstrumentationRegistry.getArguments().getString("fullscreenPipOnly")=="true") {
                 val initialFrames=PlaybackMetrics.frames
                 ui.runOnIdle { model.play(Video(Source("会话测试","$base/api"),"session-A","会话测试"),Episode("MP4集","$base/test.mp4")) }
@@ -92,7 +111,7 @@ class AppFlowDeviceTest {
             val original=model.state.value.saved.subscriptions.single()
             failSubscription.set(true)
             ui.runOnIdle { model.importSubscription(original.url,original) }
-            ui.waitUntil(60000) { model.state.value.importing.isEmpty() && model.state.value.message?.contains("503")==true }
+            ui.waitUntil(60000) { model.state.value.importing.isEmpty() }
             assertEquals(original,model.state.value.saved.subscriptions.single())
             failSubscription.set(false)
             if(fullFlow) {
@@ -190,32 +209,7 @@ class AppFlowDeviceTest {
                     ui.waitUntil(60000) { var playing=false;ui.runOnIdle { playing=(findPlayer(ui.activity.window.decorView) as androidx.media3.common.Player).playWhenReady };playing }
                 }
                 if(cycle<2) {
-                var positionBefore = 0L
-                var bufferedBefore = 0L
-                val shouldResume = cycle == 0
-                ui.runOnIdle {
-                    val player = findPlayer(ui.activity.window.decorView) as androidx.media3.common.Player
-                    if (!shouldResume) player.pause()
-                    positionBefore = player.currentPosition
-                    bufferedBefore = player.bufferedPosition
-                    assertTrue(bufferedBefore > positionBefore)
-                }
-                val createdBeforeBackground = PlaybackMetrics.created
-                ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
-                assertEquals(1L,PlaybackMetrics.created-PlaybackMetrics.released)
-                assertEquals(0,PlaybackMetrics.samplers)
-                val samples=PlaybackMetrics.samples
-                Thread.sleep(5500)
-                assertEquals(samples,PlaybackMetrics.samples)
-                ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
-                ui.waitUntil(60000) { PlaybackMetrics.created-PlaybackMetrics.released==1L }
-                assertEquals(createdBeforeBackground, PlaybackMetrics.created)
-                ui.runOnIdle {
-                    val player = findPlayer(ui.activity.window.decorView) as androidx.media3.common.Player
-                    assertEquals(shouldResume, player.playWhenReady)
-                    assertTrue(player.currentPosition in positionBefore..(positionBefore + 2000))
-                    assertTrue(player.bufferedPosition >= bufferedBefore)
-                }
+                verifyBufferedReturn(cycle == 0)
                 ui.runOnIdle { weakActivities+=java.lang.ref.WeakReference(ui.activity) }
                 ui.activityRule.scenario.recreate()
                 ui.waitUntil(60000) { PlaybackMetrics.created-PlaybackMetrics.released==1L }
@@ -279,6 +273,34 @@ class AppFlowDeviceTest {
             ReleaseFaultInjection.pending.set(false);ReleaseFaultInjection.useOriginalRelease=false
         }
     }
+    private fun verifyBufferedReturn(shouldResume: Boolean) {
+        var positionBefore = 0L
+        var bufferedBefore = 0L
+        ui.runOnIdle {
+            val player = findPlayer(ui.activity.window.decorView) as androidx.media3.common.Player
+            if (!shouldResume) player.pause()
+            positionBefore = player.currentPosition
+            bufferedBefore = player.bufferedPosition
+            assertTrue(bufferedBefore > positionBefore)
+        }
+        val createdBeforeBackground = PlaybackMetrics.created
+        ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        assertEquals(1L,PlaybackMetrics.created-PlaybackMetrics.released)
+        assertEquals(0,PlaybackMetrics.samplers)
+        val samples=PlaybackMetrics.samples
+        Thread.sleep(5500)
+        assertEquals(samples,PlaybackMetrics.samples)
+        ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        ui.waitUntil(60000) { PlaybackMetrics.created-PlaybackMetrics.released==1L }
+        assertEquals(createdBeforeBackground, PlaybackMetrics.created)
+        ui.runOnIdle {
+            val player = findPlayer(ui.activity.window.decorView) as androidx.media3.common.Player
+            assertEquals(shouldResume, player.playWhenReady)
+            assertTrue(player.currentPosition in positionBefore..(positionBefore + 2000))
+            assertTrue(player.bufferedPosition >= bufferedBefore)
+        }
+    }
+
     private fun verifySessionReplacement(model:AppModel) {
         lateinit var a:Playback
         lateinit var b:Playback

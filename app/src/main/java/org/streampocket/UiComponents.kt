@@ -73,10 +73,11 @@ import androidx.compose.ui.unit.sp
 /** Shared quiet surface for discovery, search and viewing history. */
 @Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerLow,content:@Composable ColumnScope.()->Unit) {
     val colors=CardDefaults.cardColors(containerColor=containerColor)
-    if(onClick==null) Card(modifier=modifier,shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(defaultElevation=2.dp),colors=colors,content=content)
+    val elevation = CardDefaults.cardElevation(defaultElevation = if (containerColor.alpha == 0f) 0.dp else 2.dp)
+    if(onClick==null) Card(modifier=modifier,shape=RoundedCornerShape(22.dp),elevation=elevation,colors=colors,content=content)
     else {
         val interactions=remember { MutableInteractionSource() }
-        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(defaultElevation=2.dp),colors=colors,content=content)
+        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=RoundedCornerShape(22.dp),elevation=elevation,colors=colors,content=content)
     }
 }
 @Composable fun ContentDivider(modifier:Modifier=Modifier) {
