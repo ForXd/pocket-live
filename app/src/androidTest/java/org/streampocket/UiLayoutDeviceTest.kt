@@ -149,6 +149,18 @@ class UiLayoutDeviceTest {
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
             ui.onNodeWithTag("searchResults").performScrollToNode(hasText("星河漫游"))
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
+            val result = ui.onNodeWithTag("searchVideo:1", useUnmergedTree=true).getUnclippedBoundsInRoot()
+            val cover = ui.onNodeWithContentDescription("星河漫游 封面", useUnmergedTree=true).getUnclippedBoundsInRoot()
+            assertEquals(result.left.value, cover.left.value, 1f)
+            assertEquals(result.top.value, cover.top.value, 1f)
+            if (ui.activity.resources.configuration.screenWidthDp < 600) {
+                val first = ui.onNodeWithTag("nav:0").getUnclippedBoundsInRoot()
+                val last = ui.onNodeWithTag("nav:3").getUnclippedBoundsInRoot()
+                val field = ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot()
+                assertEquals(first.width.value, last.width.value, 1f)
+                assertEquals(first.left.value - field.left.value, field.right.value - last.right.value, 1f)
+                assertEquals(first.top.value, last.top.value, 1f)
+            }
             capture("01-search")
             ui.onNodeWithText("星河漫游").performClick()
             ui.onNodeWithTag("sourceChoice:${source.key}:1").performClick()
