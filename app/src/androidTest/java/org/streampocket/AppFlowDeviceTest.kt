@@ -87,7 +87,7 @@ class AppFlowDeviceTest {
             ui.onNodeWithText("订阅").performClick()
             if(ui.onAllNodesWithTag("subscriptionInput").fetchSemanticsNodes().isEmpty()) ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithTag("subscriptionInput").performTextReplacement("$base/sub")
-            ui.onNodeWithText("添加订阅").performScrollTo().performClick()
+            ui.onNode(hasText("添加订阅") and hasClickAction()).performScrollTo().performClick()
             ui.waitUntil(60000) { model.state.value.saved.subscriptions.size==1 }
             val original=model.state.value.saved.subscriptions.single()
             failSubscription.set(true)
@@ -100,10 +100,12 @@ class AppFlowDeviceTest {
                 ui.waitUntil(60000) { model.state.value.saved.subscriptions.single().updated>original.updated && model.state.value.importing.isEmpty() }
             }
             ui.onNodeWithTag("nav:0").performClick()
+            ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("测试")
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(60000) { model.state.value.results.size==(if(fullFlow) 2 else 1) && !model.state.value.searching }
-            ui.onAllNodesWithText("测试画面")[0].performClick()
+            ui.onNodeWithText("查看来源").performClick()
+            ui.onNodeWithText("测试源").performClick()
             ui.waitUntil(60000) { model.state.value.detail!=null }
             if(fullFlow) {
                 ui.onNodeWithTag("detailSearchSame").performClick()
