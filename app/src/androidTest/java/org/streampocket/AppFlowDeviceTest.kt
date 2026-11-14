@@ -188,14 +188,32 @@ class AppFlowDeviceTest {
                     ui.waitUntil(60000) { var playing=false;ui.runOnIdle { playing=(findPlayer(ui.activity.window.decorView) as androidx.media3.common.Player).playWhenReady };playing }
                 }
                 if(cycle<2) {
+                var positionBefore = 0L
+                var bufferedBefore = 0L
+                val shouldResume = cycle == 0
+                ui.runOnIdle {
+                    val player = findPlayer(ui.activity.window.decorView) as androidx.media3.common.Player
+                    if (!shouldResume) player.pause()
+                    positionBefore = player.currentPosition
+                    bufferedBefore = player.bufferedPosition
+                    assertTrue(bufferedBefore > positionBefore)
+                }
+                val createdBeforeBackground = PlaybackMetrics.created
                 ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
-                assertEquals(0L,PlaybackMetrics.created-PlaybackMetrics.released)
+                assertEquals(1L,PlaybackMetrics.created-PlaybackMetrics.released)
                 assertEquals(0,PlaybackMetrics.samplers)
                 val samples=PlaybackMetrics.samples
                 Thread.sleep(5500)
                 assertEquals(samples,PlaybackMetrics.samples)
                 ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
                 ui.waitUntil(60000) { PlaybackMetrics.created-PlaybackMetrics.released==1L }
+                assertEquals(createdBeforeBackground, PlaybackMetrics.created)
+                ui.runOnIdle {
+                    val player = findPlayer(ui.activity.window.decorView) as androidx.media3.common.Player
+                    assertEquals(shouldResume, player.playWhenReady)
+                    assertTrue(player.currentPosition in positionBefore..(positionBefore + 2000))
+                    assertTrue(player.bufferedPosition >= bufferedBefore)
+                }
                 ui.runOnIdle { weakActivities+=java.lang.ref.WeakReference(ui.activity) }
                 ui.activityRule.scenario.recreate()
                 ui.waitUntil(60000) { PlaybackMetrics.created-PlaybackMetrics.released==1L }

@@ -126,12 +126,12 @@ import kotlinx.coroutines.delay
     }
     DisposableEffect(controller,lifecycle) {
         val observer=LifecycleEventObserver { _,event -> when(event) {
-            Lifecycle.Event.ON_START -> controller.start()
-            Lifecycle.Event.ON_STOP -> { model.pauseRelatedDiscovery();model.closeAlternatives();playerView?.cancelGestures();levels.restoreBrightness();controller.stop(activity.isChangingConfigurations) }
+            Lifecycle.Event.ON_START -> controller.foreground()
+            Lifecycle.Event.ON_STOP -> { model.pauseRelatedDiscovery();model.closeAlternatives();playerView?.cancelGestures();levels.restoreBrightness();controller.background() }
             else -> Unit
         } }
         lifecycle.addObserver(observer)
-        if(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) controller.start()
+        if(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) controller.foreground()
         onDispose { lifecycle.removeObserver(observer); controller.close(activity.isChangingConfigurations) }
     }
     val configuration=LocalConfiguration.current

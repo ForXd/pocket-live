@@ -53,6 +53,29 @@ class PlaybackController(
         next.player = player
     }
     fun detach(old: PlayerView) { old.player = null; if(view === old) view = null }
+    private var resumeAfterBackground: Boolean? = null
+
+    fun background() {
+        val p = player ?: return
+        if (resumeAfterBackground != null) return
+        checkpointNow()
+        resumeAfterBackground = p.playWhenReady && p.playbackState != Player.STATE_ENDED
+        p.pause()
+        sample?.cancel()
+        sample = null
+    }
+
+    fun foreground() {
+        val resume = resumeAfterBackground
+        resumeAfterBackground = null
+        val p = player
+        if (p == null) start()
+        else if (resume != null) {
+            if (resume) p.play()
+            startSampling(p)
+        }
+    }
+
     fun start() {
         if(closed || player != null) return
         try {
@@ -133,7 +156,7 @@ class PlaybackController(
                     }
                 }
                 override fun onVideoSizeChanged(size:VideoSize) { if(player===p && !closed) videoSize(size.width,size.height) }
-                override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) { if(player===p && !closed) { prefetch.setActive(value);intent(value) } }
+                override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) { if(player===p && !closed) { prefetch.setActive(value);if(resumeAfterBackground==null) intent(value) } }
                 override fun onPlayerError(error: PlaybackException) {
                     if(player!==p || closed) return
                     PlaybackMetrics.errorDiagnostic=playbackErrorDiagnostic(error)
@@ -189,29 +212,32 @@ class PlaybackController(
             } catch(e:CancellationException) { throw e }
             catch(_:Exception) { if(player===p && !closed) { stop(false);failed("播放器初始化失败，可重试或快速换源") } }
             }
-            sample=scope.launch {
-                PlaybackMetrics.samplers++
-                var bufferingSince=0L
-                var lastCheckpoint=0L
-                var lastHealth:PlaybackHealth?=null
-                try {
-                    while(isActive && player===p) {
-                        delay(1000)
-                        val now=android.os.SystemClock.elapsedRealtime()
-                        val waiting=p.playbackState==Player.STATE_BUFFERING && p.playWhenReady
-                        if(!waiting) bufferingSince=0L else if(bufferingSince==0L) bufferingSince=now
-                        val status=PlaybackHealth(waiting,waiting && now-bufferingSince>=PlaybackPolicy.SLOW_MS,(p.totalBufferedDuration/1000).coerceAtLeast(0))
-                        if(status!=lastHealth) { health(status);lastHealth=status }
-                        if(p.isPlaying && now-lastCheckpoint>=5000) {
-                            lastCheckpoint=now
-                            PlaybackMetrics.samples++
-                            position=resumePosition(liveMedia,hlsEdit.originalPosition(p.currentPosition))
-                            saveCheckpoint(p,position,p.playWhenReady)
-                        }
-                    }
-                } finally { PlaybackMetrics.samplers-- }
-            }
+            startSampling(p)
         } catch(e: Exception) { stop(false); failed("播放器初始化失败，可重试或快速换源") }
+    }
+    private fun startSampling(p: ExoPlayer) {
+        sample=scope.launch {
+            PlaybackMetrics.samplers++
+            var bufferingSince=0L
+            var lastCheckpoint=0L
+            var lastHealth:PlaybackHealth?=null
+            try {
+                while(isActive && player===p) {
+                    delay(1000)
+                    val now=android.os.SystemClock.elapsedRealtime()
+                    val waiting=p.playbackState==Player.STATE_BUFFERING && p.playWhenReady
+                    if(!waiting) bufferingSince=0L else if(bufferingSince==0L) bufferingSince=now
+                    val status=PlaybackHealth(waiting,waiting && now-bufferingSince>=PlaybackPolicy.SLOW_MS,(p.totalBufferedDuration/1000).coerceAtLeast(0))
+                    if(status!=lastHealth) { health(status);lastHealth=status }
+                    if(p.isPlaying && now-lastCheckpoint>=5000) {
+                        lastCheckpoint=now
+                        PlaybackMetrics.samples++
+                        position=resumePosition(liveMedia,hlsEdit.originalPosition(p.currentPosition))
+                        saveCheckpoint(p,position,p.playWhenReady)
+                    }
+                }
+            } finally { PlaybackMetrics.samplers-- }
+        }
     }
     private fun saveCheckpoint(p:Player,at:Long,autoPlay:Boolean) {
         if(!liveMedia && p.duration>0) durationChanged(hlsEdit.originalPosition(p.duration))
@@ -275,7 +301,7 @@ class PlaybackController(
         try {
             if(p != null) {
                 position=if(initialSeek) position else resumePosition(liveMedia,hlsEdit.originalPosition(p.currentPosition))
-                autoStart=rotating && p.playWhenReady
+                autoStart=rotating && (resumeAfterBackground ?: p.playWhenReady)
                 saveCheckpoint(p,position,autoStart)
             }
         } finally {

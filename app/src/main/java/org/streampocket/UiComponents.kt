@@ -71,12 +71,12 @@ import androidx.compose.ui.unit.sp
 }
 
 /** Shared quiet surface for discovery, search and viewing history. */
-@Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainer,content:@Composable ColumnScope.()->Unit) {
+@Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerLow,content:@Composable ColumnScope.()->Unit) {
     val colors=CardDefaults.cardColors(containerColor=containerColor)
-    if(onClick==null) Card(modifier=modifier,shape=MaterialTheme.shapes.medium,colors=colors,content=content)
+    if(onClick==null) Card(modifier=modifier,shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(defaultElevation=2.dp),colors=colors,content=content)
     else {
         val interactions=remember { MutableInteractionSource() }
-        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=MaterialTheme.shapes.medium,colors=colors,content=content)
+        Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(defaultElevation=2.dp),colors=colors,content=content)
     }
 }
 @Composable fun ContentDivider(modifier:Modifier=Modifier) {
@@ -119,7 +119,7 @@ import androidx.compose.ui.unit.sp
         keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),
         keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
         decorationBox={input ->
-            Surface(shape=MaterialTheme.shapes.medium,color=glassFill(),
+            Surface(shape=RoundedCornerShape(50),shadowElevation=3.dp,color=MaterialTheme.colorScheme.surfaceContainerLow,
                 border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.65f) else MaterialTheme.colorScheme.onSurface.copy(alpha=.14f))) {
                 Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Icon(painterResource(R.drawable.ic_search),null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -127,6 +127,7 @@ import androidx.compose.ui.unit.sp
                         if(value.isEmpty()) Text(placeholder,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         input()
                     }
+                    VerticalDivider(Modifier.height(22.dp),color=MaterialTheme.colorScheme.outlineVariant)
                     trailingIcon()
                 }
             }

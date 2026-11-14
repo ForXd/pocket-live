@@ -160,7 +160,7 @@ class PlaybackResilienceDeviceTest {
                 if(cycle%5==4) {
                     ui.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
                     assertEquals(0,MediaCallOwner.active.get());assertEquals(0,PlaybackMetrics.samplers)
-                    assertEquals(PlaybackMetrics.created,PlaybackMetrics.released)
+                    assertEquals(1L,PlaybackMetrics.created-PlaybackMetrics.released)
                     ui.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
                     ui.waitUntil(15000) { PlaybackMetrics.created-PlaybackMetrics.released==1L }
                     System.gc();System.runFinalization()
