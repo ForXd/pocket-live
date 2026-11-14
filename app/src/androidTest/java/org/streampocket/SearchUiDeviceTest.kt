@@ -74,7 +74,7 @@ class SearchUiDeviceTest {
             assertEquals(listOf("星河"), kotlinx.coroutines.runBlocking { Storage(ui.activity.application).read() }.recentSearches)
             ui.onNodeWithTag("searchInput").performTextReplacement("")
             ui.onNodeWithText("最近搜索").assertExists()
-            ui.onNodeWithText("星河").performClick()
+            ui.onNodeWithTag("recentSearch:星河").performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
             ui.onNodeWithTag("nav:3").performClick()
             ui.onNodeWithTag("settingsList").performScrollToNode(hasText("搜索历史"))

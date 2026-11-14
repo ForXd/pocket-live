@@ -42,7 +42,12 @@ internal fun episodeProgress(video:Video,history:List<History>):Map<String,Playb
             Text(episode.name,style=MaterialTheme.typography.labelLarge,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             if(label!=null) Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurface.copy(alpha=.8f),maxLines=2)
             if(fraction!=null) WatchProgress(playback)
-            if(showQuality && episode.quality.evidence!=QualityEvidence.UNKNOWN) Text(episode.quality.label,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            if(showQuality && episode.quality.evidence!=QualityEvidence.UNKNOWN) {
+                val quality=episode.quality
+                val compact=if(quality.pixels>0) "${quality.pixels}p" else quality.sourceLabel
+                Text(compact,modifier=Modifier.semantics { stateDescription=quality.label },style=MaterialTheme.typography.labelSmall,
+                    color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
         }
     }
 }

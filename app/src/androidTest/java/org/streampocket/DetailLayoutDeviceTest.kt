@@ -38,7 +38,7 @@ class DetailLayoutDeviceTest {
             }
         }
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
-        runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true,history=listOf(History(Playback(video,Episode("第17集","$base/main/17.mp4"),5000),System.currentTimeMillis())))) }
+        runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true,history=listOf(History(Playback(video,Episode("第17集","$base/main/17.mp4"),5000,duration=10000),System.currentTimeMillis())))) }
         ui.runOnUiThread {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
                 override fun <T:ViewModel> create(clazz:Class<T>):T {
@@ -59,6 +59,10 @@ class DetailLayoutDeviceTest {
         list.performScrollToNode(hasTestTag("detailPlay"))
         ui.onNodeWithTag("detailPlay").assertIsDisplayed().assertTextContains("继续观看",substring=true)
         captureUi(ui,"detail-header")
+        list.performScrollToNode(hasTestTag("episode:第17集"))
+        ui.onNodeWithTag("episode:第17集").assertTextContains("已看 50%")
+        captureUi(ui,"episode-progress")
+
         list.performScrollToNode(hasText("展开简介"));ui.onNodeWithText("展开简介").performClick()
         list.performScrollToNode(hasText("收起简介"));ui.onNodeWithText("收起简介").performClick()
         list.performScrollToNode(hasTestTag("episodeJump"));ui.onNodeWithTag("episodeJump").performClick()

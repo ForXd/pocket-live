@@ -198,7 +198,7 @@ class MainActivity : ComponentActivity() {
                         androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                             item { Text("最近搜索",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                             items(s.saved.recentSearches,key={it}) { term ->
-                                SuggestionChip(onClick={model.recordSearch(term);search(term)},label={Text(term,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)},modifier=Modifier.widthIn(max=200.dp))
+                                SuggestionChip(onClick={model.recordSearch(term);search(term)},label={Text(term,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)},modifier=Modifier.widthIn(max=200.dp).testTag("recentSearch:$term"))
                             }
                         }
                     }
