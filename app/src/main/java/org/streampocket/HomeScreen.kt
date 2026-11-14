@@ -147,14 +147,14 @@ import androidx.compose.ui.unit.dp
         Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth().clickable { expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
                 horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
-                    Poster(video,model,Modifier.size(84.dp,122.dp),shape=MaterialTheme.shapes.small)
-                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
-                        Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-                        val metadata=SearchRules.metadata(video)
-                        if(metadata.isNotEmpty()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
-                        Text("${options.size} 个来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        GlassButton(onClick={expand(if(expanded) null else selectedWork)},modifier=Modifier.heightIn(min=48.dp),shape=MaterialTheme.shapes.small) { Text(if(expanded) "收起来源" else "查看来源") }
-                    }
+                Poster(video,model,Modifier.size(84.dp,122.dp),shape=MaterialTheme.shapes.small)
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                    Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    val metadata=SearchRules.metadata(video)
+                    if(metadata.isNotEmpty()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    Text("${options.size} 个来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    GlassButton(onClick={expand(if(expanded) null else selectedWork)},modifier=Modifier.heightIn(min=48.dp),shape=MaterialTheme.shapes.small) { Text(if(expanded) "收起来源" else "查看来源") }
+                }
             }
             SeasonChips(group,video,{selectedWork=VideoGroups.workKey(it);expand(null)},search=true)
             if(expanded) {

@@ -185,7 +185,7 @@ class MainActivity : ComponentActivity() {
                     model.browseSources(s.catalogSourceKeys,s.catalogCategory,value.trim(),genres=s.catalogGenres)
                 }
                 CollapsingHomeSearch(searchScroll) {
-                if(!searchOpen && !searchMode && !inCatalog && !inLive) Row(Modifier.fillMaxWidth().padding(start=24.dp,end=12.dp).heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically) {
+                if(!searchOpen && !searchMode && !inCatalog && !inLive) Row(Modifier.fillMaxWidth().padding(start=20.dp,end=12.dp).heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
                     IconButton(onClick={searchOpen=true},modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
                 } else HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
@@ -247,7 +247,7 @@ class MainActivity : ComponentActivity() {
                 3 -> SettingsScreen(s,model,{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })
                 1 -> Row(Modifier.fillMaxSize()) {
-                    LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     item { Text("订阅",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(bottom=12.dp)) }
                     item { Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
