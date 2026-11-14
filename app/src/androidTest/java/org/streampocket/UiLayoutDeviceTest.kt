@@ -157,7 +157,7 @@ class UiLayoutDeviceTest {
                 val first = ui.onNodeWithTag("nav:0").getUnclippedBoundsInRoot()
                 val last = ui.onNodeWithTag("nav:3").getUnclippedBoundsInRoot()
                 val field = ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot()
-                assertEquals(first.width.value, last.width.value, 1f)
+                assertEquals((first.right-first.left).value, (last.right-last.left).value, 1f)
                 assertEquals(first.left.value - field.left.value, field.right.value - last.right.value, 1f)
                 assertEquals(first.top.value, last.top.value, 1f)
             }
