@@ -6,8 +6,8 @@ android {
         applicationId = "org.streampocket"
         minSdk = 26
         targetSdk = 37
-        versionCode = 56
-        versionName = "0.48.0"
+        versionCode = 57
+        versionName = "0.49.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }

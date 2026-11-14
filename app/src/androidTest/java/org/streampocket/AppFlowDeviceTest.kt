@@ -81,6 +81,14 @@ class AppFlowDeviceTest {
                         }
                         ready
                     }
+                    if(file.endsWith("mp4") && InstrumentationRegistry.getArguments().getString("quickPip") == "true") {
+                        val original = ui.runOnIdle { findPlayer(ui.activity.window.decorView) }
+                        ui.onNodeWithContentDescription("进入画中画").performScrollTo().performClick()
+                        ui.waitUntil(15000) { ui.activity.isInPictureInPictureMode }
+                        expandPipWithSystemControl()
+                        ui.waitUntil(15000) { !ui.activity.isInPictureInPictureMode }
+                        ui.runOnIdle { assertSame(original, findPlayer(ui.activity.window.decorView)) }
+                    }
                     verifyBufferedReturn(file.endsWith("mp4"))
                     ui.runOnIdle { model.stopPlayback() }
                     ui.waitUntil(10000) { PlaybackMetrics.created == PlaybackMetrics.released }

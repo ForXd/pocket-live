@@ -53,7 +53,9 @@ class Storage(context: Context, private val purgeCache: () -> Unit = {}, private
             }, r.arr("disabled").map { it.asString }.toSet(), r.arr("history").take(100).map {
                 val h = it.asJsonObject; val v = h.getAsJsonObject("video"); val ep = h.getAsJsonObject("episode")
                 History(Playback(Video(source(v.getAsJsonObject("source")),v.scalar("id"),v.scalar("title"),poster=validUrl(v.scalar("poster")),quality=QualityRules.read(v.get("quality")?.obj())),Episode(ep.scalar("name"),ep.scalar("url"),QualityRules.read(ep.get("quality")?.obj())),h.scalar("position").toLong().coerceAtLeast(0),duration=h.scalar("duration").toLongOrNull()?.coerceAtLeast(0) ?: 0),h.scalar("updated").toLong())
-            },r.bool("allowHttp") == true, r.bool("adFilter") == true, r.get("adRules")?.obj()?.entrySet()?.take(300)?.associate { (key,value) -> key to value.asJsonArray.take(32).map { it.asString }.filter { it.length <= 512 && it.startsWith("/") } }.orEmpty())
+            },r.bool("allowHttp") == true, r.bool("adFilter") == true, r.get("adRules")?.obj()?.entrySet()?.take(300)?.associate { (key,value) -> key to value.asJsonArray.take(32).map { it.asString }.filter { it.length <= 512 && it.startsWith("/") } }.orEmpty(),
+                searchHistoryEnabled=r.bool("searchHistoryEnabled")==true,
+                recentSearches=if(r.bool("searchHistoryEnabled")==true) r.arr("recentSearches").mapNotNull { it.takeIf { v -> v.isJsonPrimitive && v.asJsonPrimitive.isString }?.asString?.trim()?.take(100) }.filter { it.isNotEmpty() }.distinct().take(12) else emptyList())
             require(r.arr("subscriptions").size <= 20 && r.arr("history").size <= 100)
             require(saved.subscriptions.sumOf { it.sources.size } <= 300)
             require(saved.subscriptions.map { it.id }.distinct().size == saved.subscriptions.size)
@@ -67,6 +69,8 @@ class Storage(context: Context, private val purgeCache: () -> Unit = {}, private
     suspend fun write(s: Saved) = withContext(Dispatchers.IO) {
         val root = JsonObject().apply {
             addProperty("version",1); addProperty("allowHttp",s.allowHttp); addProperty("adFilter",s.adFilter)
+            addProperty("searchHistoryEnabled",s.searchHistoryEnabled)
+            add("recentSearches",JsonArray().apply { if(s.searchHistoryEnabled) s.recentSearches.take(12).forEach { add(it) } })
             add("adRules",JsonObject().apply { s.adRules.entries.take(300).forEach { (key,paths) -> add(key,JsonArray().apply { paths.take(32).forEach { add(it) } }) } })
             add("subscriptions", JsonArray().apply { s.subscriptions.forEach { sub -> add(JsonObject().apply {
                 addProperty("id",sub.id); addProperty("name",sub.name); addProperty("url",sub.url); addProperty("updated",sub.updated)

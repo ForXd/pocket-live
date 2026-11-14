@@ -136,9 +136,9 @@ import kotlinx.coroutines.launch
                                     }
                                 }
                             }
-            Surface(color=MaterialTheme.colorScheme.background) {
+            ContentCard(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp)) {
                 Column {
-                    Column(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull { it.url==verified?.url } ?: line?.episodes?.firstOrNull()
                         Row(Modifier.fillMaxWidth().testTag("detailPlaybackSummary"),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
                             primary?.let { episode ->

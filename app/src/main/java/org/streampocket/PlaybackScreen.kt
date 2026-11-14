@@ -148,6 +148,15 @@ import kotlinx.coroutines.delay
     val leavePlayback={ playerView?.cancelGestures();model.stopPlayback() }
     val stepPrevious={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) };Unit }
     val stepNext={ playerView?.cancelGestures();next?.let { model.play(playback.video,it) };Unit }
+    val supportsPip = activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    fun enterPip() {
+        optionsOpen=false
+        playerView?.cancelGestures()
+        if(!supportsPip) { error="设备不支持画中画";return }
+        try {
+            if(!activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16,9)).build())) error="设备当前不允许画中画"
+        } catch(_:IllegalStateException) { error="设备当前不允许画中画" }
+    }
     val episodeControls: @Composable RowScope.() -> Unit = {
         PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
         GlassButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) { Text("选集") }
@@ -175,10 +184,7 @@ import kotlinx.coroutines.delay
                         }
                         HorizontalDivider()
                         GlassButton(shape=MaterialTheme.shapes.medium,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),onClick={
-                            optionsOpen=false;playerView?.cancelGestures()
-                            if(activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-                                try { activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16,9)).build()) } catch(_:Exception) { error="设备当前不允许画中画" }
-                            } else error="设备不支持画中画"
+                            enterPip()
                         }) { Text("画中画") }
                         TextButton(onClick=leavePlayback,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text(if(playback.video.source.kind==SourceKind.LIVE) "返回频道" else "返回选集") }
                     }
@@ -254,6 +260,7 @@ import kotlinx.coroutines.delay
                             Text(playback.episode.name,style=MaterialTheme.typography.headlineSmall)
                             Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        if(supportsPip) PlayerIconAction(R.drawable.ic_pip,"进入画中画",onClick=::enterPip)
                         QualityBadge(playback.episode.quality)
                     }
                     Surface(color=MaterialTheme.colorScheme.surfaceContainerLow,shape=MaterialTheme.shapes.extraLarge) {

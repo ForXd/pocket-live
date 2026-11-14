@@ -60,10 +60,27 @@ class SearchUiDeviceTest {
         fun top() { ui.onNodeWithTag("searchResults").performScrollToIndex(0) }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            assertFalse(model.state.value.saved.searchHistoryEnabled)
+            ui.onNodeWithTag("nav:3").performClick()
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasText("搜索历史"))
+            ui.onNodeWithText("搜索历史").performClick()
+            ui.waitUntil(10000) { model.state.value.saved.searchHistoryEnabled }
+            ui.onNodeWithTag("nav:0").performClick()
             ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("星河")
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
+            ui.waitUntil(10000) { model.state.value.saved.recentSearches == listOf("星河") }
+            assertEquals(listOf("星河"), kotlinx.coroutines.runBlocking { Storage(ui.activity.application).read() }.recentSearches)
+            ui.onNodeWithTag("searchInput").performTextReplacement("")
+            ui.onNodeWithText("最近搜索").assertExists()
+            ui.onNodeWithText("星河").performClick()
+            ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
+            ui.onNodeWithTag("nav:3").performClick()
+            ui.onNodeWithTag("settingsList").performScrollToNode(hasText("搜索历史"))
+            ui.onNodeWithText("搜索历史").performClick()
+            ui.waitUntil(10000) { !model.state.value.saved.searchHistoryEnabled && model.state.value.saved.recentSearches.isEmpty() }
+            ui.onNodeWithTag("nav:0").performClick()
             assertEquals("exact",model.state.value.results.first().id)
             ui.onNodeWithTag("searchVideo:noise").assertDoesNotExist()
             ui.onNodeWithTag("searchVideo:exact").assertExists()

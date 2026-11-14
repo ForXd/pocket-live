@@ -35,6 +35,14 @@ import androidx.compose.ui.unit.dp
             s.updateError!=null -> "检查失败 · 点击重试"
             else -> "当前版本 ${BuildConfig.VERSION_NAME} · 检查更新"
         },updates,"settingsUpdates") }
+        item(key="searchHistory") {
+            ContentCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(horizontal=16.dp,vertical=8.dp)) {
+                    SettingSwitch("搜索历史","在本机保留最近 12 个搜索词，关闭时清空记录",s.saved.searchHistoryEnabled,model::setSearchHistory)
+                    if(s.saved.recentSearches.isNotEmpty()) TextButton(onClick=model::clearSearchHistory) { Text("清空搜索历史") }
+                }
+            }
+        }
         item(key="networkSettings") { SettingsGroup("播放与网络","HTTP 访问 · 广告过滤") {
             SettingSwitch("允许未加密 HTTP","可能被监听或篡改，仅用于可信源",s.saved.allowHttp,model::allowHttp)
             ContentDivider()

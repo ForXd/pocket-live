@@ -188,11 +188,21 @@ class MainActivity : ComponentActivity() {
                 if(!searchOpen && !searchMode && !inCatalog && !inLive) Row(Modifier.fillMaxWidth().padding(start=20.dp,end=12.dp).heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
                     IconButton(onClick={searchOpen=true},modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
-                } else HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
-                    {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else search(query)},
+                } else Column {
+                    HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
+                    {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},
                     {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else showRecommendations()},
                     placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
                     clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog || inLive)
+                    if(!inCatalog && !inLive && query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
+                        androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+                            item { Text("最近搜索",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                            items(s.saved.recentSearches,key={it}) { term ->
+                                SuggestionChip(onClick={model.recordSearch(term);search(term)},label={Text(term,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)},modifier=Modifier.widthIn(max=200.dp))
+                            }
+                        }
+                    }
+                }
                 }
             }
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))

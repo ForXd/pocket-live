@@ -19,7 +19,8 @@ data class Playback(val video: Video, val episode: Episode, val position: Long =
     val key: String = hash("${video.source.key}|${video.id}|${episode.url}")
 }
 data class History(val playback: Playback, val updated: Long)
-data class Saved(val subscriptions: List<Subscription> = emptyList(), val disabled: Set<String> = emptySet(), val history: List<History> = emptyList(), val allowHttp: Boolean = false, val adFilter: Boolean = false, val adRules: Map<String,List<String>> = emptyMap())
+data class Saved(val subscriptions: List<Subscription> = emptyList(), val disabled: Set<String> = emptySet(), val history: List<History> = emptyList(), val allowHttp: Boolean = false, val adFilter: Boolean = false, val adRules: Map<String,List<String>> = emptyMap(),
+    val searchHistoryEnabled: Boolean = false, val recentSearches: List<String> = emptyList())
 class UserError(message: String) : Exception(message)
 fun hash(text: String): String = text.toByteArray(Charsets.UTF_8).toByteString().sha256().hex()
 fun safeError(e: Throwable): String = when(e) {

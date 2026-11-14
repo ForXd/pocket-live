@@ -253,6 +253,18 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         _state.update { it.copy(catalogSource=null,catalogVideos=emptyList(),categories=emptyList(),catalogMore=false,catalogError=null) }
         _state.update { it.copy(results = emptyList(), completed = 0, total = 0, failures = 0) }
     }
+    fun setSearchHistory(enabled: Boolean) = change { saved ->
+        saved.copy(searchHistoryEnabled=enabled, recentSearches=if(enabled) saved.recentSearches else emptyList())
+    }
+    fun clearSearchHistory() = change { it.copy(recentSearches=emptyList()) }
+    fun recordSearch(text: String) {
+        val term = text.trim().take(100)
+        if (term.isEmpty() || !state.value.saved.searchHistoryEnabled) return
+        change { saved ->
+            if (saved.searchHistoryEnabled) saved.copy(recentSearches=(listOf(term) + saved.recentSearches.filterNot { it.equals(term, ignoreCase=true) }).take(12)) else saved
+        }
+    }
+
     fun allowHttp(enabled: Boolean) {
         if(!enabled) { network.client.dispatcher.cancelAll(); invalidateSources(); stopPlayback() }
         change(clearSourceResults = true) { it.copy(allowHttp = enabled) }
