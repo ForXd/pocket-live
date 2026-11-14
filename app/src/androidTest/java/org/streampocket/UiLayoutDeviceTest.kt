@@ -248,6 +248,7 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("recommendation:1").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
             capture("07-discovery-action")
             ui.onNodeWithTag("recommendation:1").performClick()
+            ui.onNodeWithTag("searchRecommendationSources").performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
             ui.onNodeWithTag("searchInput").assertTextContains("星河漫游")
             ui.onNodeWithTag("nav:3").performClick()
