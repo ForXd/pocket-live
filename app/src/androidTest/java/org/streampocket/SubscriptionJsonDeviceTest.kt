@@ -93,7 +93,7 @@ class SubscriptionJsonDeviceTest {
             if(root==null) emptyList() else listOf(root)+(0 until root.childCount).flatMap { nodes(root.getChild(it)) }
         try {
             ui.onNodeWithText("订阅",useUnmergedTree=true).performClick()
-            if(model.state.value.saved.subscriptions.isNotEmpty()) ui.onNodeWithContentDescription("添加订阅").performClick()
+            ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithText("选择 JSON 文件").performScrollTo().performClick()
             val deadline=android.os.SystemClock.elapsedRealtime()+15000
             var clicked=false
