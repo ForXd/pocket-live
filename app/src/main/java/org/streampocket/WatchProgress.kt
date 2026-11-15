@@ -4,6 +4,7 @@ package org.streampocket
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.Modifier
@@ -33,21 +34,21 @@ internal fun episodeProgress(video:Video,history:List<History>):Map<String,Playb
     modifier:Modifier=Modifier,showQuality:Boolean=false) {
     val fraction=playback?.let(::watchFraction)
     val label=playback?.let { if(fraction==null) "已看过" else if(fraction>=1f) "已看完" else "已看 ${(fraction*100).toInt()}%" }
-    Surface(onClick=onClick,shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surfaceContainerLow,
+    Surface(onClick=onClick,shadowElevation=2.dp,shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surfaceContainerLow,
         border=BorderStroke(1.dp, if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha=.45f)),
         contentColor=MaterialTheme.colorScheme.onSurface,
         modifier=modifier.semantics { this.selected=selected; if(label!=null) stateDescription=label }) {
-        Column(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=10.dp),
+        val fillColor=MaterialTheme.colorScheme.primary.copy(alpha=.10f)
+        Column(Modifier.fillMaxWidth().drawBehind {
+            if(fraction!=null && fraction>0f) drawRect(fillColor,size=androidx.compose.ui.geometry.Size(size.width*fraction,size.height))
+        }.padding(horizontal=8.dp,vertical=8.dp),
             verticalArrangement=Arrangement.spacedBy(4.dp,androidx.compose.ui.Alignment.CenterVertically)) {
             Text(episode.name,style=MaterialTheme.typography.labelLarge,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            if(label!=null) Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurface.copy(alpha=.8f),maxLines=2)
-            if(fraction!=null) WatchProgress(playback)
-            if(showQuality && episode.quality.evidence!=QualityEvidence.UNKNOWN) {
-                val quality=episode.quality
-                val compact=if(quality.pixels>0) "${quality.pixels}p" else quality.sourceLabel
-                Text(compact,modifier=Modifier.semantics { stateDescription=quality.label },style=MaterialTheme.typography.labelSmall,
-                    color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            }
+            val quality=episode.quality.takeIf { showQuality && it.evidence!=QualityEvidence.UNKNOWN }
+            val secondary=label ?: quality?.let { if(it.pixels>0) "${it.pixels}p" else it.sourceLabel }.orEmpty()
+            Text(secondary,modifier=Modifier.semantics { quality?.let { stateDescription=it.label } },
+                style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,
+                minLines=1,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }

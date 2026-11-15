@@ -40,7 +40,7 @@ class HistoryGroupsUiTest {
         ui.runOnIdle { assertEquals(5,records.value.size) }
         ui.onNodeWithTag("deleteHistory:$id").assertIsDisplayed()
         captureUi(ui,"history-swipe-delete")
-        ui.onNodeWithText("删除").performClick();ui.runOnIdle { assertEquals(listOf(b),records.value) }
+        ui.onNodeWithContentDescription("删除").performClick();ui.runOnIdle { assertEquals(listOf(b),records.value) }
         ui.onNodeWithTag("historyGroups").performScrollToIndex(0)
         ui.onNodeWithContentDescription("筛选历史").performClick()
         ui.onNodeWithText("清空历史").performClick();ui.onNodeWithText("清空").performClick()

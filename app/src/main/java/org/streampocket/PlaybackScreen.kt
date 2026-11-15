@@ -164,7 +164,7 @@ import kotlinx.coroutines.delay
     }
     MaterialTheme(colorScheme=if(full || pip) NightColors else MaterialTheme.colorScheme) {
     if(optionsOpen && !pip) {
-        FrostedDialog(onDismissRequest={optionsOpen=false},placement=if(full) GlassPlacement.SIDE else GlassPlacement.CENTER,immersive=full,tag="playbackOptions") {
+        FrostedDialog(onDismissRequest={optionsOpen=false},placement=if(full) GlassPlacement.SIDE else GlassPlacement.BOTTOM,immersive=full,tag="playbackOptions") {
             BackHandler { optionsOpen=false }
             Surface(shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
                 Column(Modifier.fillMaxWidth().then(if(full) Modifier.fillMaxHeight() else Modifier.heightIn(max=(configuration.screenHeightDp*.88f).dp)).padding(20.dp)) {
@@ -193,7 +193,7 @@ import kotlinx.coroutines.delay
         }
     }
     if(state.alternativeSession==playback.sessionId && !pip) {
-        FrostedDialog(onDismissRequest=model::closeAlternatives,placement=if(full) GlassPlacement.SIDE else GlassPlacement.CENTER,immersive=full,tag="alternativePanel") {
+        FrostedDialog(onDismissRequest=model::closeAlternatives,placement=if(full) GlassPlacement.SIDE else GlassPlacement.BOTTOM,immersive=full,tag="alternativePanel") {
             BackHandler(onBack=model::closeAlternatives)
             Surface(shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
                 Column(Modifier.fillMaxWidth().then(if(full) Modifier.fillMaxHeight() else Modifier.heightIn(max=(configuration.screenHeightDp*.88f).dp)).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {

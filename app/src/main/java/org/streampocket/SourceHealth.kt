@@ -8,7 +8,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-enum class QueryKind { SEARCH, CATALOG }
+enum class QueryKind { SEARCH, CATALOG, MEDIA }
 internal data class SourceHealthEntry(val key:String,val kind:QueryKind,val success:Boolean,val at:Long)
 
 /** Only hashed identities and recent outcomes; never retain source objects, URLs, or Activity. */
@@ -27,6 +27,10 @@ internal class SourceHealth(private val file:File,private val scope:CoroutineSco
     @Synchronized fun ordered(sources:List<Source>,kind:QueryKind):List<Source> {
         prune()
         return sources.sortedBy { source -> entries[id(source.key,kind)]?.let { if(it.success) 0 else 2 } ?: 1 }
+    }
+    @Synchronized fun verifiedKeys():Set<String> {
+        prune()
+        return entries.values.groupBy { it.key }.filterValues { checks -> checks.maxBy { it.at }.success }.keys
     }
     @Synchronized fun snapshot():Map<String,Boolean> {
         prune()
@@ -75,7 +79,7 @@ internal class SourceHealth(private val file:File,private val scope:CoroutineSco
     @Synchronized fun size():Int { prune();return entries.size }
     companion object {
         private val KEY_PATTERN=Regex("[0-9a-f]{64}")
-        const val MAX_ENTRIES=600 // 300 configured sources, separate search and catalog outcomes.
+        const val MAX_ENTRIES=900 // 300 configured sources, separate search and catalog outcomes.
         const val MAX_BYTES=128*1024L
         const val FAILURE_TTL=30*60*1000L
         const val SUCCESS_TTL=7*24*60*60*1000L

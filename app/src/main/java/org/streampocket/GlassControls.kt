@@ -46,12 +46,12 @@ import androidx.compose.ui.unit.dp
 
 /** One selected surface includes both icon and label, with a single accessible tab target. */
 @Composable internal fun PocketNavigationItem(selected:Boolean,label:String,onClick:()->Unit,
-    modifier:Modifier=Modifier,icon:@Composable ()->Unit) {
+    modifier:Modifier=Modifier,indicator:Boolean=true,icon:@Composable ()->Unit) {
     val tint=if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val fill by androidx.compose.animation.animateColorAsState(if(selected) glassFill(true) else Color.Transparent,
         animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection")
     androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint) {
-        Column(modifier.heightIn(min=64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp)).background(fill)
+        Column(modifier.heightIn(min=64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp)).background(if(indicator) fill else Color.Transparent)
             .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick)
             .padding(horizontal=6.dp,vertical=8.dp),horizontalAlignment=androidx.compose.ui.Alignment.CenterHorizontally,
             verticalArrangement=Arrangement.spacedBy(4.dp,androidx.compose.ui.Alignment.CenterVertically)) {

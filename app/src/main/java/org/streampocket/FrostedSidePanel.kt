@@ -6,6 +6,10 @@ import android.graphics.drawable.LayerDrawable
 import kotlinx.coroutines.*
 import androidx.compose.ui.graphics.luminance
 import android.os.Build
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.*
+import androidx.compose.foundation.background
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -25,17 +29,17 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import java.util.function.Consumer
 
-internal enum class GlassPlacement { CENTER, SIDE, BOTTOM }
+internal enum class GlassPlacement { SIDE, BOTTOM }
 
 /** Shared native blur with a bounded one-shot fallback; no capture loop or extra decoder. */
-@Composable internal fun FrostedDialog(onDismissRequest:()->Unit,placement:GlassPlacement=GlassPlacement.CENTER,
+@Composable internal fun FrostedDialog(onDismissRequest:()->Unit,placement:GlassPlacement=GlassPlacement.BOTTOM,
     immersive:Boolean=false,tag:String="glassDialog",content:@Composable ()->Unit) {
     val context=LocalContext.current
     val activity=androidx.activity.compose.LocalActivity.current
     val scope=rememberCoroutineScope()
     val composition=rememberCompositionContext()
     val config=LocalConfiguration.current
-    val width=when(placement) { GlassPlacement.SIDE->(config.screenWidthDp*.5f).dp;GlassPlacement.BOTTOM->minOf(config.screenWidthDp,640).dp;else->minOf(config.screenWidthDp-32,560).dp }
+    val width=when(placement) { GlassPlacement.SIDE->(config.screenWidthDp*.5f).dp;GlassPlacement.BOTTOM->minOf(config.screenWidthDp,640).dp }
     val density=LocalDensity.current
     val widthPx=with(density) { width.roundToPx() }
     val radius=with(density) { 20.dp.toPx() }
@@ -52,7 +56,26 @@ internal enum class GlassPlacement { CENTER, SIDE, BOTTOM }
             setParentCompositionContext(composition)
             setContent {
                 Surface(Modifier.width(width).then(if(placement==GlassPlacement.SIDE) Modifier.fillMaxHeight() else Modifier.heightIn(max=(config.screenHeightDp*.88f).dp)).testTag(tag),color=Color.Transparent,contentColor=MaterialTheme.colorScheme.onSurface) {
+                    Column {
+                        if(placement!=GlassPlacement.SIDE) {
+                            var settle by remember { mutableStateOf<Job?>(null) }
+                            val threshold=with(density) { 48.dp.toPx() }
+                            Box(Modifier.fillMaxWidth().height(40.dp).testTag("pickerDragHandle")
+                                .semantics { contentDescription="向下拖动关闭筛选";customActions=listOf(CustomAccessibilityAction("关闭") { dismiss();true }) }
+                                .pointerInput(window) {
+                                    var distance=0f
+                                    fun move(value:Float) { window.attributes=window.attributes.apply { y=-value.toInt() } }
+                                    fun restore() { settle=scope.launch { androidx.compose.animation.core.animate(distance,0f,animationSpec=androidx.compose.animation.core.spring(dampingRatio=1f,stiffness=480f)) { value,_->move(value) } } }
+                                    detectVerticalDragGestures(onDragStart={settle?.cancel();distance=(-window.attributes.y).toFloat()},
+                                        onVerticalDrag={change,amount->change.consume();distance=(distance+amount).coerceAtLeast(0f);move(distance)},
+                                        onDragEnd={if(distance>=threshold) dismiss() else restore()},onDragCancel={restore()})
+                                },contentAlignment=androidx.compose.ui.Alignment.Center) {
+                                Spacer(Modifier.size(36.dp,4.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.4f),androidx.compose.foundation.shape.CircleShape))
+                            }
+                            DisposableEffect(Unit) { onDispose { settle?.cancel() } }
+                        }
                     Box(Modifier.windowInsetsPadding(if(immersive) WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal) else WindowInsets(0,0,0,0))) { body() }
+                    }
                 }
             }
         }
@@ -64,8 +87,8 @@ internal enum class GlassPlacement { CENTER, SIDE, BOTTOM }
         window.setBackgroundDrawable(if(backdrop!=null) LayerDrawable(arrayOf(backdrop,background)) else background)
         var captureJob:Job?=null
         var nativeBlur=false
-        window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.RIGHT or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL;else->Gravity.CENTER })
-        if(placement==GlassPlacement.SIDE) window.setWindowAnimations(R.style.PocketSidePanelAnimation)
+        window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.RIGHT or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
+        window.setWindowAnimations(if(placement==GlassPlacement.SIDE) R.style.PocketSidePanelAnimation else R.style.PocketDrawerAnimation)
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         WindowCompat.setDecorFitsSystemWindows(window,!immersive)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)

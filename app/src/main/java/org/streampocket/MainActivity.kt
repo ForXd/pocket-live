@@ -12,6 +12,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalConfiguration
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity() {
     }
     // Do not put token-bearing input into saved-instance-state or screen titles.
     var url by remember { mutableStateOf("") }
+    var exportOpen by rememberSaveable { mutableStateOf(false) }
     var addingSubscription by remember { mutableStateOf(false) }
     var jsonDialog by remember { mutableStateOf(false) }
     var jsonText by remember { mutableStateOf("") }
@@ -145,6 +147,7 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val playback = s.playback
     if(playback != null) { PlaybackScreen(playback, model); return }
+    if(exportOpen) SourceExportSheet(model) { exportOpen=false }
     if(addingSubscription) HandleOnlySheet(onDismissRequest={model.cancelImport("new");addingSubscription=false}) {
         SheetSystemBars()
                         Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -208,10 +211,18 @@ class MainActivity : ComponentActivity() {
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
         bottomBar = { if(!wide && !imeVisible && s.detail==null && !s.detailLoading) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=20.dp,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(32.dp),color=MaterialTheme.colorScheme.surfaceContainerLow,shadowElevation=3.dp) {
-            Row(Modifier.fillMaxWidth().selectableGroup().padding(6.dp),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
+            BoxWithConstraints(Modifier.fillMaxWidth().padding(6.dp)) {
+            val order=listOf(0,2,1,3)
+            val slot=(maxWidth-12.dp)/4
+            val target=(slot+4.dp)*order.indexOf(tab).coerceAtLeast(0)
+            val left by androidx.compose.animation.core.animateDpAsState(target,androidx.compose.animation.core.spring(dampingRatio=.88f,stiffness=380f),label="tabLeading")
+            val right by androidx.compose.animation.core.animateDpAsState(target+slot,androidx.compose.animation.core.spring(dampingRatio=.92f,stiffness=530f),label="tabTrailing")
+            Box(Modifier.matchParentSize()) { Spacer(Modifier.offset(x=left).width((right-left).coerceAtLeast(1.dp)).fillMaxHeight().background(glassFill(true),RoundedCornerShape(26.dp))) }
+            Row(Modifier.fillMaxWidth().selectableGroup(),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
             listOf(0,2,1,3).forEach { i ->
                 PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
-                    Modifier.weight(1f).testTag("nav:$i"),icon={navIcon(i)})
+                    Modifier.weight(1f).testTag("nav:$i"),indicator=false,icon={navIcon(i)})
+            }
             }
             }
         } },snackbarHost={SnackbarHost(snack)}
@@ -262,6 +273,7 @@ class MainActivity : ComponentActivity() {
                     item { Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
                             modifier=Modifier.weight(1f), style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick={exportOpen=true}) { Text("分享片源") }
                         GlassIconButton(onClick={addingSubscription=!addingSubscription},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Add,if(addingSubscription) "收起添加订阅" else "添加订阅") }
                     } }
                     if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在首页搜索或浏览内容。",R.drawable.ic_library) }

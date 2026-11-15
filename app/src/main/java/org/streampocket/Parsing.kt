@@ -135,7 +135,7 @@ object SubscriptionParser {
                 if((type != null && type != 0.0) || Regex("\\.txt(?:[?#].*)?$", RegexOption.IGNORE_CASE).containsMatchIn(url)) { skip("非 M3U 直播"); return }
             }
             val key = "$kind|$url"; if(!seen.add(key)) return
-            val limit = if(kind == SourceKind.VOD) 100 else 50
+            val limit = if(obj?.str("format")=="pocket-live-sources-v1") 300 else if(kind == SourceKind.VOD) 100 else 50
             if(sources.count { it.kind == kind } >= limit) { truncated++; return }
             sources += Source(s.str("name")?.take(120) ?: url.toHttpUrlOrNull()!!.host, url, kind,
                 if(tvbox || catalog || kind != SourceKind.VOD) null else s.str("detail")?.take(4096),

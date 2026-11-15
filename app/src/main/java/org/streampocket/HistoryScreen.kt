@@ -21,7 +21,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -55,7 +56,6 @@ import androidx.compose.ui.unit.dp
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedHistoryWork by rememberSaveable { mutableStateOf<String?>(null) }
     var expandedEpisode by rememberSaveable { mutableStateOf<String?>(null) }
-    var deleting by remember { mutableStateOf<HistoryGroupKey?>(null) }
     var clearing by remember { mutableStateOf(false) }
     val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
     LaunchedEffect(imeVisible) { if(imeVisible) searchScroll.reveal() }
@@ -69,7 +69,10 @@ import androidx.compose.ui.unit.dp
         }
         if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
         ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
-            if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
+                IconButton(onClick={keyboard?.hide()},modifier=Modifier.size(48.dp)) { Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward,"搜索观看历史") }
+            }
         }
         }
         if(filtersOpen) HandleOnlySheet(onDismissRequest={filtersOpen=false}) {
@@ -110,7 +113,6 @@ import androidx.compose.ui.unit.dp
             val seasonEpisodes=HistoryGroup(group.key,seasonEntries).episodes
             item(key="group:$id") {
                 val shown=if(expanded==id) seasonEntries.first() else latest
-                var menu by remember { mutableStateOf(false) }
                 SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{remove(group.key);revealed=null}) {
                 Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
                     if(index==0 && model!=null && expanded!=id) Box {
@@ -119,12 +121,7 @@ import androidx.compose.ui.unit.dp
                     }
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                         Text(VideoGroups.familyTitle(shown.playback.video),Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
-                        Box {
-                            IconButton(onClick={menu=true}) { Icon(Icons.Default.MoreVert,"管理记录 ${shown.playback.video.title}") }
-                            GlassMenu(expanded=menu,onDismissRequest={menu=false}) {
-                                DropdownMenuItem(text={Text("删除记录")},onClick={deleting=group.key;menu=false})
-                            }
-                        }
+
                     }
                     Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         if((index>0 || expanded==id) && model!=null) Poster(shown.playback.video,model,Modifier.size(64.dp,88.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
@@ -177,7 +174,6 @@ import androidx.compose.ui.unit.dp
         }
     }
     }
-    deleting?.let { key -> GlassAlertDialog(onDismissRequest={deleting=null},title={Text("删除这部剧的记录？")},text={Text("删除这部剧在所有合并来源下的观看断点，其他剧目保留。")},confirmButton={TextButton(onClick={remove(key);deleting=null}) { Text("删除") }},dismissButton={TextButton(onClick={deleting=null}) { Text("取消") }}) }
     if(clearing) GlassAlertDialog(onDismissRequest={clearing=false},title={Text("清空观看历史？")},text={Text("所有剧目的观看断点将被删除，订阅仍会保留。")},confirmButton={TextButton(onClick={clear();clearing=false}) { Text("清空") }},dismissButton={TextButton(onClick={clearing=false}) { Text("取消") }})
 }
 
@@ -185,18 +181,20 @@ import androidx.compose.ui.unit.dp
 @Composable private fun SwipeHistoryCard(id:String,revealed:Boolean,onReveal:(Boolean)->Unit,onDelete:()->Unit,content:@Composable ()->Unit) {
     val width=with(LocalDensity.current) { 88.dp.toPx() }
     var offset by remember { mutableFloatStateOf(if(revealed) -width else 0f) }
-    LaunchedEffect(revealed,width) {
+    var release by remember { mutableIntStateOf(0) }
+    LaunchedEffect(revealed,width,release) {
         androidx.compose.animation.core.animate(offset,if(revealed) -width else 0f) { value,_->offset=value }
     }
     Surface(Modifier.fillMaxWidth(),shape=ContentCardShape,shadowElevation=2.dp,color=MaterialTheme.colorScheme.surfaceContainerLow) {
     Box(Modifier.fillMaxWidth().testTag("swipeHistory:$id")) {
-        if(offset < -1f) TextButton(onClick=onDelete,modifier=Modifier.align(Alignment.CenterEnd).width(80.dp).heightIn(min=64.dp).testTag("deleteHistory:$id"),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("删除") }
+        if(offset < -1f) FilledTonalIconButton(onClick=onDelete,modifier=Modifier.align(Alignment.CenterEnd).padding(end=18.dp).size(52.dp).testTag("deleteHistory:$id"),
+            colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Default.Delete,"删除") }
         Box(Modifier.offset { IntOffset(offset.roundToInt(),0) }.draggable(
             state=rememberDraggableState { offset=(offset+it).coerceIn(-width,0f) },orientation=Orientation.Horizontal,
             onDragStopped={ velocity ->
                 val open=if(kotlin.math.abs(velocity)>600f) velocity<0 else offset < -width/2
                 onReveal(open)
-                androidx.compose.animation.core.animate(offset,if(open) -width else 0f) { value,_->offset=value }
+                release++
             })) { content() }
     }
     }

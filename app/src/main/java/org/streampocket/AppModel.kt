@@ -98,7 +98,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         liveJob=viewModelScope.launch {
             try {
                 val channels=withTimeout(22_000) { withContext(Dispatchers.Default) { CmsParser.playlist(network.text(source.url),source).distinctBy { it.id } } }
-                ensureActive();if(owner==liveOwner) _state.update { it.copy(liveChannels=channels,liveLoading=false) }
+                ensureActive();if(owner==liveOwner) { sourceHealth.record(source.key,QueryKind.CATALOG,channels.isNotEmpty());_state.update { it.copy(liveChannels=channels,liveLoading=false) } }
             } catch(e:TimeoutCancellationException) { if(owner==liveOwner) _state.update { it.copy(liveLoading=false,liveError="频道加载超时，请重试") } }
             catch(e:CancellationException) { throw e }
             catch(e:Exception) { if(owner==liveOwner) _state.update { it.copy(liveLoading=false,liveError=safeError(e)) } }
@@ -115,6 +115,10 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     fun sortSearch(order: SearchOrder) {
         searchOrderPinned = false
         _state.update { it.copy(searchOrder = order, results = SearchRules.sorted(it.results, it.searchQuery, order)) }
+    }
+    internal fun verifiedSources():List<Source> {
+        val keys=sourceHealth.verifiedKeys()
+        return state.value.saved.enabledSources().filter { it.key in keys }.distinctBy { it.key }
     }
     fun refreshSourceAvailability() { _state.update { it.copy(sourceAvailability=sourceHealth.snapshot()) } }
     private var probeJob:Job?=null
@@ -193,6 +197,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                                 if(owner!=probeGeneration) return@withPermit
                                 // Transient failures and unverified media are retried next query.
                                 if(result.status==ProbeStatus.READY) {
+                                    sourceHealth.record(video.source.key,QueryKind.MEDIA,true)
                                     probeCache.remove(key);probeCache[key]=System.currentTimeMillis() to result
                                     while(probeCache.size>100) probeCache.remove(probeCache.keys.first())
                                 }
