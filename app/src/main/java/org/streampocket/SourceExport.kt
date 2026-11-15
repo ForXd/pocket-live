@@ -17,6 +17,11 @@ import com.google.gson.JsonObject
 import kotlinx.coroutines.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
+import java.io.IOException
+import kotlin.coroutines.resumeWithException
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -39,6 +44,20 @@ internal fun pasteLink(status:Int,response:String):String {
     if(url==null || !url.isHttps || url.host!="paste.rs" || url.port!=443 || !Regex("/[A-Za-z0-9_-]+").matches(url.encodedPath) || url.username.isNotEmpty() || url.password.isNotEmpty() || url.query!=null || url.fragment!=null) throw UserError("分享服务返回了无效链接")
     return url.toString()
 }
+
+internal suspend fun uploadSourceDocument(document:String,client:okhttp3.OkHttpClient):String =
+    suspendCancellableCoroutine { continuation ->
+        val request=Request.Builder().url("https://paste.rs/").post(document.toRequestBody("application/json; charset=utf-8".toMediaType())).build()
+        val call=client.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object:Callback {
+            override fun onFailure(call:Call,e:IOException) { continuation.resumeWithException(e) }
+            override fun onResponse(call:Call,response:Response) {
+                val result=runCatching { response.use { pasteLink(it.code,it.peekBody(2048).string()) } }
+                continuation.resumeWith(result)
+            }
+        })
+    }
 
 @Composable internal fun SourceExportSheet(model:AppModel,close:()->Unit) {
     val sources=remember(model) { model.verifiedSources() }
@@ -63,10 +82,7 @@ internal fun pasteLink(status:Int,response:String):String {
                 busy=true;status=""
                 scope.launch {
                     try {
-                        link=withContext(Dispatchers.IO) {
-                            val request=Request.Builder().url("https://paste.rs/").post(document.toRequestBody("application/json; charset=utf-8".toMediaType())).build()
-                            model.network.client.newCall(request).execute().use { pasteLink(it.code,it.peekBody(2048).string()) }
-                        }
+                        link=uploadSourceDocument(document,model.network.client)
                     } catch(e:CancellationException) { throw e }
                     catch(e:Exception) { status=safeError(e) }
                     finally { busy=false }

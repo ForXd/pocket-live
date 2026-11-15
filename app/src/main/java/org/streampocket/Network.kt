@@ -65,7 +65,7 @@ class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns
                 if(response.code !in listOf(301,302,303,307,308)) return@addInterceptor response
                 val target = response.header("Location")?.let { url.resolve(it) }
                 response.close()
-                if(target == null || ++redirects > 3 || (url.isHttps && !target.isHttps)) throw IOException("Redirect policy")
+                if(request.method != "GET" || target == null || ++redirects > 3 || (url.isHttps && !target.isHttps)) throw IOException("Redirect policy")
                 // Never copy cookies or authorization across hosts. App supplies neither.
                 request = request.newBuilder().url(target).removeHeader("Authorization").removeHeader("Cookie").build()
             }

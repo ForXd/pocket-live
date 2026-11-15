@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
@@ -179,6 +180,7 @@ import androidx.compose.ui.unit.dp
 
 /** A swipe only reveals the action; deleting always requires an explicit tap. */
 @Composable private fun SwipeHistoryCard(id:String,revealed:Boolean,onReveal:(Boolean)->Unit,onDelete:()->Unit,content:@Composable ()->Unit) {
+    val haptic=androidx.compose.ui.platform.LocalHapticFeedback.current
     val width=with(LocalDensity.current) { 88.dp.toPx() }
     var offset by remember { mutableFloatStateOf(if(revealed) -width else 0f) }
     var release by remember { mutableIntStateOf(0) }
@@ -186,8 +188,8 @@ import androidx.compose.ui.unit.dp
         androidx.compose.animation.core.animate(offset,if(revealed) -width else 0f) { value,_->offset=value }
     }
     Surface(Modifier.fillMaxWidth(),shape=ContentCardShape,shadowElevation=2.dp,color=MaterialTheme.colorScheme.surfaceContainerLow) {
-    Box(Modifier.fillMaxWidth().testTag("swipeHistory:$id")) {
-        if(offset < -1f) FilledTonalIconButton(onClick=onDelete,modifier=Modifier.align(Alignment.CenterEnd).padding(end=18.dp).size(52.dp).testTag("deleteHistory:$id"),
+    Box(Modifier.fillMaxWidth().testTag("swipeHistory:$id").semantics { customActions=listOf(CustomAccessibilityAction("显示删除按钮") { onReveal(true);true }) }) {
+        if(offset < -1f) FilledTonalIconButton(onClick={haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress);onDelete()},modifier=Modifier.align(Alignment.CenterEnd).padding(end=18.dp).size(52.dp).testTag("deleteHistory:$id"),
             colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Default.Delete,"删除") }
         Box(Modifier.offset { IntOffset(offset.roundToInt(),0) }.draggable(
             state=rememberDraggableState { offset=(offset+it).coerceIn(-width,0f) },orientation=Orientation.Horizontal,
