@@ -45,14 +45,13 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
     val density=LocalDensity.current
     val widthPx=with(density) { width.roundToPx() }
     val radius=with(density) { 20.dp.toPx() }
-    val blurRadius=with(density) { 32.dp.roundToPx() }.coerceAtMost(120)
     val tint=MaterialTheme.colorScheme.surface
     val dark=tint.luminance()<.5f
     val stroke=MaterialTheme.colorScheme.onSurface.copy(alpha=if(dark) .26f else .16f).toArgb()
     val dismiss by rememberUpdatedState(onDismissRequest)
     val body by rememberUpdatedState(content)
     val dialog=remember(context,composition) { ComponentDialog(context,R.style.PocketFrostedDialogTheme) }
-    DisposableEffect(dialog,widthPx,blurRadius,radius,tint,stroke,placement,immersive) {
+    DisposableEffect(dialog,widthPx,radius,tint,stroke,placement,immersive) {
         val window=checkNotNull(dialog.window)
         val view=ComposeView(dialog.context).apply {
             val panel=this
@@ -104,46 +103,17 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
         dialog.setCanceledOnTouchOutside(true)
         dialog.setOnCancelListener { dismiss() }
         val background=GradientDrawable().apply { cornerRadius=radius;setStroke(with(density) { 1.dp.roundToPx() },stroke) }
-        val backdrop=activity?.window?.takeIf { dark }?.let { GlassBackdropDrawable(it,window,radius) }
-        val materialDrawable=if(backdrop!=null) LayerDrawable(arrayOf(backdrop,background)) else background
+        background.setColor(tint.toArgb())
         if(placement==GlassPlacement.BOTTOM) {
             window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
-            view.background=materialDrawable
-        } else window.setBackgroundDrawable(materialDrawable)
-        var captureJob:Job?=null
-        var nativeBlur=false
+            view.background=background
+        } else window.setBackgroundDrawable(background)
         window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.RIGHT or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
         window.setWindowAnimations(if(placement==GlassPlacement.SIDE) R.style.PocketSidePanelAnimation else R.style.PocketDrawerAnimation)
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         WindowCompat.setDecorFitsSystemWindows(window,!immersive)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        fun material() {
-            val translucent=nativeBlur || backdrop?.bitmap!=null
-            val top=if(dark) Color(0xff55544f) else Color.White
-            val bottom=if(dark) Color(0xff252623) else Color.White
-            background.orientation=GradientDrawable.Orientation.TL_BR
-            background.colors=intArrayOf(top.copy(alpha=if(!dark) 1f else if(translucent) .70f else .96f).toArgb(),bottom.copy(alpha=if(!dark) 1f else if(translucent) .82f else .98f).toArgb())
-        }
-        fun update(enabled:Boolean) {
-            nativeBlur=enabled && dark && placement==GlassPlacement.SIDE
-            window.setDimAmount(.16f)
-            if(Build.VERSION.SDK_INT>=31) {
-                window.setBackgroundBlurRadius(if(nativeBlur) blurRadius else 0)
-                if(nativeBlur && !immersive) window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND) else window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                window.attributes=window.attributes.apply { setBlurBehindRadius(if(nativeBlur && !immersive) (blurRadius/2) else 0) }
-            }
-            captureJob?.cancel()
-            if(nativeBlur) backdrop?.bitmap=null
-            else if(backdrop!=null && backdrop.bitmap==null) captureJob=scope.launch(Dispatchers.Main.immediate) {
-                val image=withTimeoutOrNull(1_500) { captureGlassBackdrop(activity!!.window) }
-                ensureActive()
-                if(!nativeBlur) { backdrop.bitmap=image;material() }
-            }
-            material()
-        }
-        val manager=context.getSystemService(WindowManager::class.java)
-        val listener=Consumer<Boolean> { update(it) }
-        material();window.setDimAmount(.16f)
+        window.setDimAmount(.16f)
         dialog.show()
         WindowCompat.getInsetsController(window,view).apply {
             isAppearanceLightStatusBars=!dark
@@ -154,17 +124,7 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
             systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.systemBars())
         }
-        if(Build.VERSION.SDK_INT>=31) {
-            update(manager.isCrossWindowBlurEnabled)
-            manager.addCrossWindowBlurEnabledListener(listener)
-        } else update(false)
         onDispose {
-            if(Build.VERSION.SDK_INT>=31) {
-                manager.removeCrossWindowBlurEnabledListener(listener)
-                window.setBackgroundBlurRadius(0)
-            }
-            captureJob?.cancel()
-            backdrop?.bitmap=null
             dialog.setOnCancelListener(null)
             dialog.dismiss()
             view.disposeComposition()

@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
     var menuOpen by remember(sub.id) { mutableStateOf(false) }
     ContentCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(4.dp),verticalAlignment=Alignment.CenterVertically) {
-            TextButton(onClick=onExpand,modifier=Modifier.weight(1f).heightIn(min=80.dp).testTag("subscription:${sub.id}").semantics { stateDescription=if(expanded) "已展开" else "已收起" },shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(12.dp)) {
+            GlassTextButton(onClick=onExpand,modifier=Modifier.weight(1f).heightIn(min=80.dp).testTag("subscription:${sub.id}").semantics { stateDescription=if(expanded) "已展开" else "已收起" },shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(12.dp)) {
                 Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,if(expanded) "收起来源" else "展开来源",Modifier.size(24.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
                 }
             }
             Box {
-                IconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"管理订阅 ${sub.name}") }
+                GlassIconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"管理订阅 ${sub.name}") }
                 GlassMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
                     DropdownMenuItem(text={Text(if(sub.isLocalJson) "重新选择 JSON 文件" else "更新订阅")},enabled=!importing,onClick={menuOpen=false;onUpdate()})
                     DropdownMenuItem(text={Text("删除订阅",color=MaterialTheme.colorScheme.error)},onClick={menuOpen=false;onDelete()})
@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
             HorizontalDivider(Modifier.padding(horizontal=16.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {
                 Text(if(importing) "正在更新订阅…" else "更新于 ${historyTime(sub.updated)}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                if(importing) TextButton(onClick=onCancel) { Text("取消") }
+                if(importing) GlassTextButton(onClick=onCancel) { Text("取消") }
             }
         }
     }
@@ -61,7 +61,7 @@ import androidx.compose.ui.unit.dp
                 Switch(checked=enabled,onCheckedChange=null)
             }
             if(source.kind==SourceKind.VOD && onRules!=null) Box {
-                IconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"来源选项 ${source.name}") }
+                GlassIconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"来源选项 ${source.name}") }
                 GlassMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
                     DropdownMenuItem(text={Text("广告精确路径规则")},onClick={menuOpen=false;onRules()})
                 }

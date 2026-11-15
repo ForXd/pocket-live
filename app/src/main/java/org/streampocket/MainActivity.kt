@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material.icons.Icons
@@ -83,6 +90,7 @@ class MainActivity : ComponentActivity() {
     var appearanceOpen by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
+    var focusSearch by remember { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var searchMode by rememberSaveable { mutableStateOf(false) }
     val liveTab=rememberSaveable { mutableStateOf(false) }
@@ -126,8 +134,8 @@ class MainActivity : ComponentActivity() {
                 modifier=Modifier.fillMaxWidth().heightIn(max=280.dp).testTag("subscriptionJsonInput"),label={Text("JSON 内容")},minLines=5,maxLines=10,enabled="new" !in s.importing)
             if("new" in s.importing) Text("正在导入…") else s.message?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
         }
-    },confirmButton={TextButton(enabled=jsonText.isNotBlank() && "new" !in s.importing,onClick={model.message(null);model.importJson(jsonText,onImported={jsonDialog=false;jsonText=""})}) { Text("导入") }},
-        dismissButton={TextButton(onClick={model.cancelImport("new");jsonDialog=false;jsonText=""}) { Text("取消") }})
+    },confirmButton={GlassTextButton(enabled=jsonText.isNotBlank() && "new" !in s.importing,onClick={model.message(null);model.importJson(jsonText,onImported={jsonDialog=false;jsonText=""})}) { Text("导入") }},
+        dismissButton={GlassTextButton(onClick={model.cancelImport("new");jsonDialog=false;jsonText=""}) { Text("取消") }})
     var delete by remember { mutableStateOf<Subscription?>(null) }
     var expandedSubscription by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(s.loading,s.saved.subscriptions.map { it.id }) {
@@ -157,8 +165,8 @@ class MainActivity : ComponentActivity() {
                                 Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("添加订阅")
                             }
                             GlassButton(shape=MaterialTheme.shapes.medium,onClick={chooseJson()},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("选择 JSON 文件") }
-                            TextButton(onClick={model.message(null);jsonDialog=true},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("粘贴 JSON") }
-                            if("new" in s.importing) TextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
+                            GlassTextButton(onClick={model.message(null);jsonDialog=true},enabled="new" !in s.importing,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("粘贴 JSON") }
+                            if("new" in s.importing) GlassTextButton(onClick={model.cancelImport("new")}) { Text("取消导入") }
                             Text("JSON 文件上限 2 MiB",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
     }
@@ -178,6 +186,7 @@ class MainActivity : ComponentActivity() {
     if(s.recommendPreview!=null) { RecommendationPreview(s,model,::search);return }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
+    val showDock = !wide && !imeVisible && s.detail==null && !s.detailLoading
     Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
         topBar = {
             if(tab==0 && (s.detail==null || (wide && searchMode)) && !s.detailLoading) {
@@ -190,13 +199,13 @@ class MainActivity : ComponentActivity() {
                 CollapsingHomeSearch(searchScroll) {
                 if(!searchOpen && !searchMode && !inCatalog && !inLive) Row(Modifier.fillMaxWidth().padding(start=20.dp,end=12.dp).heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
-                    IconButton(onClick={searchOpen=true},modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
+                    GlassIconButton(onClick={focusSearch=true;searchOpen=true},colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer),modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
                 } else Column {
                     HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
                     {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},
                     {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else showRecommendations()},
                     placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
-                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog || inLive)
+                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog || inLive,focusOnOpen=focusSearch,onFocused={focusSearch=false})
                     if(!inCatalog && !inLive && query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
                         androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                             item { Text("最近搜索",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -210,24 +219,19 @@ class MainActivity : ComponentActivity() {
             }
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
-        bottomBar = { if(!wide && !imeVisible && s.detail==null && !s.detailLoading) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=20.dp,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(32.dp),color=MaterialTheme.colorScheme.surfaceContainerLow,shadowElevation=3.dp) {
-            BoxWithConstraints(Modifier.fillMaxWidth().padding(6.dp)) {
-            val order=listOf(0,2,1,3)
-            val slot=(maxWidth-12.dp)/4
-            val target=(slot+4.dp)*order.indexOf(tab).coerceAtLeast(0)
-            val left by androidx.compose.animation.core.animateDpAsState(target,androidx.compose.animation.core.spring(dampingRatio=.88f,stiffness=380f),label="tabLeading")
-            val right by androidx.compose.animation.core.animateDpAsState(target+slot,androidx.compose.animation.core.spring(dampingRatio=.92f,stiffness=530f),label="tabTrailing")
-            Box(Modifier.matchParentSize()) { Spacer(Modifier.offset(x=left).width((right-left).coerceAtLeast(1.dp)).fillMaxHeight().background(glassFill(true),RoundedCornerShape(26.dp))) }
+        bottomBar = { if(showDock) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=20.dp,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),color=MaterialTheme.colorScheme.surface,shadowElevation=2.dp) {
             Row(Modifier.fillMaxWidth().selectableGroup(),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
             listOf(0,2,1,3).forEach { i ->
                 PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                     Modifier.weight(1f).testTag("nav:$i"),indicator=false,icon={navIcon(i)})
             }
             }
-            }
         } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->
-        Row(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize().imePadding()) {
+        val direction = androidx.compose.ui.platform.LocalLayoutDirection.current
+        val viewport = if(showDock) PaddingValues(start=padding.calculateStartPadding(direction),end=padding.calculateEndPadding(direction),top=padding.calculateTopPadding()) else padding
+        androidx.compose.runtime.CompositionLocalProvider(LocalDockInset provides if(showDock) padding.calculateBottomPadding() else 0.dp) {
+        Row(Modifier.padding(viewport).consumeWindowInsets(padding).fillMaxSize().imePadding()) {
         if(wide) NavigationRail(containerColor=MaterialTheme.colorScheme.background,windowInsets=WindowInsets(0,0,0,0),modifier=Modifier.testTag("mainNavigation")) {
             Spacer(Modifier.height(24.dp))
             listOf(0,2,1,3).forEach { i -> PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
@@ -241,13 +245,13 @@ class MainActivity : ComponentActivity() {
         }
         Box(Modifier.weight(1f).fillMaxSize().destinationArrival(destination)) {
             if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
-            if(s.loading) { Column(Modifier.padding(24.dp)) { CircularProgressIndicator(); Text("正在读取本地数据…") }; return@Box }
+            if(s.loading) { Column(Modifier.padding(24.dp)) { PocketLoading(); Text("正在读取本地数据…") }; return@Box }
             if(s.detailLoading) {
                 Box(Modifier.fillMaxSize().testTag("detailLoading"),contentAlignment=Alignment.Center) {
                     Column(Modifier.padding(24.dp).widthIn(max=320.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                        CircularProgressIndicator(modifier=Modifier.size(40.dp),strokeWidth=3.dp,trackColor=MaterialTheme.colorScheme.onSurface.copy(alpha=.10f))
+                        PocketLoading()
                         Text("正在加载剧集…",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick=model::closeDetail) { Text("取消详情请求") }
+                        GlassTextButton(onClick=model::closeDetail) { Text("取消详情请求") }
                     }
                 }
                 return@Box
@@ -268,12 +272,12 @@ class MainActivity : ComponentActivity() {
                 3 -> SettingsScreen(s,model,{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })
                 1 -> Row(Modifier.fillMaxSize()) {
-                    LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     item { Text("订阅",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(bottom=12.dp)) }
                     item { Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
                             modifier=Modifier.weight(1f), style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick={exportOpen=true}) { Text("分享片源") }
+                        GlassTextButton(onClick={exportOpen=true}) { Text("分享片源") }
                         GlassIconButton(onClick={addingSubscription=!addingSubscription},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Add,if(addingSubscription) "收起添加订阅" else "添加订阅") }
                     } }
                     if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在首页搜索或浏览内容。",R.drawable.ic_library) }
@@ -306,8 +310,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    }
     } // Bounded content
     ruleSource?.let { source -> GlassAlertDialog(onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
-        OutlinedTextField(shape=MaterialTheme.shapes.medium,value=ruleText,onValueChange={ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={TextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={TextButton(onClick={ruleSource=null}) { Text("取消") }}) }
-    delete?.let { sub -> GlassAlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={TextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={TextButton(onClick={delete=null}){Text("取消")}}) }
+        OutlinedTextField(shape=MaterialTheme.shapes.medium,value=ruleText,onValueChange={ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={GlassTextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={GlassTextButton(onClick={ruleSource=null}) { Text("取消") }}) }
+    delete?.let { sub -> GlassAlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={GlassTextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={GlassTextButton(onClick={delete=null}){Text("取消")}}) }
 }

@@ -27,6 +27,7 @@ class UiLayoutDeviceTest {
         runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history,history.copy(playback=history.playback.copy(episode=Episode("第2集","$base/video2.mp4"),position=45_000),updated=history.updated-1),history.copy(playback=history.playback.copy(episode=Episode("第1集","$base/video.mp4"),position=180_000),updated=history.updated-2)),allowHttp=true)) }
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse = if(request.path=="/poster.png") MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
+            else if(request.requestUrl?.encodedPath?.endsWith(".mp4")==true) MockResponse().setHeader("Content-Type","video/mp4").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("test.mp4").use { it.readBytes() }))
             else if(request.path!!.startsWith("/synopsis")) MockResponse().setBody("<span property=\"v:summary\">一次穿越群星的旅程。每个故事，都值得被认真观看。</span>")
             else if(request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","rate":"8.2","cover":"$base/poster.png"},{"id":"3","title":"一段跨越山河与四季的漫长旅程：我们的故事还没有结束","rate":"","cover":""},{"id":"4","title":"雨","rate":"9.1","episodes_info":"更新至第十二集 · 特别篇与幕后故事持续更新","cover":"$base/poster.png"},{"id":"5","title":"风","rate":"","cover":"$base/poster.png"}]}""")
             else if(request.requestUrl!!.queryParameter("ids")!=null) MockResponse().setBody("""{"list":[{"vod_content":"一次穿越群星的旅程。每个故事，都值得被认真观看。","vod_play_from":"高清线路","vod_play_url":"第1集${'$'}$base/video.mp4#第2集${'$'}$base/video2.mp4#第3集${'$'}$base/video3.mp4#第4集${'$'}$base/video4.mp4#第5集${'$'}$base/video5.mp4#第6集${'$'}$base/video6.mp4"}]}""")
@@ -55,6 +56,21 @@ class UiLayoutDeviceTest {
         }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            if(InstrumentationRegistry.getArguments().getString("manualDesignReview")=="true") {
+                if (InstrumentationRegistry.getArguments().getString("startFullscreen") == "true") {
+                    ui.runOnIdle { model.open(video) }
+                    ui.waitUntil(10000) { model.state.value.detail?.video?.id == video.id }
+                    ui.runOnIdle { model.play(video, Episode("第2集", "$base/video2.mp4")) }
+                    ui.onNodeWithContentDescription("横屏全屏").performClick()
+                }
+                // Keep the fixture server and Activity available for the entire human review.
+                // The reviewer can end the session by closing the preview emulator.
+                while(!ui.activity.isFinishing) {
+                    ui.mainClock.advanceTimeBy(16)
+                    android.os.SystemClock.sleep(16)
+                }
+                return
+            }
             if(InstrumentationRegistry.getArguments().getString("uxReview")=="true") {
                 ui.waitUntil(10000) { model.state.value.recommendations.isNotEmpty() }
                 val done=java.io.File(ui.activity.filesDir,"ui-review-done");done.delete()

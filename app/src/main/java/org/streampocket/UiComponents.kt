@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.sp
     var expanded by rememberSaveable { mutableStateOf(false) }
     val rotation by animateFloatAsState(if(expanded) 180f else 0f,tween(220),label="settingsChevron")
     ContentCard(Modifier.fillMaxWidth()) {
-        TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth().heightIn(min=64.dp),shape=MaterialTheme.shapes.large,contentPadding=PaddingValues(16.dp)) {
+        GlassTextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth().heightIn(min=64.dp),shape=MaterialTheme.shapes.large,contentPadding=PaddingValues(16.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(title,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)
                 Text(summary.replace(" · "," / "),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -75,7 +75,7 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
 /** Shared quiet surface for discovery, search and viewing history. */
 @Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerLow,content:@Composable ColumnScope.()->Unit) {
     val colors=CardDefaults.cardColors(containerColor=containerColor)
-    val elevation = CardDefaults.cardElevation(defaultElevation = if (containerColor.alpha == 0f) 0.dp else 2.dp)
+    val elevation = CardDefaults.cardElevation(defaultElevation = if (containerColor.alpha == 0f) 0.dp else 1.dp)
     if(onClick==null) Card(modifier=modifier,shape=ContentCardShape,elevation=elevation,colors=colors,content=content)
     else {
         val interactions=remember { MutableInteractionSource() }
@@ -123,7 +123,7 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
         keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
         decorationBox={input ->
             Surface(shape=RoundedCornerShape(50),shadowElevation=3.dp,color=MaterialTheme.colorScheme.surfaceContainerLow,
-                border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.65f) else MaterialTheme.colorScheme.onSurface.copy(alpha=.14f))) {
+                border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.75f) else MaterialTheme.colorScheme.outlineVariant)) {
                 Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Icon(painterResource(R.drawable.ic_search),null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
                     Box(Modifier.weight(1f).padding(vertical=12.dp)) {

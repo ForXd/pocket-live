@@ -65,14 +65,14 @@ import androidx.compose.ui.unit.dp
     Column(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min=68.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("历史",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
-            IconButton(onClick={searchOpen=!searchOpen}) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
-            IconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
+            GlassIconButton(onClick={searchOpen=!searchOpen}) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
+            GlassIconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
         }
         if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
         ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
             Row(verticalAlignment=Alignment.CenterVertically) {
-                if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
-                IconButton(onClick={keyboard?.hide()},modifier=Modifier.size(48.dp)) { Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward,"搜索观看历史") }
+                if(query.isNotEmpty()) GlassIconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
+                GlassIconButton(onClick={keyboard?.hide()},modifier=Modifier.size(48.dp)) { Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward,"搜索观看历史") }
             }
         }
         }
@@ -96,14 +96,14 @@ import androidx.compose.ui.unit.dp
         }
         Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
             Text("${groups.size} 部 · ${filtered.size} 条记录",Modifier.weight(1f),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            if(history.isNotEmpty()) TextButton(onClick={clearing=true},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("清空历史") }
-            if(query.isNotEmpty() || source!=null || period!=HistoryPeriod.ALL || kind!=HistoryKind.ALL) TextButton(onClick={query="";source=null;period=HistoryPeriod.ALL;kind=HistoryKind.ALL}) { Text("重置") }
+            if(history.isNotEmpty()) GlassTextButton(onClick={clearing=true},colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)) { Text("清空历史") }
+            if(query.isNotEmpty() || source!=null || period!=HistoryPeriod.ALL || kind!=HistoryKind.ALL) GlassTextButton(onClick={query="";source=null;period=HistoryPeriod.ALL;kind=HistoryKind.ALL}) { Text("重置") }
         }
         GlassButton(shape=MaterialTheme.shapes.medium,onClick={filtersOpen=false},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("完成") }
         }
     }
     }
-    LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).testTag("historyGroups")) {
+    LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).testTag("historyGroups")) {
         if(groups.isEmpty()) item { EmptyPanel(if(history.isEmpty()) "还没有观看记录" else "没有匹配记录",if(history.isEmpty()) "播放影片后，可在这里继续观看。" else "试试其他关键词或重置筛选。",R.drawable.ic_history) }
         groups.forEachIndexed { index,group ->
             val latest=group.latest
@@ -132,11 +132,11 @@ import androidx.compose.ui.unit.dp
                             WatchProgress(shown.playback)
                             Text(shown.playback.video.source.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if(index>0 || model==null || expanded==id) IconButton(onClick={resume(shown)},modifier=Modifier.size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
+                        if(index>0 || model==null || expanded==id) GlassIconButton(onClick={resume(shown)},modifier=Modifier.size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
 
                     }
                     if(expanded==id) SeasonChips(seasonVideos,selectedVideo,{selectedHistoryWork=VideoGroups.workKey(it);expandedEpisode=null})
-                    TextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.testTag("expandHistory:$id")) { Text(if(expanded==id) "收起分集进度" else "分集进度 · ${group.episodes.size} 集") }
+                    GlassTextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.testTag("expandHistory:$id")) { Text(if(expanded==id) "收起分集进度" else "分集进度 · ${group.episodes.size} 集") }
                 }
             }
             }
@@ -150,12 +150,12 @@ import androidx.compose.ui.unit.dp
                                     Text(episode.latest.playback.episode.name,style=MaterialTheme.typography.titleMedium)
                                     Text(HistoryGroups.progress(episode.latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                IconButton(onClick={resume(episode.latest)},modifier=Modifier.size(48.dp).testTag("continueEpisode:$episodeId")) {
+                                GlassIconButton(onClick={resume(episode.latest)},modifier=Modifier.size(48.dp).testTag("continueEpisode:$episodeId")) {
                                     Icon(painterResource(R.drawable.ic_play),if(watchFraction(episode.latest.playback)==1f) "重新播放本集" else "继续本集")
                                 }
                             }
                             WatchProgress(episode.latest.playback)
-                            if(episode.entries.size>1) TextButton(onClick={expandedEpisode=if(expandedEpisode==episodeId) null else episodeId},modifier=Modifier.testTag("expandEpisode:$episodeId")) {
+                            if(episode.entries.size>1) GlassTextButton(onClick={expandedEpisode=if(expandedEpisode==episodeId) null else episodeId},modifier=Modifier.testTag("expandEpisode:$episodeId")) {
                                 Text(if(expandedEpisode==episodeId) "收起来源" else "查看 ${episode.entries.size} 个来源")
                             }
                         }
@@ -175,7 +175,7 @@ import androidx.compose.ui.unit.dp
         }
     }
     }
-    if(clearing) GlassAlertDialog(onDismissRequest={clearing=false},title={Text("清空观看历史？")},text={Text("所有剧目的观看断点将被删除，订阅仍会保留。")},confirmButton={TextButton(onClick={clear();clearing=false}) { Text("清空") }},dismissButton={TextButton(onClick={clearing=false}) { Text("取消") }})
+    if(clearing) GlassAlertDialog(onDismissRequest={clearing=false},title={Text("清空观看历史？")},text={Text("所有剧目的观看断点将被删除，订阅仍会保留。")},confirmButton={GlassTextButton(onClick={clear();clearing=false}) { Text("清空") }},dismissButton={GlassTextButton(onClick={clearing=false}) { Text("取消") }})
 }
 
 /** A swipe only reveals the action; deleting always requires an explicit tap. */
@@ -189,7 +189,7 @@ import androidx.compose.ui.unit.dp
     }
     Surface(Modifier.fillMaxWidth(),shape=ContentCardShape,shadowElevation=2.dp,color=MaterialTheme.colorScheme.surfaceContainerLow) {
     Box(Modifier.fillMaxWidth().testTag("swipeHistory:$id").semantics { customActions=listOf(CustomAccessibilityAction("显示删除按钮") { onReveal(true);true }) }) {
-        if(offset < -1f) FilledTonalIconButton(onClick={haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress);onDelete()},modifier=Modifier.align(Alignment.CenterEnd).padding(end=18.dp).size(52.dp).testTag("deleteHistory:$id"),
+        if(offset < -1f) GlassIconButton(onClick={haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress);onDelete()},modifier=Modifier.align(Alignment.CenterEnd).padding(end=18.dp).size(52.dp).testTag("deleteHistory:$id"),
             colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Default.Delete,"删除") }
         Box(Modifier.offset { IntOffset(offset.roundToInt(),0) }.draggable(
             state=rememberDraggableState { offset=(offset+it).coerceIn(-width,0f) },orientation=Orientation.Horizontal,

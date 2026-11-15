@@ -22,10 +22,12 @@ import androidx.compose.ui.unit.dp
     val transfer by model.updater.state.collectAsState()
     var rulesExpanded by rememberSaveable { mutableStateOf(false) }
     val sources=remember(s.saved.subscriptions) { s.saved.subscriptions.flatMap { it.sources }.filter { it.kind==SourceKind.VOD }.distinctBy { it.key } }
-    LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Text("设置",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(bottom=20.dp)) }
-        item { SettingsEntry("外观设置","跟随系统、日间或夜间模式",appearance,"settingsAppearance") }
-        item { SettingsEntry("应用更新",when {
+        item { ContentCard(Modifier.fillMaxWidth()) {
+            SettingsEntry("外观设置","跟随系统、日间或夜间模式",appearance,"settingsAppearance",grouped=true)
+            ContentDivider(Modifier.padding(horizontal=16.dp))
+            SettingsEntry("应用更新",when {
             transfer.phase==UpdatePhase.DOWNLOADING -> "正在下载 · ${transfer.received/1024} KiB"
             transfer.phase==UpdatePhase.VERIFYING -> "正在校验安装包"
             transfer.phase==UpdatePhase.READY -> "安装包已就绪 · 点击安装"
@@ -34,12 +36,12 @@ import androidx.compose.ui.unit.dp
             s.appRelease!=null -> "有新版 · 点击查看与安装"
             s.updateError!=null -> "检查失败 · 点击重试"
             else -> "当前版本 ${BuildConfig.VERSION_NAME} · 检查更新"
-        },updates,"settingsUpdates") }
+        },updates,"settingsUpdates",grouped=true) } }
         item(key="searchHistory") {
             ContentCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(horizontal=16.dp,vertical=8.dp)) {
                     SettingSwitch("搜索历史","在本机保留最近 12 个搜索词，关闭时清空记录",s.saved.searchHistoryEnabled,model::setSearchHistory)
-                    if(s.saved.recentSearches.isNotEmpty()) TextButton(onClick=model::clearSearchHistory) { Text("清空搜索历史") }
+                    if(s.saved.recentSearches.isNotEmpty()) GlassTextButton(onClick=model::clearSearchHistory) { Text("清空搜索历史") }
                 }
             }
         }
@@ -57,7 +59,7 @@ import androidx.compose.ui.unit.dp
             }
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.clearCache()},modifier=Modifier.heightIn(min=48.dp)) { Text("清缓存（保留配置）") }
-                TextButton(onClick=model::refreshStorage,modifier=Modifier.heightIn(min=48.dp)) { Text("刷新用量") }
+                GlassTextButton(onClick=model::refreshStorage,modifier=Modifier.heightIn(min=48.dp)) { Text("刷新用量") }
             }
         } }
         item { SettingsEntry("来源广告规则","为点播来源配置精确路径 · ${sources.size} 个来源",{rulesExpanded=!rulesExpanded},"settingsSourceRules",expanded=rulesExpanded) }
@@ -70,8 +72,9 @@ import androidx.compose.ui.unit.dp
         item { Text("Pocket Live · AGPL-3.0-or-later\n参考 LibreTV deb72fa01f；完整源码和许可证随项目提供。",style=MaterialTheme.typography.bodySmall) }
     }
 }
-@Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,expanded:Boolean?=null) {
-    ContentCard(onClick=action,
+@Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,expanded:Boolean?=null,grouped:Boolean=false) {
+    val row: @Composable () -> Unit = {
+        Surface(onClick=action,color=androidx.compose.ui.graphics.Color.Transparent,
         modifier=Modifier.fillMaxWidth().heightIn(min=72.dp).testTag(tag).semantics { contentDescription=title }) {
         Column {
             Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -83,4 +86,6 @@ import androidx.compose.ui.unit.dp
             }
         }
     }
+    }
+    if(grouped) row() else ContentCard(Modifier.fillMaxWidth()) { row() }
 }

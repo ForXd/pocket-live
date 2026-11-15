@@ -59,8 +59,8 @@ import androidx.compose.ui.unit.dp
         SeasonChips(options,current,choose)
         val sources=remember(options,current) { options.filter { VideoGroups.sameWork(it,current) } }
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-            TextButton(onClick={sourcesOpen=!sourcesOpen},modifier=Modifier.weight(1f,false).testTag("collectionSources")) { Text(if(sourcesOpen) "收起来源" else "${sources.size} 个来源",maxLines=1) }
-            TextButton(onClick={model.related(current,true)},enabled=!state.relatedLoading,modifier=Modifier.testTag("findSeasons")) { Text(if(state.relatedLoading) "查找中…" else "查找更多") }
+            GlassTextButton(onClick={sourcesOpen=!sourcesOpen},modifier=Modifier.weight(1f,false).testTag("collectionSources")) { Text(if(sourcesOpen) "收起来源" else "${sources.size} 个来源",maxLines=1) }
+            GlassTextButton(onClick={model.related(current,true)},enabled=!state.relatedLoading,modifier=Modifier.testTag("findSeasons")) { Text(if(state.relatedLoading) "查找中…" else "查找更多") }
         }
         if(sourcesOpen) SourceChoices(sources,current,state,choose)
         state.relatedError?.let { Text(it,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }

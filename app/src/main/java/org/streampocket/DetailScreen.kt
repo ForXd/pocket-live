@@ -73,7 +73,7 @@ import kotlinx.coroutines.launch
             LazyColumn(Modifier.fillMaxWidth().testTag("detailPicker"),contentPadding=PaddingValues(start=20.dp,end=20.dp,bottom=24.dp)) {
                 item { Row(verticalAlignment=Alignment.CenterVertically) {
                     Text(if(sheet=="line") "选择线路" else "定位集数",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                    TextButton(onClick={sheet=null}) { Text("取消") }
+                    GlassTextButton(onClick={sheet=null}) { Text("取消") }
                 } }
                 if(sheet=="line") itemsIndexed(detail.lines) { index,option ->
                     ListItem(colors=ListItemDefaults.colors(containerColor=androidx.compose.ui.graphics.Color.Transparent),headlineContent={Text(option.name)},supportingContent={Text("${option.episodes.size} 集")},
@@ -91,7 +91,7 @@ import kotlinx.coroutines.launch
             if(wide) Poster(detail.video,model,Modifier.weight(.43f).fillMaxHeight().padding(start=20.dp,bottom=24.dp),shape=MaterialTheme.shapes.medium,contentScale=ContentScale.Crop,large=true)
             Column(Modifier.weight(if(wide) .57f else 1f)) {
             if(pinnedNavigation) Row(Modifier.fillMaxWidth().heightIn(min=48.dp).background(MaterialTheme.colorScheme.background).testTag("detailNavigation"),verticalAlignment=Alignment.CenterVertically) {
-                IconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }
+                GlassIconButton(onClick=model::closeDetail) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回") }
                 Text(detail.video.title,Modifier.weight(1f).padding(end=20.dp),style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis)
             }
             Box(Modifier.weight(1f)) {
@@ -115,22 +115,22 @@ import kotlinx.coroutines.launch
                         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).animateContentSize()) {
                             Text(detail.description,onTextLayout={if(!expanded) descriptionOverflows=it.hasVisualOverflow},maxLines=if(expanded) Int.MAX_VALUE else 3,
                                 overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            if(expanded || descriptionOverflows) TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
+                            if(expanded || descriptionOverflows) GlassTextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
                         }
                     }
                     item(key="playback-actions") {
                         Column(Modifier.fillMaxWidth()) {
                             Box(Modifier.padding(horizontal=20.dp)) { CollectionControls(detail.video,state,model,model::open) }
                             if(wide && detail.description.isNotBlank()) Text(detail.description,Modifier.padding(horizontal=20.dp),maxLines=if(expanded) Int.MAX_VALUE else 4,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            if(wide && detail.description.isNotBlank()) TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
+                            if(wide && detail.description.isNotBlank()) GlassTextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
                             Column(Modifier.padding(horizontal=8.dp)) {
                                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                                    TextButton(onClick={sheet="line"},enabled=detail.lines.size>1,shape=MaterialTheme.shapes.medium,
+                                    GlassTextButton(onClick={sheet="line"},enabled=detail.lines.size>1,shape=MaterialTheme.shapes.medium,
                                         contentPadding=PaddingValues(horizontal=12.dp,vertical=10.dp),
                                         modifier=Modifier.weight(1f,false).heightIn(min=48.dp).testTag("detailLinePicker").semantics { contentDescription="播放线路：${line?.name ?: "暂无线路"}" }) {
                                         Text(line?.name ?: "暂无线路",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false));Icon(Icons.Default.ArrowDropDown,null,Modifier.size(20.dp))
                                     }
-                                    TextButton(onClick=searchSame,shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(horizontal=12.dp,vertical=10.dp),
+                                    GlassTextButton(onClick=searchSame,shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(horizontal=12.dp,vertical=10.dp),
                                         modifier=Modifier.heightIn(min=48.dp).testTag("detailSearchSame")) {
                                         Text("重新搜索",maxLines=1,overflow=TextOverflow.Ellipsis)
                                     }
@@ -167,9 +167,9 @@ import kotlinx.coroutines.launch
                             Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("episodeToolbar").onSizeChanged { toolbarHeight=it.height }) {
                                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                                     Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
-                                    if(showTop) IconButton(onClick={scope.launch { list.animateScrollToItem(0) }},modifier=Modifier.testTag("detailBackToTop")) { Icon(Icons.Default.KeyboardArrowUp,"回到详情顶部") }
+                                    if(showTop) GlassIconButton(onClick={scope.launch { list.animateScrollToItem(0) }},modifier=Modifier.testTag("detailBackToTop")) { Icon(Icons.Default.KeyboardArrowUp,"回到详情顶部") }
                                     Text("${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                    if(episodes.size>50) TextButton(onClick={sheet="range"},modifier=Modifier.testTag("episodeJump").semantics { contentDescription="定位集数" }) { Text("定位") }
+                                    if(episodes.size>50) GlassTextButton(onClick={sheet="range"},modifier=Modifier.testTag("episodeJump").semantics { contentDescription="定位集数" }) { Text("定位") }
                                     IconToggleButton(checked=descending,onCheckedChange={descending=it;showEpisodes()},modifier=Modifier.testTag("episodeOrder")) {
                                         Icon(painterResource(R.drawable.ic_sort),if(descending) "当前倒序，切换正序" else "当前正序，切换倒序",Modifier.rotate(if(descending) 180f else 0f))
                                     }
@@ -193,7 +193,7 @@ import kotlinx.coroutines.launch
             }
         }
         }
-        if(!pinnedNavigation) IconButton(onClick=model::closeDetail,modifier=Modifier.align(Alignment.TopStart).padding(8.dp).background(Color.Black.copy(alpha=.45f),MaterialTheme.shapes.small)) {
+        if(!pinnedNavigation) GlassIconButton(onClick=model::closeDetail,modifier=Modifier.align(Alignment.TopStart).padding(8.dp).background(Color.Black.copy(alpha=.45f),MaterialTheme.shapes.small)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回",tint=Color.White)
         }
     }

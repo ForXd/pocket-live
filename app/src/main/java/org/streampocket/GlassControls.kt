@@ -4,6 +4,8 @@ package org.streampocket
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
@@ -16,14 +18,30 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 
+internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp }
+
+@Composable internal fun PocketLoading(modifier:Modifier=Modifier, progress:(()->Float)?=null) {
+    Box(modifier,contentAlignment=androidx.compose.ui.Alignment.Center) {
+        val ring=Modifier.size(28.dp)
+        if(progress==null) CircularProgressIndicator(modifier=ring,strokeWidth=3.dp)
+        else CircularProgressIndicator(progress=progress,modifier=ring,strokeWidth=3.dp)
+    }
+}
+
+@Composable internal fun GlassTextButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
+    shape:Shape=MaterialTheme.shapes.medium, colors:ButtonColors=ButtonDefaults.textButtonColors(),
+    contentPadding:PaddingValues=ButtonDefaults.TextButtonContentPadding,content:@Composable RowScope.()->Unit) {
+    TextButton(onClick=onClick,modifier=modifier,enabled=enabled,shape=shape,
+        colors=colors,contentPadding=contentPadding,content=content)
+}
+
 /** Controls share the parent backdrop, using light translucent tint rather than opaque paint. */
 @Composable internal fun glassFill(selected:Boolean=false)=MaterialTheme.colorScheme.primary.copy(alpha=if(MaterialTheme.colorScheme.surface.luminance()<.5f) { if(selected) .20f else .10f } else { if(selected) .12f else .04f })
 @Composable internal fun GlassButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium,border:BorderStroke?=null,
     colors:ButtonColors=ButtonDefaults.outlinedButtonColors(containerColor=glassFill(),contentColor=MaterialTheme.colorScheme.onSurface),
     contentPadding:PaddingValues=PaddingValues(horizontal=16.dp,vertical=12.dp),content:@Composable RowScope.()->Unit) {
-    val sheen=Brush.verticalGradient(listOf(MaterialTheme.colorScheme.onSurface.copy(alpha=if(MaterialTheme.colorScheme.surface.luminance()<.5f) .12f else 0f),Color.Transparent))
-    OutlinedButton(onClick,modifier.heightIn(min=48.dp).clip(shape).background(sheen),enabled,shape,colors,border=border,contentPadding=contentPadding,content=content)
+    OutlinedButton(onClick,modifier.heightIn(min=48.dp),enabled,shape,colors,border=border,contentPadding=contentPadding,content=content)
 }
 @Composable internal fun GlassIconButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium,
@@ -54,7 +72,7 @@ import androidx.compose.ui.unit.dp
         Column(modifier.heightIn(min=64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp)).background(if(indicator) fill else Color.Transparent)
             .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick,
                 interactionSource=androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                indication=if(indicator) androidx.compose.foundation.LocalIndication.current else null)
+                indication=androidx.compose.foundation.LocalIndication.current)
             .padding(horizontal=6.dp,vertical=8.dp),horizontalAlignment=androidx.compose.ui.Alignment.CenterHorizontally,
             verticalArrangement=Arrangement.spacedBy(4.dp,androidx.compose.ui.Alignment.CenterVertically)) {
             icon()

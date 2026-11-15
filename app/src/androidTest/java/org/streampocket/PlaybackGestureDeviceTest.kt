@@ -307,11 +307,15 @@ class PlaybackGestureDeviceTest {
             }
             instrument.runOnMainSync {
                 val view = playerView()
-                for (id in listOf(androidx.media3.ui.R.id.exo_controls_background, androidx.media3.ui.R.id.exo_bottom_bar)) {
-                    val background = view.findViewById<View>(id).background as android.graphics.drawable.ColorDrawable
-                    assertEquals(android.graphics.Color.TRANSPARENT, background.color)
+                fun top(id:Int):Int {
+                    val location = IntArray(2)
+                    view.findViewById<View>(id).getLocationOnScreen(location)
+                    return location[1]
                 }
+                assertTrue(top(androidx.media3.ui.R.id.exo_time) < top(androidx.media3.ui.R.id.exo_progress))
+                assertTrue(top(androidx.media3.ui.R.id.exo_progress) < top(androidx.media3.ui.R.id.exo_play_pause))
             }
+            ui.onNodeWithTag("fullscreenStatus").assertIsDisplayed()
             ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
             instrument.waitForIdleSync()
             capture("transparent-controls")
@@ -347,7 +351,7 @@ class PlaybackGestureDeviceTest {
             waitFor { playerView().isControllerFullyVisible }
             ui.onNodeWithContentDescription("上一集").assertIsEnabled();ui.onNodeWithText("选集").performClick()
             ui.onNode(hasText("第2集") and isSelected()).assertExists();stage("episode-2-highlight-and-fullscreen-passed")
-            ui.onNode(hasScrollToIndexAction()).performScrollToIndex(499)
+            ui.onNodeWithTag("playbackEpisodes").performScrollToIndex(499)
             ui.onNodeWithText("第500集").performClick()
             waitFor { model.state.value.playback?.episode?.name=="第500集" && readyFor(model.state.value.playback) }
             instrument.runOnMainSync { playerView().player!!.pause();playerView().controllerShowTimeoutMs=0;playerView().showController() }

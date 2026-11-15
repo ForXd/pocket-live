@@ -39,7 +39,7 @@ internal fun recommendationMetadata(json:String):String? {
     Surface(Modifier.fillMaxSize().testTag("recommendationPreview")) {
         Column(Modifier.safeDrawingPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceBetween) {
-                TextButton(onClick=model::closeRecommendation) { Text("返回推荐") }
+                GlassTextButton(onClick=model::closeRecommendation) { Text("返回推荐") }
                 Text("影片介绍",Modifier.padding(12.dp),style=MaterialTheme.typography.titleMedium)
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal=24.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
@@ -53,9 +53,9 @@ internal fun recommendationMetadata(json:String):String? {
                 }
                 s.recommendMetadata?.let { Text(it,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text("剧情简介",style=MaterialTheme.typography.titleLarge)
-                if(s.recommendPreviewLoading) { LinearProgressIndicator(Modifier.fillMaxWidth());Text("正在获取简介…",style=MaterialTheme.typography.bodyMedium) }
+                if(s.recommendPreviewLoading) { PocketLoading(Modifier.fillMaxWidth());Text("正在获取简介…",style=MaterialTheme.typography.bodyMedium) }
                 else Text(s.recommendSynopsis ?: "暂未获取到简介。你可以重试，或继续搜索片源。",style=MaterialTheme.typography.bodyLarge)
-                if(!s.recommendPreviewLoading && s.recommendSynopsis==null) TextButton(onClick={model.openRecommendation(video)}) { Text("重试简介") }
+                if(!s.recommendPreviewLoading && s.recommendSynopsis==null) GlassTextButton(onClick={model.openRecommendation(video)}) { Text("重试简介") }
             }
             GlassButton(onClick={model.closeRecommendation();search(video.title)},modifier=Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=16.dp).testTag("searchRecommendationSources")) { Text("搜索片源") }
         }

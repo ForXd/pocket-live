@@ -44,20 +44,20 @@ val LocalPocketDark=staticCompositionLocalOf { true }
     return mode
 }
 internal val NightColors=darkColorScheme(
-    primary=Color(0xffefe3d0),onPrimary=Color(0xff27231d),primaryContainer=Color(0xff494136),onPrimaryContainer=Color(0xfff5ead8),
-    secondary=Color(0xffcec2b0),onSecondary=Color(0xff302b24),secondaryContainer=Color(0xff39352e),onSecondaryContainer=Color(0xffeee5d6),
-    tertiary=Color(0xffcdb58c),onTertiary=Color(0xff352b1b),
-    background=Color(0xff181715),onBackground=Color(0xfff4f0e8),surface=Color(0xff181715),onSurface=Color(0xfff4f0e8),
-    surfaceVariant=Color(0xff34312c),onSurfaceVariant=Color(0xffbcb6ab),surfaceTint=Color(0xffefe3d0),
-    surfaceContainerLowest=Color(0xff121210),surfaceContainerLow=Color(0xff201f1b),surfaceContainer=Color(0xff282620),
-    surfaceContainerHigh=Color(0xff302d27),surfaceContainerHighest=Color(0xff3b3730),surfaceDim=Color(0xff181715),surfaceBright=Color(0xff403b33),
-    outline=Color(0xff918a7e),outlineVariant=Color(0xff49443b))
+    primary=Color.White,onPrimary=Color(0xff232323),primaryContainer=Color(0xff373737),onPrimaryContainer=Color(0xffececec),
+    secondary=Color(0xffc3c3c3),onSecondary=Color(0xff2c2c2c),secondaryContainer=Color(0xff353535),onSecondaryContainer=Color(0xffe6e6e6),
+    tertiary=Color(0xffb7b7b7),onTertiary=Color(0xff2c2c2c),
+    background=Color(0xff1b1b1b),onBackground=Color(0xfff0f0f0),surface=Color(0xff1b1b1b),onSurface=Color(0xfff0f0f0),
+    surfaceVariant=Color(0xff313131),onSurfaceVariant=Color(0xffb6b6b6),surfaceTint=Color(0xffe4e4e4),
+    surfaceContainerLowest=Color(0xff121212),surfaceContainerLow=Color(0xff232323),surfaceContainer=Color(0xff2e2e2e),
+    surfaceContainerHigh=Color(0xff353535),surfaceContainerHighest=Color(0xff414141),surfaceDim=Color(0xff1b1b1b),surfaceBright=Color(0xff3b3b3b),
+    outline=Color(0xff8b8b8b),outlineVariant=Color(0xff444444))
 internal val DayColors=lightColorScheme(
-    primary=Color.Black,onPrimary=Color.White,primaryContainer=Color(0xffeeeeee),onPrimaryContainer=Color.Black,
+    primary=Color(0xff171717),onPrimary=Color.White,primaryContainer=Color(0xffebebeb),onPrimaryContainer=Color(0xff333333),
     secondary=Color(0xff555555),onSecondary=Color.White,secondaryContainer=Color(0xfff2f2f2),onSecondaryContainer=Color.Black,
     tertiary=Color(0xff555555),onTertiary=Color.White,
-    background=Color(0xfff3f4f6),onBackground=Color.Black,surface=Color.White,onSurface=Color.Black,
-    surfaceVariant=Color(0xfff2f2f2),onSurfaceVariant=Color(0xff595959),surfaceTint=Color.Transparent,
+    background=Color(0xfff5f5f5),onBackground=Color(0xff252525),surface=Color.White,onSurface=Color(0xff252525),
+    surfaceVariant=Color(0xfff2f2f2),onSurfaceVariant=Color(0xff5f5f5f),surfaceTint=Color.Transparent,
     surfaceContainerLowest=Color.White,surfaceContainerLow=Color.White,surfaceContainer=Color.White,
     surfaceContainerHigh=Color(0xfff5f5f5),surfaceContainerHighest=Color(0xffeeeeee),surfaceDim=Color(0xfff5f5f5),surfaceBright=Color.White,
     outline=Color(0xff808080),outlineVariant=Color(0xffe5e5e5))
@@ -74,10 +74,10 @@ internal val DayColors=lightColorScheme(
             shapes=Shapes(extraSmall=RoundedCornerShape(4.dp),small=RoundedCornerShape(8.dp),medium=RoundedCornerShape(12.dp),large=RoundedCornerShape(16.dp),extraLarge=RoundedCornerShape(20.dp)),
             typography=Typography(
                 headlineLarge=TextStyle(fontFamily=androidx.compose.ui.text.font.FontFamily.Serif,fontWeight=FontWeight.Medium,fontSize=32.sp,lineHeight=40.sp,letterSpacing=(-0.4).sp),
-                headlineMedium=TextStyle(fontWeight=FontWeight.Medium,fontSize=26.sp,lineHeight=34.sp),
+                headlineMedium=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=26.sp,lineHeight=34.sp),
                 headlineSmall=TextStyle(fontWeight=FontWeight.Medium,fontSize=20.sp,lineHeight=28.sp),
                 titleLarge=TextStyle(fontWeight=FontWeight.Medium,fontSize=20.sp,lineHeight=28.sp),
-                titleMedium=TextStyle(fontWeight=FontWeight.Medium,fontSize=16.sp,lineHeight=24.sp),
+                titleMedium=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=16.sp,lineHeight=24.sp),
                 titleSmall=TextStyle(fontWeight=FontWeight.Medium,fontSize=14.sp,lineHeight=20.sp),
                 bodyLarge=TextStyle(fontSize=16.sp,lineHeight=24.sp),
                 bodyMedium=TextStyle(fontSize=14.sp,lineHeight=22.sp),
@@ -100,5 +100,5 @@ internal val DayColors=lightColorScheme(
                 }
             }
         }
-    }},confirmButton={TextButton(onClick=close) { Text("完成") }})
+    }},confirmButton={GlassTextButton(onClick=close) { Text("完成") }})
 }

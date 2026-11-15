@@ -78,7 +78,7 @@ internal suspend fun uploadSourceDocument(document:String,client:okhttp3.OkHttpC
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("分享已验证片源",style=MaterialTheme.typography.titleLarge)
             Text("共 ${sources.size} 个已启用来源。发布后，持有链接的人可读取片源地址及其参数。在「添加订阅」中粘贴链接或选择 JSON 文件即可导入。",style=MaterialTheme.typography.bodyMedium)
-            if(link.isEmpty()) Button(enabled=sources.isNotEmpty() && !busy,onClick={
+            if(link.isEmpty()) GlassButton(enabled=sources.isNotEmpty() && !busy,onClick={
                 busy=true;status=""
                 scope.launch {
                     try {
@@ -90,12 +90,12 @@ internal suspend fun uploadSourceDocument(document:String,client:okhttp3.OkHttpC
             }) { Text(if(busy) "正在发布…" else "发布到 paste.rs") }
             else {
                 SelectionContainer { Text(link) }
-                Button(onClick={
+                GlassButton(onClick={
                     val intent=android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT,link)
                     context.startActivity(android.content.Intent.createChooser(intent,"分享订阅链接"))
                 }) { Text("分享链接") }
             }
-            TextButton(onClick={writer.launch("pocket-live-sources.json")},enabled=sources.isNotEmpty()) { Text("导出 JSON 文件") }
+            GlassTextButton(onClick={writer.launch("pocket-live-sources.json")},enabled=sources.isNotEmpty()) { Text("导出 JSON 文件") }
             if(status.isNotEmpty()) Text(status)
         }
     }
