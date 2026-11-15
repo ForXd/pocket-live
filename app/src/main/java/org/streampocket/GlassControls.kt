@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -68,8 +69,16 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
     val tint=if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val fill by androidx.compose.animation.animateColorAsState(if(selected) glassFill(true) else Color.Transparent,
         animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection")
+    val shape=androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
+    val bottomItem=if(indicator) Modifier else Modifier.padding(horizontal=3.dp,vertical=4.dp)
+    val surface=when {
+        indicator -> fill
+        selected -> MaterialTheme.colorScheme.surfaceContainerHigh
+        else -> Color.Transparent
+    }
     androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint) {
-        Column(modifier.heightIn(min=64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp)).background(if(indicator) fill else Color.Transparent)
+        Column(modifier.then(bottomItem).heightIn(min=if(indicator) 64.dp else 56.dp)
+            .shadow(if(selected && !indicator) 3.dp else 0.dp,shape).clip(shape).background(surface)
             .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick,
                 interactionSource=androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication=androidx.compose.foundation.LocalIndication.current)

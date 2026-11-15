@@ -249,7 +249,7 @@ class HomeBrowseDeviceTest {
         } finally { destination.performTouchInput { up() } }
         destination.assertIsSelected()
         ui.waitForIdle()
-        assertEquals(before,background())
+        assertNotEquals(before,background())
     }
 
     @Test fun drawerTracksScreenDistanceBeforeReleaseAndReverses() {
