@@ -52,7 +52,9 @@ import androidx.compose.ui.unit.dp
         animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection")
     androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint) {
         Column(modifier.heightIn(min=64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp)).background(if(indicator) fill else Color.Transparent)
-            .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick)
+            .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick,
+                interactionSource=androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication=if(indicator) androidx.compose.foundation.LocalIndication.current else null)
             .padding(horizontal=6.dp,vertical=8.dp),horizontalAlignment=androidx.compose.ui.Alignment.CenterHorizontally,
             verticalArrangement=Arrangement.spacedBy(4.dp,androidx.compose.ui.Alignment.CenterVertically)) {
             icon()

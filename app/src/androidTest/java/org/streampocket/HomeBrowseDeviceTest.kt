@@ -2,6 +2,7 @@ package org.streampocket
 
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.*
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -232,6 +233,50 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("discoverySort").performClick()
         ui.onNodeWithText("评分最高").performClick()
         ui.onNodeWithTag("catalogVideo:1").assertIsDisplayed()
+    }
+
+    @Test fun holdingDestinationDoesNotPaintASecondTabIndicator() {
+        val destination=ui.onNodeWithTag("nav:3")
+        fun background()=destination.captureToImage().toPixelMap().let { it[it.width/2,it.height/8] }
+        val before=background()
+        destination.performTouchInput { down(center) }
+        try {
+            ui.mainClock.advanceTimeBy(300)
+            assertEquals(before,background())
+        } finally { destination.performTouchInput { up() } }
+        destination.assertIsSelected()
+        ui.waitForIdle()
+        assertNotEquals(before,background())
+    }
+
+    @Test fun drawerTracksScreenDistanceBeforeReleaseAndReverses() {
+        ui.onNodeWithTag("recommendCategoryPicker").performClick()
+        val handle=ui.onNodeWithTag("pickerDragHandle")
+        val bounds=handle.getUnclippedBoundsInRoot()
+        val owner=(handle.fetchSemanticsNode().root as androidx.compose.ui.platform.ViewRootForTest).view
+        val origin=IntArray(2)
+        ui.runOnIdle { owner.getLocationOnScreen(origin) }
+        val density=owner.resources.displayMetrics.density
+        val x=origin[0]+(bounds.left.value+bounds.right.value)*density/2
+        val y=origin[1]+(bounds.top.value+bounds.bottom.value)*density/2
+        val downTime=android.os.SystemClock.uptimeMillis()
+        fun pointer(action:Int,delta:Int) {
+            val event=android.view.MotionEvent.obtain(downTime,android.os.SystemClock.uptimeMillis(),action,x,y+delta,0)
+            event.source=android.view.InputDevice.SOURCE_TOUCHSCREEN
+            try { InstrumentationRegistry.getInstrumentation().uiAutomation.injectInputEvent(event,true) } finally { event.recycle() }
+        }
+        pointer(android.view.MotionEvent.ACTION_DOWN,0)
+        try {
+            for(delta in listOf(12,46,20)) {
+                pointer(android.view.MotionEvent.ACTION_MOVE,delta)
+                ui.waitUntil(2000) {
+                    val current=IntArray(2)
+                    ui.runOnIdle { owner.getLocationOnScreen(current) }
+                    kotlin.math.abs(current[1]-origin[1]-delta)<=2
+                }
+            }
+        } finally { pointer(android.view.MotionEvent.ACTION_UP,20) }
+        handle.assertIsDisplayed()
     }
 
     @Test fun pickerContentDragDoesNotDismissButHandleDoes() {

@@ -6,7 +6,8 @@ import android.graphics.drawable.LayerDrawable
 import kotlinx.coroutines.*
 import androidx.compose.ui.graphics.luminance
 import android.os.Build
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import android.view.MotionEvent
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.*
 import androidx.compose.foundation.background
@@ -32,6 +33,7 @@ import java.util.function.Consumer
 internal enum class GlassPlacement { SIDE, BOTTOM }
 
 /** Shared native blur with a bounded one-shot fallback; no capture loop or extra decoder. */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable internal fun FrostedDialog(onDismissRequest:()->Unit,placement:GlassPlacement=GlassPlacement.BOTTOM,
     immersive:Boolean=false,tag:String="glassDialog",content:@Composable ()->Unit) {
     val context=LocalContext.current
@@ -53,22 +55,39 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
     DisposableEffect(dialog,widthPx,blurRadius,radius,tint,stroke,placement,immersive) {
         val window=checkNotNull(dialog.window)
         val view=ComposeView(dialog.context).apply {
+            val panel=this
             setParentCompositionContext(composition)
             setContent {
                 Surface(Modifier.width(width).then(if(placement==GlassPlacement.SIDE) Modifier.fillMaxHeight() else Modifier.heightIn(max=(config.screenHeightDp*.88f).dp)).testTag(tag),color=Color.Transparent,contentColor=MaterialTheme.colorScheme.onSurface) {
                     Column {
                         if(placement!=GlassPlacement.SIDE) {
                             var settle by remember { mutableStateOf<Job?>(null) }
+                            var dragOrigin by remember { mutableFloatStateOf(0f) }
                             val threshold=with(density) { 48.dp.toPx() }
                             Box(Modifier.fillMaxWidth().height(40.dp).testTag("pickerDragHandle")
                                 .semantics { contentDescription="向下拖动关闭筛选";customActions=listOf(CustomAccessibilityAction("关闭") { dismiss();true }) }
-                                .pointerInput(window) {
-                                    var distance=0f
-                                    fun move(value:Float) { window.attributes=window.attributes.apply { y=-value.toInt() } }
-                                    fun restore() { settle=scope.launch { androidx.compose.animation.core.animate(distance,0f,animationSpec=androidx.compose.animation.core.spring(dampingRatio=1f,stiffness=480f)) { value,_->move(value) } } }
-                                    detectVerticalDragGestures(onDragStart={settle?.cancel();distance=(-window.attributes.y).toFloat()},
-                                        onVerticalDrag={change,amount->change.consume();distance=(distance+amount).coerceAtLeast(0f);move(distance)},
-                                        onDragEnd={if(distance>=threshold) dismiss() else restore()},onDragCancel={restore()})
+                                .pointerInteropFilter { event ->
+                                    when(event.actionMasked) {
+                                        MotionEvent.ACTION_DOWN -> {
+                                            settle?.cancel()
+                                            dragOrigin=event.rawY-panel.translationY
+                                        }
+                                        MotionEvent.ACTION_MOVE -> panel.translationY=(event.rawY-dragOrigin).coerceIn(0f,panel.height.toFloat())
+                                        MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL -> {
+                                            val start=panel.translationY
+                                            val close=event.actionMasked==MotionEvent.ACTION_UP && start>=threshold
+                                            val end=if(close) panel.height.toFloat() else 0f
+                                            settle=scope.launch {
+                                                androidx.compose.animation.core.animate(start,end,animationSpec=androidx.compose.animation.core.tween(
+                                                    if(close) 160 else 210,easing=androidx.compose.animation.core.FastOutSlowInEasing)) { value,_->panel.translationY=value }
+                                                if(close) {
+                                                    window.setWindowAnimations(0)
+                                                    dismiss()
+                                                }
+                                            }
+                                        }
+                                    }
+                                    true
                                 },contentAlignment=androidx.compose.ui.Alignment.Center) {
                                 Spacer(Modifier.size(36.dp,4.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.4f),androidx.compose.foundation.shape.CircleShape))
                             }
@@ -79,12 +98,18 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
                 }
             }
         }
-        dialog.setContentView(view)
+        val host=android.widget.FrameLayout(dialog.context)
+        host.addView(view,android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,if(placement==GlassPlacement.SIDE) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT))
+        dialog.setContentView(host)
         dialog.setCanceledOnTouchOutside(true)
         dialog.setOnCancelListener { dismiss() }
         val background=GradientDrawable().apply { cornerRadius=radius;setStroke(with(density) { 1.dp.roundToPx() },stroke) }
         val backdrop=activity?.window?.takeIf { dark }?.let { GlassBackdropDrawable(it,window,radius) }
-        window.setBackgroundDrawable(if(backdrop!=null) LayerDrawable(arrayOf(backdrop,background)) else background)
+        val materialDrawable=if(backdrop!=null) LayerDrawable(arrayOf(backdrop,background)) else background
+        if(placement==GlassPlacement.BOTTOM) {
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            view.background=materialDrawable
+        } else window.setBackgroundDrawable(materialDrawable)
         var captureJob:Job?=null
         var nativeBlur=false
         window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.RIGHT or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
@@ -100,7 +125,7 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
             background.colors=intArrayOf(top.copy(alpha=if(!dark) 1f else if(translucent) .70f else .96f).toArgb(),bottom.copy(alpha=if(!dark) 1f else if(translucent) .82f else .98f).toArgb())
         }
         fun update(enabled:Boolean) {
-            nativeBlur=enabled && dark
+            nativeBlur=enabled && dark && placement==GlassPlacement.SIDE
             window.setDimAmount(.16f)
             if(Build.VERSION.SDK_INT>=31) {
                 window.setBackgroundBlurRadius(if(nativeBlur) blurRadius else 0)
