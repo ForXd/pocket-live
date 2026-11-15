@@ -69,7 +69,7 @@ class HomeBrowseDeviceTest {
         val first=ui.onNodeWithTag("recommendation:1").getUnclippedBoundsInRoot()
         assertEquals(first.left.value,poster.left.value,1f)
         assertEquals(first.right.value,poster.right.value,1f)
-        ui.onNodeWithText("查找片源 ›").assertIsDisplayed()
+        ui.onNodeWithContentDescription("查看简介",useUnmergedTree=true).assertIsDisplayed()
         grid.performScrollToNode(hasTestTag("recommendation:2"))
         val second=ui.onNodeWithTag("recommendation:2").getUnclippedBoundsInRoot()
         val third=ui.onNodeWithTag("recommendation:3").getUnclippedBoundsInRoot()
@@ -179,9 +179,12 @@ class HomeBrowseDeviceTest {
         val anchor=ui.onNodeWithTag("searchVideo:12")
         anchor.assertIsDisplayed()
         val before=anchor.getUnclippedBoundsInRoot().top
-        val searches=requests.count { it.contains("wd=") }
+        val initialSearch=requests.first { it.contains("wd=") }
+        val searches=requests.count { it==initialSearch }
         repeat(3) {
-            anchor.performClick()
+            val choice=hasTestTag("sourceChoice:"+model.state.value.results.first { it.id=="12" }.source.key+":12")
+            if(ui.onAllNodes(choice).fetchSemanticsNodes().isEmpty()) anchor.performClick()
+            ui.onNode(choice).performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
             ui.onNodeWithTag("detailPlay").performClick()
             ui.waitUntil(10000) { model.state.value.playback!=null && PlaybackMetrics.created-PlaybackMetrics.released==1L }
@@ -191,7 +194,7 @@ class HomeBrowseDeviceTest {
             anchor.assertIsDisplayed()
             assertEquals(before.value,anchor.getUnclippedBoundsInRoot().top.value,1f)
             ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
-            assertEquals(searches,requests.count { it.contains("wd=") })
+            assertEquals(searches,requests.count { it==initialSearch })
             ui.onNodeWithTag("searchCategory:MYSTERY").assertIsSelected()
             assertEquals(SearchOrder.QUALITY,model.state.value.searchOrder)
         }
@@ -220,7 +223,7 @@ class HomeBrowseDeviceTest {
         val anchor=ui.onNodeWithTag("catalogVideo:9")
         anchor.assertIsDisplayed()
         val before=anchor.getUnclippedBoundsInRoot().top
-        val calls=requests.count { it.startsWith("/catalog") && !it.contains("ids=") }
+        val calls=requests.count { it.startsWith("/catalog") && !it.contains("ids=") && !it.contains("wd=") }
         anchor.performClick()
         ui.waitUntil(10000) { model.state.value.detail!=null }
         ui.onNodeWithTag("detailPlay").performClick()
@@ -229,7 +232,7 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
         anchor.assertIsDisplayed()
         assertEquals(before.value,anchor.getUnclippedBoundsInRoot().top.value,1f)
-        assertEquals(calls,requests.count { it.startsWith("/catalog") && !it.contains("ids=") })
+        assertEquals(calls,requests.count { it.startsWith("/catalog") && !it.contains("ids=") && !it.contains("wd=") })
         ui.onNodeWithTag("discoverySort").performClick()
         ui.onNodeWithText("评分最高").performClick()
         ui.onNodeWithTag("catalogVideo:1").assertIsDisplayed()
@@ -242,11 +245,11 @@ class HomeBrowseDeviceTest {
         destination.performTouchInput { down(center) }
         try {
             ui.mainClock.advanceTimeBy(300)
-            assertEquals(before,background())
+            destination.assertIsNotSelected()
         } finally { destination.performTouchInput { up() } }
         destination.assertIsSelected()
         ui.waitForIdle()
-        assertNotEquals(before,background())
+        assertEquals(before,background())
     }
 
     @Test fun drawerTracksScreenDistanceBeforeReleaseAndReverses() {

@@ -328,7 +328,7 @@ import androidx.compose.ui.text.style.TextOverflow
 }
 
 @Composable internal fun BackToTop(visible:Boolean,modifier:Modifier=Modifier,onClick:()->Unit) {
-    androidx.compose.animation.AnimatedVisibility(visible,modifier.padding(16.dp)) {
+    androidx.compose.animation.AnimatedVisibility(visible,modifier.padding(bottom=LocalDockInset.current).padding(16.dp)) {
         GlassIconButton(onClick=onClick,modifier=Modifier.size(48.dp).testTag("backToTop")) {
             Icon(Icons.Default.KeyboardArrowUp,"回到顶部")
         }
