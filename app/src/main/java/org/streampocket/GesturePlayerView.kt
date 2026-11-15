@@ -87,14 +87,13 @@ class GesturePlayerView(context:Context):PlayerView(context) {
         contentDescription="视频，单击显示控制，左右双击跳转10秒，长按连续跳转，全屏左侧上下滑动调亮度、右侧调音量"
     }
     private var fullscreenLayout=false
-    fun setFullscreenControls(enabled:Boolean, leftGutter:Int, rightGutter:Int) {
+    fun setFullscreenControls(enabled:Boolean, horizontalInset:Int) {
         val controllerView = findViewById<View>(androidx.media3.ui.R.id.exo_controller)
         val frame = controllerView.layoutParams as ViewGroup.MarginLayoutParams
-        val left = if (enabled) leftGutter else 0
-        val right = if (enabled) rightGutter else 0
-        if (frame.leftMargin != left || frame.rightMargin != right) {
-            frame.leftMargin = left
-            frame.rightMargin = right
+        val gutter = if (enabled) horizontalInset else 0
+        if (frame.leftMargin != gutter || frame.rightMargin != gutter) {
+            frame.leftMargin = gutter
+            frame.rightMargin = gutter
             controllerView.layoutParams = frame
         }
         if(fullscreenLayout==enabled) return

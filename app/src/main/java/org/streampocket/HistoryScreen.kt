@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 @Composable fun HistoryScreen(history:List<History>,resume:(History)->Unit,remove:(HistoryGroupKey)->Unit,clear:()->Unit,model:AppModel?=null) {
     // This screen is not composed during playback. At most 100 records are grouped
     // once per changed snapshot, never on the player's position sampling tick.
-    val wide=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=700
     val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val imeVisible=WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
     var searchOpen by rememberSaveable { mutableStateOf(false) }
@@ -105,7 +104,7 @@ import androidx.compose.ui.unit.dp
     }
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).testTag("historyGroups")) {
         if(groups.isEmpty()) item { EmptyPanel(if(history.isEmpty()) "还没有观看记录" else "没有匹配记录",if(history.isEmpty()) "播放影片后，可在这里继续观看。" else "试试其他关键词或重置筛选。",R.drawable.ic_history) }
-        groups.forEachIndexed { index,group ->
+        groups.forEach { group ->
             val latest=group.latest
             val id=group.key.stableKey
             val seasonVideos=group.entries.map { it.playback.video }.distinctBy { VideoGroups.workKey(it) }
@@ -116,25 +115,21 @@ import androidx.compose.ui.unit.dp
                 val shown=if(expanded==id) seasonEntries.first() else latest
                 SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{remove(group.key);revealed=null}) {
                 Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
-                    if(index==0 && model!=null && expanded!=id) Box {
-                        Poster(shown.playback.video,model,Modifier.fillMaxWidth().then(if(wide) Modifier.height(220.dp) else Modifier.aspectRatio(1.95f)),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
-                        GlassIconButton(onClick={resume(shown)},colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=androidx.compose.ui.graphics.Color.Black.copy(alpha=.48f),contentColor=NightColors.primary),modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
-                    }
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                        Text(VideoGroups.familyTitle(shown.playback.video),Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
-
-                    }
-                    Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        if((index>0 || expanded==id) && model!=null) Poster(shown.playback.video,model,Modifier.size(64.dp,88.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        if(model!=null) Poster(shown.playback.video,model,Modifier.size(72.dp,104.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                            Text((VideoGroups.identity(shown.playback.video).season?.let { "第 $it 季 · " } ?: "")+shown.playback.episode.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(VideoGroups.familyTitle(shown.playback.video),style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            val season=VideoGroups.identity(shown.playback.video).season
+                            Text(listOfNotNull(season?.let { "第 $it 季" },shown.playback.episode.name,shown.playback.video.source.name).joinToString(" · "),
+                                style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             Text(HistoryGroups.progress(shown),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             WatchProgress(shown.playback)
-                            Text(shown.playback.video.source.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if(index>0 || model==null || expanded==id) GlassIconButton(onClick={resume(shown)},modifier=Modifier.size(48.dp).testTag("continue:$id")) { Icon(painterResource(R.drawable.ic_play),"继续观看") }
-
+                        GlassIconButton(onClick={resume(shown)},modifier=Modifier.align(Alignment.CenterVertically).size(48.dp).testTag("continue:$id")) {
+                            Icon(painterResource(R.drawable.ic_play),"继续观看")
+                        }
                     }
+                    Spacer(Modifier.height(8.dp))
                     if(expanded==id) SeasonChips(seasonVideos,selectedVideo,{selectedHistoryWork=VideoGroups.workKey(it);expandedEpisode=null})
                     GlassTextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.testTag("expandHistory:$id")) { Text(if(expanded==id) "收起分集进度" else "分集进度 · ${group.episodes.size} 集") }
                 }

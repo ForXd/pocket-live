@@ -307,6 +307,13 @@ class PlaybackGestureDeviceTest {
             }
             instrument.runOnMainSync {
                 val view = playerView()
+                val timebar=view.findViewById<View>(androidx.media3.ui.R.id.exo_progress)
+                val origin=IntArray(2)
+                val track=IntArray(2)
+                view.getLocationOnScreen(origin)
+                timebar.getLocationOnScreen(track)
+                val left=track[0]-origin[0]
+                assertEquals("Fullscreen timeline has symmetric margins",left,view.width-left-timebar.width)
                 fun top(id:Int):Int {
                     val location = IntArray(2)
                     view.findViewById<View>(id).getLocationOnScreen(location)

@@ -180,6 +180,12 @@ import kotlinx.coroutines.delay
         GlassButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) { Text("选集") }
         PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
     }
+    val density = LocalDensity.current
+    val cutout = WindowInsets.displayCutout
+    val horizontalInset = maxOf(cutout.getLeft(density, androidx.compose.ui.unit.LayoutDirection.Ltr),
+        cutout.getRight(density, androidx.compose.ui.unit.LayoutDirection.Ltr))
+    val fullscreenPadding = Modifier.windowInsetsPadding(cutout.only(WindowInsetsSides.Vertical))
+        .padding(horizontal=with(density) { horizontalInset.toDp() })
     MaterialTheme(colorScheme=if(full || pip) NightColors else MaterialTheme.colorScheme) {
     if(optionsOpen && !pip) {
         FrostedDialog(onDismissRequest={optionsOpen=false},placement=if(full) GlassPlacement.SIDE else GlassPlacement.BOTTOM,immersive=full,tag="playbackOptions") {
@@ -324,10 +330,6 @@ import kotlinx.coroutines.delay
                 }
             }
             Box((if(full || pip || wide) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().height(inlineVideoHeight)).background(Color.Black).testTag("videoViewport")) {
-            val insetDensity = LocalDensity.current
-            val cutout = WindowInsets.displayCutout
-            val leftGutter = cutout.getLeft(insetDensity, androidx.compose.ui.unit.LayoutDirection.Ltr)
-            val rightGutter = cutout.getRight(insetDensity, androidx.compose.ui.unit.LayoutDirection.Ltr)
             AndroidView(
                 factory={GesturePlayerView(it).apply {
                     useController=true
@@ -347,7 +349,7 @@ import kotlinx.coroutines.delay
                     // this session's Compose state, just like the seek/feedback callbacks.
                     it.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility -> controlsVisible=visibility==android.view.View.VISIBLE })
                     controlsVisible=it.isControllerFullyVisible
-                    it.setFullscreenControls(full && !pip, leftGutter, rightGutter)
+                    it.setFullscreenControls(full && !pip, horizontalInset)
                     it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener { openOptions() }
                     playerView=it;it.useController=!pip
                 },
@@ -388,7 +390,7 @@ import kotlinx.coroutines.delay
             PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f))
         }
         if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
-            Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().displayCutoutPadding()) {
+            Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().then(fullscreenPadding)) {
                 FullscreenStatus()
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     IconButton(onClick={playerView?.cancelGestures();exitFullscreen()},modifier=Modifier.size(48.dp).testTag("fullscreenToggle")) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"退出全屏") }
@@ -406,7 +408,7 @@ import kotlinx.coroutines.delay
         // Recovery must remain reachable even with hidden controls or no initialized player.
         if(full && !pip) {
             (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let {
-                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.8f)).displayCutoutPadding().heightIn(max=(LocalConfiguration.current.screenHeightDp * 0.6f).dp).verticalScroll(rememberScrollState()).padding(16.dp).testTag("playbackError")) {
+                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.8f)).then(fullscreenPadding).heightIn(max=(LocalConfiguration.current.screenHeightDp * 0.6f).dp).verticalScroll(rememberScrollState()).padding(16.dp).testTag("playbackError")) {
                     Text(it)
                     FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick={error=null; controller.retry()}) { Text("重试播放") }
