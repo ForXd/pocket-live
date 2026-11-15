@@ -345,7 +345,7 @@ import androidx.compose.ui.text.style.TextOverflow
     if(rating!=null) Surface(modifier=modifier.testTag("${prefix}Rating:${video.id}").semantics { contentDescription="${if(prefix=="recommend") "豆瓣" else "来源"}评分 $rating 分" },
         shape=RoundedCornerShape(50),color=Color(0xdd111113),contentColor=Color.White) {
         Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-            Icon(Icons.Default.Star,null,Modifier.size(12.dp))
+            Icon(Icons.Default.Star,null,Modifier.size(12.dp),tint=if(prefix=="recommend") Color(0xffffc12b) else Color.White)
             Text(rating,style=MaterialTheme.typography.labelSmall)
         }
     }
