@@ -122,7 +122,7 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
         keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),
         keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
         decorationBox={input ->
-            Surface(shape=RoundedCornerShape(50),shadowElevation=3.dp,color=MaterialTheme.colorScheme.surfaceContainerLow,
+            Surface(shape=RoundedCornerShape(50),shadowElevation=0.dp,color=MaterialTheme.colorScheme.surfaceContainerLow,
                 border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.75f) else MaterialTheme.colorScheme.outlineVariant)) {
                 Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Icon(painterResource(R.drawable.ic_search),null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)

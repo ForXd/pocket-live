@@ -165,7 +165,7 @@ import kotlinx.coroutines.launch
                     stickyHeader(key="episode-controls") {
                         Surface(color=MaterialTheme.colorScheme.background) {
                             Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("episodeToolbar").onSizeChanged { toolbarHeight=it.height }) {
-                                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                                     Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
                                     if(showTop) GlassIconButton(onClick={scope.launch { list.animateScrollToItem(0) }},modifier=Modifier.testTag("detailBackToTop")) { Icon(Icons.Default.KeyboardArrowUp,"回到详情顶部") }
                                     Text("${episodes.size} 集",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -193,7 +193,7 @@ import kotlinx.coroutines.launch
             }
         }
         }
-        if(!pinnedNavigation) GlassIconButton(onClick=model::closeDetail,modifier=Modifier.align(Alignment.TopStart).padding(8.dp).background(Color.Black.copy(alpha=.45f),MaterialTheme.shapes.small)) {
+        if(!pinnedNavigation) GlassIconButton(onClick=model::closeDetail,modifier=Modifier.align(Alignment.TopStart).padding(8.dp).size(48.dp),colors=IconButtonDefaults.outlinedIconButtonColors(containerColor=Color.Black.copy(alpha=.45f),contentColor=Color.White)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回",tint=Color.White)
         }
     }

@@ -43,11 +43,11 @@ import androidx.compose.ui.unit.dp
         Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center) {
             ContentSearchField(query,onQuery,placeholder,onSearch={if(allowEmpty || query.isNotBlank()) submit()},modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=4.dp)
                 .focusRequester(requester).testTag("searchInput").semantics { contentDescription="影片或频道名称" },trailingIcon={
-                    Row(verticalAlignment=Alignment.CenterVertically) {
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
-                            GlassIconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
+                            IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
                         }
-                        GlassIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
+                        IconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                     }
                 })
         }
@@ -81,7 +81,7 @@ import androidx.compose.ui.unit.dp
     ScrollToTopOnChange(category.name,showOthers.toString(),s.searchOrder.name) { grid.scrollToItem(0) }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("searchToolbar")) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     val failureHint = if (s.failures > 0) " · ${s.failures} 个失败" else ""
                     Text("${groups.size} 部 · ${videos.size} 个片源 · "+(if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源")+failureHint, Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
