@@ -105,13 +105,6 @@ class GesturePlayerView(context:Context):PlayerView(context) {
         fun dp(value:Int)=(value*unit).toInt()
         setShowRewindButton(!enabled)
         setShowFastForwardButton(!enabled)
-        // DefaultTimeBar reserves 8dp at each end for the thumb. Match the
-        // visible back arrow and overflow dots inside the two 48dp header slots.
-        val progress = findViewById<View>(androidx.media3.ui.R.id.exo_progress)
-        val track = progress.layoutParams as ViewGroup.MarginLayoutParams
-        track.leftMargin = if (enabled) dp(8) else 0
-        track.rightMargin = if (enabled) dp(14) else 0
-        progress.layoutParams = track
         val barParams=bar.layoutParams
         barParams.height=if(enabled) dp(100) else resources.getDimensionPixelSize(androidx.media3.ui.R.dimen.exo_styled_bottom_bar_height)
         bar.layoutParams=barParams
@@ -142,10 +135,8 @@ class GesturePlayerView(context:Context):PlayerView(context) {
         play.setPadding(pad, pad, pad, pad)
         play.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
         transport.layoutParams=controls
-        if(enabled) bar.background=android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(android.graphics.Color.TRANSPARENT,0xb8000000.toInt()))
-        else bar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        findViewById<View>(androidx.media3.ui.R.id.exo_controls_background).setBackgroundColor(if(enabled) 0x30000000 else 0x80000000.toInt())
+        bar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        findViewById<View>(androidx.media3.ui.R.id.exo_controls_background).setBackgroundColor(if(enabled) android.graphics.Color.TRANSPARENT else 0x80000000.toInt())
     }
     override fun dispatchTouchEvent(event:MotionEvent):Boolean {
         if(!gesturesEnabled) return super.dispatchTouchEvent(event)

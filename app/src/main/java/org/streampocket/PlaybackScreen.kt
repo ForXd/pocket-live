@@ -307,10 +307,9 @@ import kotlinx.coroutines.delay
             }
             Box((if(full || pip || wide) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().height(inlineVideoHeight)).background(Color.Black).testTag("videoViewport")) {
             val insetDensity = LocalDensity.current
-            val gutter = with(insetDensity) { 12.dp.roundToPx() }
             val cutout = WindowInsets.displayCutout
-            val leftGutter = gutter + cutout.getLeft(insetDensity, androidx.compose.ui.unit.LayoutDirection.Ltr)
-            val rightGutter = gutter + cutout.getRight(insetDensity, androidx.compose.ui.unit.LayoutDirection.Ltr)
+            val leftGutter = cutout.getLeft(insetDensity, androidx.compose.ui.unit.LayoutDirection.Ltr)
+            val rightGutter = cutout.getRight(insetDensity, androidx.compose.ui.unit.LayoutDirection.Ltr)
             AndroidView(
                 factory={GesturePlayerView(it).apply {
                     useController=true
@@ -372,7 +371,7 @@ import kotlinx.coroutines.delay
             PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f))
         }
         if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
-            Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha=.74f),Color.Transparent))).displayCutoutPadding().padding(horizontal=12.dp)) {
+            Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().displayCutoutPadding()) {
                 FullscreenStatus()
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     IconButton(onClick={playerView?.cancelGestures();full=false},modifier=Modifier.size(48.dp).testTag("fullscreenToggle")) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"退出全屏") }
@@ -382,7 +381,7 @@ import kotlinx.coroutines.delay
             }
             Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
-                .padding(start=60.dp,end=34.dp).height(48.dp).testTag("fullscreenBottomActions"),
+                .padding(start=48.dp).height(48.dp).testTag("fullscreenBottomActions"),
                 verticalAlignment=Alignment.CenterVertically) {
                 PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
                 PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
@@ -390,7 +389,7 @@ import kotlinx.coroutines.delay
                 val actionColors = ButtonDefaults.textButtonColors(contentColor=Color.White,disabledContentColor=Color.White.copy(alpha=.38f))
                 TextButton(onClick=openEpisodes,enabled=hasEpisodes,colors=actionColors) { Text("选集") }
                 if(playback.video.source.kind==SourceKind.VOD) {
-                    TextButton(onClick=::showAlternatives,colors=actionColors,contentPadding=PaddingValues(start=12.dp)) { Text("快速换源") }
+                    TextButton(onClick=::showAlternatives,colors=actionColors,contentPadding=PaddingValues(horizontal=12.dp)) { Text("快速换源") }
                 }
             }
         }
