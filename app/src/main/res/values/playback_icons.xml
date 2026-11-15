@@ -1,4 +1,0 @@
-<resources>
-    <drawable name="exo_styled_controls_play">@drawable/exo_icon_play</drawable>
-    <drawable name="exo_styled_controls_pause">@drawable/exo_icon_pause</drawable>
-</resources>

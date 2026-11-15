@@ -76,7 +76,22 @@ import kotlinx.coroutines.delay
     var health by remember(playback.sessionId) { mutableStateOf(PlaybackHealth()) }
     var keepPosition by remember { mutableStateOf(true) }
     var error by remember(playback.sessionId) { mutableStateOf<String?>(null) }
-    var full by rememberSaveable { mutableStateOf(false) }
+    var requestFull by rememberSaveable { mutableStateOf(false) }
+    var entryOrientation by rememberSaveable { mutableIntStateOf(activity.resources.configuration.orientation) }
+    val orientation = LocalConfiguration.current.orientation
+    var rotatingBack by rememberSaveable { mutableStateOf(false) }
+    val full = requestFull || (rotatingBack && orientation != entryOrientation)
+    fun exitFullscreen() {
+        rotatingBack = true
+        requestFull = false
+    }
+    LaunchedEffect(rotatingBack, orientation) {
+        if (rotatingBack) {
+            // An unlocked phone may remain landscape after restoring its orientation policy.
+            if (orientation != entryOrientation) delay(600)
+            rotatingBack = false
+        }
+    }
     val levels=remember(activity) { PlaybackLevels(activity) }
     DisposableEffect(full,pip,levels) {
         onDispose { levels.restoreBrightness() }
@@ -84,8 +99,8 @@ import kotlinx.coroutines.delay
     val originalOrientation = rememberSaveable { activity.requestedOrientation }
     // Configuration changes resize the existing player instead of releasing/recreating it.
     // Restore the caller's policy (including unlocked/tablet layouts), not a portrait lock.
-    LaunchedEffect(full, pip) {
-        if(!pip) activity.requestedOrientation = if(full) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else originalOrientation
+    LaunchedEffect(requestFull, pip) {
+        if(!pip) activity.requestedOrientation = if(requestFull) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else originalOrientation
     }
     DisposableEffect(activity) {
         onDispose {
@@ -114,14 +129,17 @@ import kotlinx.coroutines.delay
         playerView?.adjustVertical=levels::adjust
         if(full || pip) playerView?.hideController()
     }
-    BackHandler { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) full=false else model.stopPlayback() }
+    BackHandler { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) exitFullscreen() else model.stopPlayback() }
     val darkTheme=LocalPocketDark.current
-    DisposableEffect(full, pip,darkTheme) {
+    LaunchedEffect(full, pip,darkTheme) {
         val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
         bars.isAppearanceLightStatusBars=!(full || pip || darkTheme)
         bars.isAppearanceLightNavigationBars=!(full || pip || darkTheme)
         if(full && !pip) { bars.systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE; bars.hide(WindowInsetsCompat.Type.systemBars()) }
         else bars.show(WindowInsetsCompat.Type.systemBars())
+    }
+    DisposableEffect(activity,darkTheme) {
+        val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
         onDispose { bars.show(WindowInsetsCompat.Type.systemBars());bars.isAppearanceLightStatusBars=!darkTheme;bars.isAppearanceLightNavigationBars=!darkTheme }
     }
     DisposableEffect(controller,lifecycle) {
@@ -266,7 +284,7 @@ import kotlinx.coroutines.delay
                     Surface(color=MaterialTheme.colorScheme.surfaceContainerLow,shape=MaterialTheme.shapes.extraLarge) {
                         Row(Modifier.fillMaxWidth().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             episodeControls()
-                            PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();full=true})
+                            PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();entryOrientation=orientation;rotatingBack=false;requestFull=true})
                         }
                     }
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -331,7 +349,6 @@ import kotlinx.coroutines.delay
                     controlsVisible=it.isControllerFullyVisible
                     it.setFullscreenControls(full && !pip, leftGutter, rightGutter)
                     it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener { openOptions() }
-                    it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_basic_controls)?.visibility=if(full && !pip) android.view.View.INVISIBLE else android.view.View.VISIBLE
                     playerView=it;it.useController=!pip
                 },
                 onReset=null,onRelease={it.cancelGestures();controller.detach(it);if(playerView===it) playerView=null},
@@ -374,22 +391,15 @@ import kotlinx.coroutines.delay
             Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().displayCutoutPadding()) {
                 FullscreenStatus()
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    IconButton(onClick={playerView?.cancelGestures();full=false},modifier=Modifier.size(48.dp).testTag("fullscreenToggle")) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"退出全屏") }
+                    IconButton(onClick={playerView?.cancelGestures();exitFullscreen()},modifier=Modifier.size(48.dp).testTag("fullscreenToggle")) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"退出全屏") }
                     Text("${playback.video.title} · ${playback.episode.name}",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    IconButton(onClick=openOptions,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"更多播放选项") }
-                }
-            }
-            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
-                .padding(start=48.dp).height(48.dp).testTag("fullscreenBottomActions"),
-                verticalAlignment=Alignment.CenterVertically) {
-                PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
-                PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
-                Spacer(Modifier.weight(1f))
-                val actionColors = ButtonDefaults.textButtonColors(contentColor=Color.White,disabledContentColor=Color.White.copy(alpha=.38f))
-                TextButton(onClick=openEpisodes,enabled=hasEpisodes,colors=actionColors) { Text("选集") }
-                if(playback.video.source.kind==SourceKind.VOD) {
-                    TextButton(onClick=::showAlternatives,colors=actionColors,contentPadding=PaddingValues(horizontal=12.dp)) { Text("快速换源") }
+                    PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
+                    PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
+                    val actionColors = ButtonDefaults.textButtonColors(contentColor=Color.White,disabledContentColor=Color.White.copy(alpha=.38f))
+                    TextButton(onClick=openEpisodes,enabled=hasEpisodes,colors=actionColors) { Text("选集") }
+                    if(playback.video.source.kind==SourceKind.VOD) {
+                        TextButton(onClick=::showAlternatives,colors=actionColors) { Text("快速换源") }
+                    }
                 }
             }
         }

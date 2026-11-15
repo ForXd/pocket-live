@@ -79,6 +79,7 @@ class GesturePlayerView(context:Context):PlayerView(context) {
             setScrubberColor(android.graphics.Color.WHITE)
             setBufferedColor(0xff77777b.toInt())
         }
+        setEnableComposeSurfaceSyncWorkaround(true)
         controllerAutoShow=false
         controllerShowTimeoutMs=3000
         setControllerAnimationEnabled(false)
@@ -98,44 +99,6 @@ class GesturePlayerView(context:Context):PlayerView(context) {
         }
         if(fullscreenLayout==enabled) return
         fullscreenLayout=enabled
-        val bar=findViewById<ViewGroup>(androidx.media3.ui.R.id.exo_bottom_bar)
-        val time=findViewById<View>(androidx.media3.ui.R.id.exo_time)
-        val transport=findViewById<View>(androidx.media3.ui.R.id.exo_center_controls)
-        val unit=resources.displayMetrics.density
-        fun dp(value:Int)=(value*unit).toInt()
-        setShowRewindButton(!enabled)
-        setShowFastForwardButton(!enabled)
-        val barParams=bar.layoutParams
-        barParams.height=if(enabled) dp(100) else resources.getDimensionPixelSize(androidx.media3.ui.R.dimen.exo_styled_bottom_bar_height)
-        bar.layoutParams=barParams
-        val timeParams=time.layoutParams as android.widget.FrameLayout.LayoutParams
-        timeParams.gravity=android.view.Gravity.START or (if(enabled) android.view.Gravity.TOP else android.view.Gravity.CENTER_VERTICAL)
-        timeParams.marginStart=0
-        time.layoutParams=timeParams
-        val controls=transport.layoutParams as android.widget.FrameLayout.LayoutParams
-        controls.gravity=if(enabled) android.view.Gravity.BOTTOM or android.view.Gravity.START else android.view.Gravity.CENTER
-        controls.marginStart=0
-        val group = transport as ViewGroup
-        val play = findViewById<android.widget.ImageButton>(androidx.media3.ui.R.id.exo_play_pause)
-        val groupPad = if (enabled) 0 else resources.getDimensionPixelSize(androidx.media3.ui.R.dimen.exo_styled_controls_padding)
-        group.setPadding(groupPad, groupPad, groupPad, groupPad)
-        group.removeView(play)
-        group.addView(play, if (enabled) 0 else 2)
-        val buttonSize = if (enabled) dp(48) else resources.getDimensionPixelSize(androidx.media3.ui.R.dimen.exo_icon_size)
-        for (index in 0 until group.childCount) {
-            val child = group.getChildAt(index)
-            val params = child.layoutParams as ViewGroup.MarginLayoutParams
-            val side = if (enabled) 0 else resources.getDimensionPixelSize(androidx.media3.ui.R.dimen.exo_icon_horizontal_margin)
-            params.setMargins(side, 0, side, 0)
-            params.width = buttonSize
-            params.height = buttonSize
-            child.layoutParams = params
-        }
-        val pad = if (enabled) dp(12) else resources.getDimensionPixelSize(androidx.media3.ui.R.dimen.exo_icon_padding)
-        play.setPadding(pad, pad, pad, pad)
-        play.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-        transport.layoutParams=controls
-        bar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         findViewById<View>(androidx.media3.ui.R.id.exo_controls_background).setBackgroundColor(if(enabled) android.graphics.Color.TRANSPARENT else 0x80000000.toInt())
     }
     override fun dispatchTouchEvent(event:MotionEvent):Boolean {

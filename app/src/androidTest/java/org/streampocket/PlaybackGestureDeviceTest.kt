@@ -312,8 +312,8 @@ class PlaybackGestureDeviceTest {
                     view.findViewById<View>(id).getLocationOnScreen(location)
                     return location[1]
                 }
-                assertTrue(top(androidx.media3.ui.R.id.exo_time) < top(androidx.media3.ui.R.id.exo_progress))
-                assertTrue(top(androidx.media3.ui.R.id.exo_progress) < top(androidx.media3.ui.R.id.exo_play_pause))
+                assertTrue(top(androidx.media3.ui.R.id.exo_play_pause) < top(androidx.media3.ui.R.id.exo_progress))
+                assertTrue(top(androidx.media3.ui.R.id.exo_progress) < top(androidx.media3.ui.R.id.exo_time))
             }
             ui.onNodeWithTag("fullscreenStatus").assertIsDisplayed()
             ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
@@ -365,9 +365,14 @@ class PlaybackGestureDeviceTest {
             ui.waitUntil(5000) { ui.onAllNodes(hasText("第500集") and isSelected()).fetchSemanticsNodes().isEmpty() }
             ui.onNode(hasText("第500集") and isSelected()).assertDoesNotExist()
             instrument.runOnMainSync { assertTrue(ui.activity.window.decorView.width>ui.activity.window.decorView.height) }
+            val beforeExit=playerView()
+            val playing=beforeExit.player!!
+            instrument.runOnMainSync { playing.play() }
+            waitFor { playing.isPlaying }
             if(directTouch) instrument.runOnMainSync { ui.activity.onBackPressedDispatcher.onBackPressed() } else instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
             waitFor { ui.activity.window.decorView.width<ui.activity.window.decorView.height }
-            ui.onNodeWithContentDescription("横屏全屏").assertExists();stage("back-panel-then-fullscreen-passed")
+            ui.onNodeWithContentDescription("横屏全屏").assertExists()
+            instrument.runOnMainSync { assertSame(beforeExit,playerView());assertSame(playing,playerView().player);assertTrue(playing.playWhenReady) };stage("back-panel-then-fullscreen-passed")
             instrument.runOnMainSync { playerView().hideController();playerView().player!!.seekTo(2000) }
             val (heldX,heldY)=point(true);val heldDown=SystemClock.uptimeMillis()
             inject(MotionEvent.ACTION_DOWN,heldX,heldY,heldDown)
