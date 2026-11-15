@@ -38,7 +38,6 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
     immersive:Boolean=false,tag:String="glassDialog",content:@Composable ()->Unit) {
     val context=LocalContext.current
     val activity=androidx.activity.compose.LocalActivity.current
-    val scope=rememberCoroutineScope()
     val composition=rememberCompositionContext()
     val config=LocalConfiguration.current
     val width=when(placement) { GlassPlacement.SIDE->(config.screenWidthDp*.5f).dp;GlassPlacement.BOTTOM->minOf(config.screenWidthDp,640).dp }
@@ -57,6 +56,7 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
             val panel=this
             setParentCompositionContext(composition)
             setContent {
+                val scope = rememberCoroutineScope()
                 Surface(Modifier.width(width).then(if(placement==GlassPlacement.SIDE) Modifier.fillMaxHeight() else Modifier.heightIn(max=(config.screenHeightDp*.88f).dp)).testTag(tag),color=Color.Transparent,contentColor=MaterialTheme.colorScheme.onSurface) {
                     Column {
                         if(placement!=GlassPlacement.SIDE) {

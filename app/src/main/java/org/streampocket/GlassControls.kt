@@ -40,15 +40,16 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 @Composable internal fun glassFill(selected:Boolean=false)=MaterialTheme.colorScheme.primary.copy(alpha=if(MaterialTheme.colorScheme.surface.luminance()<.5f) { if(selected) .20f else .10f } else { if(selected) .12f else .04f })
 @Composable internal fun GlassButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium,border:BorderStroke?=null,
-    colors:ButtonColors=ButtonDefaults.outlinedButtonColors(containerColor=glassFill(),contentColor=MaterialTheme.colorScheme.onSurface),
+    colors:ButtonColors=ButtonDefaults.filledTonalButtonColors(),
     contentPadding:PaddingValues=PaddingValues(horizontal=16.dp,vertical=12.dp),content:@Composable RowScope.()->Unit) {
-    OutlinedButton(onClick,modifier.heightIn(min=48.dp),enabled,shape,colors,border=border,contentPadding=contentPadding,content=content)
+    FilledTonalButton(onClick,modifier.heightIn(min=48.dp),enabled,shape,colors,border=border,contentPadding=contentPadding,content=content)
 }
 @Composable internal fun GlassIconButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium,
-    colors:IconButtonColors=IconButtonDefaults.outlinedIconButtonColors(containerColor=glassFill(),contentColor=MaterialTheme.colorScheme.onSurface),
+    colors:IconButtonColors=IconButtonDefaults.filledTonalIconButtonColors(),
     border:BorderStroke?=null,content:@Composable ()->Unit) {
-    OutlinedIconButton(onClick,modifier,enabled,shape,colors=colors,border=border,content=content)
+    val target = if (border == null) modifier else modifier.border(border, shape)
+    FilledTonalIconButton(onClick, target, enabled, shape, colors=colors, content=content)
 }
 
 /** Color supplements an explicit label, so availability is never conveyed by color alone. */
@@ -67,8 +68,8 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 @Composable internal fun PocketNavigationItem(selected:Boolean,label:String,onClick:()->Unit,
     modifier:Modifier=Modifier,indicator:Boolean=true,icon:@Composable ()->Unit) {
     val tint=if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    val fill by androidx.compose.animation.animateColorAsState(if(selected) glassFill(true) else Color.Transparent,
-        animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection")
+    val fill = if (indicator) androidx.compose.animation.animateColorAsState(if(selected) glassFill(true) else Color.Transparent,
+        animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection").value else Color.Transparent
     val shape=androidx.compose.foundation.shape.RoundedCornerShape(if(indicator) 22.dp else 24.dp)
     val surface=when {
         indicator -> fill

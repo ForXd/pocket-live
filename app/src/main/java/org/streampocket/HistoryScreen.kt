@@ -107,10 +107,9 @@ import androidx.compose.ui.unit.dp
         groups.forEach { group ->
             val latest=group.latest
             val id=group.key.stableKey
-            val seasonVideos=group.entries.map { it.playback.video }.distinctBy { VideoGroups.workKey(it) }
+            val seasonVideos=if (expanded != id) emptyList() else group.entries.map { it.playback.video }.distinctBy { VideoGroups.workKey(it) }
             val selectedVideo=seasonVideos.firstOrNull { VideoGroups.workKey(it)==selectedHistoryWork } ?: latest.playback.video
-            val seasonEntries=group.entries.filter { VideoGroups.sameWork(it.playback.video,selectedVideo) }
-            val seasonEpisodes=HistoryGroup(group.key,seasonEntries).episodes
+            val seasonEntries=if (expanded != id) emptyList() else group.entries.filter { VideoGroups.sameWork(it.playback.video,selectedVideo) }
             item(key="group:$id") {
                 val shown=if(expanded==id) seasonEntries.first() else latest
                 SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{remove(group.key);revealed=null}) {
@@ -135,7 +134,7 @@ import androidx.compose.ui.unit.dp
                 }
             }
             }
-            if(expanded==id) seasonEpisodes.forEach { episode ->
+            if(expanded==id) HistoryGroup(group.key,seasonEntries).episodes.forEach { episode ->
                 val episodeId="$id:${episode.key}"
                 item(key="episode-group:$episodeId") {
                     ContentCard(Modifier.fillMaxWidth().padding(start=12.dp).testTag("historyEpisodeGroup:$episodeId")) {

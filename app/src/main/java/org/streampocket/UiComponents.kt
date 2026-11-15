@@ -91,8 +91,8 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
         border=null,
         leadingIcon=if(selected) { { Icon(Icons.Default.Check,null,Modifier.size(14.dp)) } } else if(reserveSelectionSpace) { { Spacer(Modifier.size(14.dp)) } } else null,
         colors=FilterChipDefaults.filterChipColors(containerColor=androidx.compose.ui.graphics.Color.Transparent,
-            labelColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContainerColor=MaterialTheme.colorScheme.primary.copy(alpha=.10f),
-            selectedLabelColor=MaterialTheme.colorScheme.primary,selectedLeadingIconColor=MaterialTheme.colorScheme.primary))
+            labelColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContainerColor=MaterialTheme.colorScheme.secondaryContainer,
+            selectedLabelColor=MaterialTheme.colorScheme.onSecondaryContainer,selectedLeadingIconColor=MaterialTheme.colorScheme.onSecondaryContainer))
 }
 
 /** Reserve geometry independently of fallback-font metrics and whether the text wraps. */
