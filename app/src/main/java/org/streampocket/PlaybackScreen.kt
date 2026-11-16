@@ -152,10 +152,10 @@ import kotlinx.coroutines.delay
         if(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) controller.foreground()
         onDispose { lifecycle.removeObserver(observer); controller.close(activity.isChangingConfigurations) }
     }
-    val configuration=LocalConfiguration.current
+    val windowSize = windowSizeDp()
     // Media3 needs room for both center transport and its bottom time/settings bar.
     // Keep those controls available at 320dp, instead of entering minimal mode at 180dp high.
-    val inlineVideoHeight=(configuration.screenWidthDp / (16f/9f)).coerceAtLeast(224f).coerceAtMost(configuration.screenHeightDp * 0.42f).dp
+    val inlineVideoHeight=(windowSize.width.value / (16f/9f)).coerceAtLeast(224f).coerceAtMost(windowSize.height.value * 0.42f).dp
     val matchingDetail=state.detail?.takeIf { it.video.source.key==playback.video.source.key && it.video.id==playback.video.id }
     val hasEpisodes=matchingDetail?.lines?.any { line -> line.episodes.any { it.url==playback.episode.url } }==true
     val previous=adjacentEpisode(state.detail,playback,-1)
@@ -172,13 +172,19 @@ import kotlinx.coroutines.delay
         playerView?.cancelGestures()
         if(!supportsPip) { error="设备不支持画中画";return }
         try {
-            if(!activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16,9)).build())) error="设备当前不允许画中画"
+            if(!activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().apply {
+                setAspectRatio(android.util.Rational(16,9))
+                val bounds = android.graphics.Rect()
+                if (playerView?.getGlobalVisibleRect(bounds) == true) setSourceRectHint(bounds)
+                // Home backgrounds playback. PiP is explicitly requested by the player button.
+                if (android.os.Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(false)
+            }.build())) error="设备当前不允许画中画"
         } catch(_:IllegalStateException) { error="设备当前不允许画中画" }
     }
     val episodeControls: @Composable RowScope.() -> Unit = {
-        PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
+        PlayerIconAction(R.drawable.ic_previous,"上一集",enabled=previous!=null,onClick=stepPrevious)
         GlassButton(onClick=openEpisodes,enabled=hasEpisodes,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=MaterialTheme.shapes.medium) { Text("选集") }
-        PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
+        PlayerIconAction(R.drawable.ic_next,"下一集",enabled=next!=null,onClick=stepNext)
     }
     val density = LocalDensity.current
     val cutout = WindowInsets.displayCutout
@@ -191,7 +197,7 @@ import kotlinx.coroutines.delay
         FrostedDialog(onDismissRequest={optionsOpen=false},placement=if(full) GlassPlacement.SIDE else GlassPlacement.BOTTOM,immersive=full,tag="playbackOptions") {
             BackHandler { optionsOpen=false }
             Surface(shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
-                Column(Modifier.fillMaxWidth().then(if(full) Modifier.fillMaxHeight() else Modifier.heightIn(max=(configuration.screenHeightDp*.88f).dp)).padding(20.dp)) {
+                Column(Modifier.fillMaxWidth().then(if(full) Modifier.fillMaxHeight() else Modifier.heightIn(max=(windowSize.height.value*.88f).dp)).padding(20.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("播放选项",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                         GlassTextButton(onClick={optionsOpen=false}) { Text("关闭") }
@@ -220,7 +226,7 @@ import kotlinx.coroutines.delay
         FrostedDialog(onDismissRequest=model::closeAlternatives,placement=if(full) GlassPlacement.SIDE else GlassPlacement.BOTTOM,immersive=full,tag="alternativePanel") {
             BackHandler(onBack=model::closeAlternatives)
             Surface(shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
-                Column(Modifier.fillMaxWidth().then(if(full) Modifier.fillMaxHeight() else Modifier.heightIn(max=(configuration.screenHeightDp*.88f).dp)).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth().then(if(full) Modifier.fillMaxHeight() else Modifier.heightIn(max=(windowSize.height.value*.88f).dp)).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         Text("切换同集来源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                         GlassTextButton(onClick=model::closeAlternatives) { Text("关闭") }
@@ -263,7 +269,7 @@ import kotlinx.coroutines.delay
         FrostedDialog(onDismissRequest={episodesOpen=false}) {
             BackHandler { episodesOpen=false }
             Surface(modifier=Modifier.widthIn(max=600.dp).fillMaxWidth(.94f),shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
-                Column(Modifier.heightIn(max=(configuration.screenHeightDp*.8f).dp).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.heightIn(max=(windowSize.height.value*.8f).dp).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                             Text("选集",style=MaterialTheme.typography.titleLarge)
@@ -290,7 +296,7 @@ import kotlinx.coroutines.delay
                     Surface(color=MaterialTheme.colorScheme.surfaceContainerLow,shape=MaterialTheme.shapes.extraLarge) {
                         Row(Modifier.fillMaxWidth().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             episodeControls()
-                            PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();entryOrientation=orientation;rotatingBack=false;requestFull=true})
+                            PlayerIconAction(R.drawable.ic_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();entryOrientation=orientation;rotatingBack=false;requestFull=true})
                         }
                     }
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -395,8 +401,8 @@ import kotlinx.coroutines.delay
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     IconButton(onClick={playerView?.cancelGestures();exitFullscreen()},modifier=Modifier.size(48.dp).testTag("fullscreenToggle")) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"退出全屏") }
                     Text("${playback.video.title} · ${playback.episode.name}",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_previous,"上一集",previous!=null,onClick=stepPrevious)
-                    PlayerIconAction(androidx.media3.ui.R.drawable.exo_icon_next,"下一集",next!=null,onClick=stepNext)
+                    PlayerIconAction(R.drawable.ic_previous,"上一集",enabled=previous!=null,onClick=stepPrevious)
+                    PlayerIconAction(R.drawable.ic_next,"下一集",enabled=next!=null,onClick=stepNext)
                     val actionColors = ButtonDefaults.textButtonColors(contentColor=Color.White,disabledContentColor=Color.White.copy(alpha=.38f))
                     TextButton(onClick=openEpisodes,enabled=hasEpisodes,colors=actionColors) { Text("选集") }
                     if(playback.video.source.kind==SourceKind.VOD) {
@@ -408,7 +414,7 @@ import kotlinx.coroutines.delay
         // Recovery must remain reachable even with hidden controls or no initialized player.
         if(full && !pip) {
             (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let {
-                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.8f)).then(fullscreenPadding).heightIn(max=(LocalConfiguration.current.screenHeightDp * 0.6f).dp).verticalScroll(rememberScrollState()).padding(16.dp).testTag("playbackError")) {
+                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.8f)).then(fullscreenPadding).heightIn(max=(windowSizeDp().height.value * 0.6f).dp).verticalScroll(rememberScrollState()).padding(16.dp).testTag("playbackError")) {
                     Text(it)
                     FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick={error=null; controller.retry()}) { Text("重试播放") }
@@ -425,7 +431,7 @@ import kotlinx.coroutines.delay
 
 }
 
-@Composable private fun PlayerIconAction(icon:Int,label:String,enabled:Boolean=true,modifier:Modifier=Modifier,onClick:()->Unit) {
+@Composable private fun PlayerIconAction(icon:Int,label:String,modifier:Modifier=Modifier,enabled:Boolean=true,onClick:()->Unit) {
     IconButton(onClick=onClick,enabled=enabled,modifier=modifier.size(48.dp)) {
         Icon(painterResource(icon),contentDescription=label,modifier=Modifier.size(24.dp))
     }

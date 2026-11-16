@@ -55,7 +55,7 @@ import androidx.compose.ui.unit.dp
 @Composable fun CollectionControls(current:Video,state:UiState,model:AppModel,choose:(Video)->Unit) {
     val options=remember(current,state.relatedVideos) { VideoGroups.options(current,state.relatedVideos) }
     var sourcesOpen by remember(current.probeKey()) { mutableStateOf(false) }
-    Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
         SeasonChips(options,current,choose)
         val sources=remember(options,current) { options.filter { VideoGroups.sameWork(it,current) } }
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {

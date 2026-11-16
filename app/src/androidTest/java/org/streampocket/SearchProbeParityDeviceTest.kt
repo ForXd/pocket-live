@@ -24,8 +24,8 @@ class SearchProbeParityDeviceTest {
         val started=CountDownLatch(3);val release=CountDownLatch(1)
         val server=MockWebServer().apply { start() };val base="http://search.test:${server.port}"
         server.dispatcher=object:Dispatcher() {
-            override fun dispatch(r:RecordedRequest):MockResponse {
-                val url=r.requestUrl!!
+            override fun dispatch(request:RecordedRequest):MockResponse {
+                val url=request.requestUrl!!
                 return when(url.encodedPath) {
                     "/recommend"->MockResponse().setBody("{\"subjects\":[]}")
                     "/api"-> {

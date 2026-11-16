@@ -47,11 +47,11 @@ import androidx.compose.ui.unit.dp
         }
         if(s.liveLoading) PocketLoading(Modifier.fillMaxWidth().testTag("liveLoading"))
         LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag("liveChannels"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(sources.isEmpty()) item { EmptyPanel("还没有直播来源","添加或启用 IPTV / M3U 订阅后即可观看。",R.drawable.ic_library);GlassTextButton(onClick=subscriptions) { Text("管理订阅") } }
+            if(sources.isEmpty()) item { EmptyPanel("还没有直播来源","添加或启用 IPTV / M3U 订阅后即可观看。",R.drawable.ic_library);GlassTextButton(onClick=subscriptions,modifier=Modifier.fillMaxWidth()) { Text("管理订阅") } }
             s.liveError?.let { error -> item { Text(error,color=MaterialTheme.colorScheme.error);GlassTextButton(onClick={model.loadLive(refresh=true)}) { Text("重试") } } }
             if(sources.isNotEmpty() && !s.liveLoading && s.liveError==null && channels.isEmpty()) item { Text(if(query.isNotBlank() || group.isNotEmpty()) "没有匹配频道" else "此来源没有可用频道",color=MaterialTheme.colorScheme.onSurfaceVariant) }
             if(channels.isNotEmpty()) item { Text("${channels.size} 个频道",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-            items(channels,key={it.source.key+":"+it.id}) { channel -> ContentCard(onClick={model.playLive(channel)},containerColor=MaterialTheme.colorScheme.background,modifier=Modifier.fillMaxWidth().testTag("liveChannel:${channel.title}")) {
+            items(channels,key={it.source.key+":"+it.id}) { channel -> ContentCard(onClick={model.playLive(channel)},modifier=Modifier.fillMaxWidth().testTag("liveChannel:${channel.title}")) {
                 Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.CenterVertically) {
                     Icon(painterResource(R.drawable.ic_play),null,Modifier.size(24.dp),tint=MaterialTheme.colorScheme.primary)
                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {

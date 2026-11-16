@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
             GlassTextButton(onClick=onExpand,modifier=Modifier.weight(1f).heightIn(min=80.dp).testTag("subscription:${sub.id}").semantics { stateDescription=if(expanded) "已展开" else "已收起" },shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(12.dp)) {
                 Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,if(expanded) "收起来源" else "展开来源",Modifier.size(24.dp))
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Text(sub.name,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface,maxLines=2,overflow=TextOverflow.Ellipsis)
                     Text("${if(sub.isLocalJson) "本地 JSON · " else ""}${sub.sources.size} 个源 · 已启用 $enabledCount 个",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }

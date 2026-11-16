@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.core.graphics.drawable.toDrawable
+
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import kotlinx.coroutines.*
@@ -39,8 +41,8 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
     val context=LocalContext.current
     val allowOutside by rememberUpdatedState(dismissOnOutside)
     val composition=rememberCompositionContext()
-    val config=LocalConfiguration.current
-    val width=when(placement) { GlassPlacement.SIDE->(config.screenWidthDp*.5f).dp;GlassPlacement.BOTTOM->minOf(config.screenWidthDp,640).dp }
+    val windowSize = windowSizeDp()
+    val width=when(placement) { GlassPlacement.SIDE->(windowSize.width.value*.5f).dp;GlassPlacement.BOTTOM->minOf(windowSize.width,640.dp) }
     val density=LocalDensity.current
     val widthPx=with(density) { width.roundToPx() }
     val radius=with(density) { 20.dp.toPx() }
@@ -57,7 +59,7 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
             setParentCompositionContext(composition)
             setContent {
                 val scope = rememberCoroutineScope()
-                Surface(Modifier.width(width).then(if(placement==GlassPlacement.SIDE) Modifier.fillMaxHeight() else Modifier.heightIn(max=(config.screenHeightDp*.88f).dp)).testTag(tag),color=Color.Transparent,contentColor=MaterialTheme.colorScheme.onSurface) {
+                Surface(Modifier.width(width).then(if(placement==GlassPlacement.SIDE) Modifier.fillMaxHeight() else Modifier.heightIn(max=(windowSize.height.value*.88f).dp)).testTag(tag),color=Color.Transparent,contentColor=MaterialTheme.colorScheme.onSurface) {
                     Column {
                         if(placement!=GlassPlacement.SIDE) {
                             var settle by remember { mutableStateOf<Job?>(null) }
@@ -112,14 +114,13 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
         val background=GradientDrawable().apply { cornerRadius=radius;setStroke(with(density) { 1.dp.roundToPx() },stroke) }
         background.setColor(tint.toArgb())
         if(placement==GlassPlacement.BOTTOM) {
-            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            window.setBackgroundDrawable(android.graphics.Color.TRANSPARENT.toDrawable())
             view.background=background
         } else window.setBackgroundDrawable(background)
-        window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.RIGHT or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
+        window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.END or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
         window.setWindowAnimations(if(placement==GlassPlacement.SIDE) R.style.PocketSidePanelAnimation else R.style.PocketDrawerAnimation)
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         WindowCompat.setDecorFitsSystemWindows(window,!immersive)
-        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         window.setDimAmount(.16f)
         dialog.show()
         WindowCompat.getInsetsController(window,view).apply {

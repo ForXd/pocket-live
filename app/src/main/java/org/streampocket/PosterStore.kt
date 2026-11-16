@@ -66,7 +66,7 @@ class PosterStore(private val directory: File) {
     @Synchronized private fun save(key:String,bytes:ByteArray,owner:Long) {
         if(owner!=epoch.get()) return
         maintain(bytes.size.toLong())
-        if(directory.usableSpace<StorageBudget.FREE_RESERVE+bytes.size) return
+        if(android.os.StatFs(directory.absolutePath).availableBytes<StorageBudget.FREE_RESERVE+bytes.size) return
         val target=File(directory,"$key.img");val temp=File(directory,"$key.tmp")
         // Reserve both the existing file and the in-progress file before the write.
         try { temp.writeBytes(bytes);if(!temp.renameTo(target)) throw IOException("Cache commit failed") }
@@ -116,7 +116,7 @@ class PosterStore(private val directory: File) {
         })
     }
 }
-@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier.size(72.dp,104.dp),shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false,frosted:Boolean=false) {
+@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier,shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false,frosted:Boolean=false) {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=remember(model) { model.state.value.posterRefresh })
     val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle,large,frosted) {

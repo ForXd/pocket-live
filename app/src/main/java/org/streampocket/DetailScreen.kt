@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
     val list=rememberLazyListState()
     val scope=rememberCoroutineScope()
     var toolbarHeight by remember { mutableIntStateOf(0) }
-    val wide=splitArtwork && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=840
+    val wide=splitArtwork && windowSizeDp().width.value>=840
     val episodeHeader=if(wide || detail.description.isBlank()) 2 else 3
     val showTop by remember(episodeHeader,list) { derivedStateOf { list.firstVisibleItemIndex>episodeHeader+2 } }
     BoxWithConstraints(Modifier.fillMaxSize()) {

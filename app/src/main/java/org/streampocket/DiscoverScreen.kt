@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
@@ -415,7 +415,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 /** Artwork-backed glass information plate; text is never part of the blurred layer. */
 @Composable private fun FeaturedRecommendation(video:Video,model:AppModel,onClick:()->Unit) {
-    val wide=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=600
+    val wide=windowSizeDp().width.value>=600
     val height=if(wide) 350.dp else 278.dp
     Box(Modifier.fillMaxWidth().testTag("recommendation:${video.id}").clickable(onClick=onClick).clip(MaterialTheme.shapes.large)) {
         Poster(video,model,Modifier.fillMaxWidth().height(height).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
@@ -426,7 +426,7 @@ import androidx.compose.ui.text.style.TextOverflow
                 if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodyMedium,color=Color.White.copy(alpha=.89f),maxLines=2,overflow=TextOverflow.Ellipsis)
             }
             Surface(shape=androidx.compose.foundation.shape.CircleShape,color=Color.White,contentColor=Color(0xff171717)) {
-                Icon(Icons.Default.KeyboardArrowRight,"查看简介",Modifier.size(48.dp).padding(12.dp))
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,"查看简介",Modifier.size(48.dp).padding(12.dp))
             }
         }
     }

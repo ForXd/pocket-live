@@ -10,7 +10,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 // Explicit schema: no reflective serialization, no URL logging, no backup export.
-class Storage(context: Context, private val purgeCache: () -> Unit = {}, private val available: () -> Long = { context.filesDir.usableSpace }) {
+class Storage(context: Context, private val purgeCache: () -> Unit = {}, private val available: () -> Long = { android.os.StatFs(context.filesDir.absolutePath).availableBytes }) {
     private val file = AtomicFile(File(context.filesDir, "state.json"))
     private val historyFile=AtomicFile(File(context.filesDir,"history.json"))
     private var lastConfig: String?=null

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.core.net.toUri
+
 import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.datasource.*
@@ -108,7 +110,7 @@ internal class HlsLookAhead(private val upstream:DataSource.Factory,private val 
                 }
                 val boundedCalls=okhttp3.Call.Factory { request -> owner.newCall(request).apply { timeout().timeout(8,TimeUnit.SECONDS) } }
                 source=androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(boundedCalls).createDataSource()
-                val size=source.open(DataSpec(Uri.parse(target)))
+                val size=source.open(DataSpec(target.toUri()))
                 if(size>segmentLimit) { synchronized(this@HlsLookAhead) { disabled=true };return@launch }
                 // Fixed allocation: no ByteArrayOutputStream growth or full-array copy.
                 val data=ByteArray(if(size in 1..segmentLimit.toLong()) size.toInt() else segmentLimit)

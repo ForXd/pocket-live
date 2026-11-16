@@ -101,7 +101,7 @@ class ApkUpdater(private val app:Application,client:OkHttpClient,private val sco
                 withContext(Dispatchers.IO) {
                     clearReadyFiles();metadata.delete();directory.mkdirs()
                     // Reserve the existing data/cache maxima plus 12 MB for a single installer.
-                    if(release.bytes>12_000_000 || app.cacheDir.usableSpace<release.bytes+5_000_000) throw UserError("更新空间不足或安装包超过 12 MB，请清理缓存后重试")
+                    if(release.bytes>12_000_000 || android.os.StatFs(app.cacheDir.absolutePath).availableBytes<release.bytes+5_000_000) throw UserError("更新空间不足或安装包超过 12 MB，请清理缓存后重试")
                     val ownedBytes=(app.filesDir.walkTopDown()+app.cacheDir.walkTopDown()).filter { it.isFile }.sumOf { it.length() }
                     if(ownedBytes+release.bytes>50_000_000) throw UserError("应用文件将超过 50 MB，请清理缓存后重试")
                 }

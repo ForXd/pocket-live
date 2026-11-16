@@ -16,7 +16,7 @@ class AppUpdateDeviceTest {
         ui.runOnUiThread {
             ui.activity.viewModelStore.clear()
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
-                override fun <T:ViewModel> create(clazz:Class<T>):T {
+                override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
                     return AppModel(ui.activity.application,updateDocument={
                         val call=calls.incrementAndGet();kotlinx.coroutines.delay(100)

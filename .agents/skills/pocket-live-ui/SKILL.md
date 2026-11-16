@@ -23,3 +23,5 @@ description: 实现或评审 Pocket Live Android 界面时使用，覆盖首页�
 ## 模拟器复核
 
 按改动范围从正常入口操作，检查日间、夜间、长标题、大字号和键盘出现后的布局。导航看快速连点切换，抽屉看慢拖、反向拖和松手，播放器看显示、隐藏、拖动、切集与返回。用截图核对静态边缘，用真实触摸验证动作。UiLayoutDeviceTest 提供首页与主要页面夹具，PlaybackGestureDeviceTest 覆盖横屏控制。需要人工验收时可用 UiLayoutDeviceTest 的 manualDesignReview=true 保持夹具运行。
+
+逐页审查时结合 mobile-design-system 的 Android 清单。沿首页推荐与分类、搜索、直播、历史、订阅、设置、详情、行内与全屏播放的实际入口检查按钮。包含抽屉、确认、空态、加载与失败重试。同一动作在日夜主题保持相同标签和触控热区。按当前应用窗口尺寸选择布局，在键盘打开、横屏及分屏时复核可达性。

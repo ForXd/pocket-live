@@ -26,8 +26,8 @@ object PublicNetwork {
         return b[0] in 0x20..0x3f && !(b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x0d && b[3] == 0xb8) && !(b[0] == 0x20 && b[1] == 0x02) && !(b[0] == 0x20 && b[1] == 0x01 && b[2] == 0 && b[3] == 0)
     }
     val dns = object : Dns {
-        override fun lookup(host: String): List<InetAddress> =
-        Dns.SYSTEM.lookup(host).also { addresses ->
+        override fun lookup(hostname: String): List<InetAddress> =
+        Dns.SYSTEM.lookup(hostname).also { addresses ->
             if(addresses.isEmpty() || addresses.any { !publicAddress(it) }) throw IOException("Local network blocked")
         }
     }

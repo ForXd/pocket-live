@@ -68,7 +68,7 @@ class ProbePlaybackHandoffDeviceTest {
         lateinit var model:AppModel
         ui.runOnUiThread {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
-                override fun <T:ViewModel> create(clazz:Class<T>):T {
+                override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST") return AppModel(ui.activity.application,dns,{_,_,_->"$base/recommend"}) as T
                 }
             })[AppModel::class.java]

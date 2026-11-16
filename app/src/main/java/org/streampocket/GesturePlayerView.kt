@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.core.view.updateLayoutParams
+
 import android.content.Context
 import android.graphics.Rect
 import android.os.Handler
@@ -71,6 +73,13 @@ class GesturePlayerView(context:Context):PlayerView(context) {
         // A bounded scrim keeps white transport icons legible even over bright video frames.
         findViewById<View>(androidx.media3.ui.R.id.exo_controls_background).setBackgroundColor(0x80000000.toInt())
         findViewById<View>(androidx.media3.ui.R.id.exo_bottom_bar).setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        findViewById<View>(androidx.media3.ui.R.id.exo_bottom_bar).updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            height = resources.getDimensionPixelSize(R.dimen.player_bottom_bar_height)
+            topMargin = resources.getDimensionPixelSize(R.dimen.player_bottom_bar_margin_top)
+        }
+        findViewById<View>(androidx.media3.ui.R.id.exo_progress).updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            bottomMargin = resources.getDimensionPixelSize(R.dimen.player_progress_margin_bottom)
+        }
         for (id in listOf(androidx.media3.ui.R.id.exo_position, androidx.media3.ui.R.id.exo_duration)) {
             findViewById<android.widget.TextView>(id).setShadowLayer(resources.displayMetrics.density * 2, 0f, 1f, android.graphics.Color.BLACK)
         }

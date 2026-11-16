@@ -28,13 +28,13 @@ class PublishedUpgradeDeviceTest {
         org.junit.Assume.assumeTrue(args.getString("publishedUpgrade") == "true")
         val previous = requireNotNull(args.getString("fromVersion"))
         val expected = requireNotNull(args.getString("toVersion"))
-        val code = requireNotNull(args.getString("toCode")).toInt()
+        val code = requireNotNull(args.getString("toCode")).toLong()
         val pkg = "org.streampocket"
         val context = instrument.targetContext
         fun identity() = context.packageManager.getPackageInfo(pkg, 0)
         val before = identity()
         assertEquals(previous, before.versionName)
-        assertTrue(code > before.versionCode)
+        assertTrue(code > androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(before))
         val launch = requireNotNull(context.packageManager.getLaunchIntentForPackage(pkg)).apply {
             addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         }
@@ -71,12 +71,12 @@ class PublishedUpgradeDeviceTest {
         }
         assertTrue("System update confirmation missing: ${texts()}", confirmed)
         val installedDeadline = android.os.SystemClock.elapsedRealtime() + 30000
-        while (identity().versionCode != code && android.os.SystemClock.elapsedRealtime() < installedDeadline) {
+        while (androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(identity()) != code && android.os.SystemClock.elapsedRealtime() < installedDeadline) {
             android.os.SystemClock.sleep(200)
         }
         val after = identity()
         assertEquals(expected, after.versionName)
-        assertEquals(code, after.versionCode)
+        assertEquals(code, androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(after))
         assertEquals(before.firstInstallTime, after.firstInstallTime)
         fun shell(command:String):String = instrument.uiAutomation.executeShellCommand(command).use {
             android.os.ParcelFileDescriptor.AutoCloseInputStream(it).bufferedReader().readText()

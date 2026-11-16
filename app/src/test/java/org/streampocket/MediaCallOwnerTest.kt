@@ -1,5 +1,6 @@
 package org.streampocket
 import okhttp3.*
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -9,7 +10,7 @@ class MediaCallOwnerTest {
     @Test fun completionRacingCloseUsesStableSnapshot() {
         val base=OkHttpClient.Builder().addInterceptor { chain ->
             Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200)
-                .message("OK").body(ResponseBody.create(null,"fixture")).build()
+                .message("OK").body("fixture".toResponseBody()).build()
         }.build()
         val workers=Executors.newFixedThreadPool(4)
         try {

@@ -34,7 +34,7 @@ internal fun recommendationMetadata(json:String):String? {
 @Composable internal fun RecommendationPreview(s:UiState,model:AppModel,search:(String)->Unit) {
     val video=s.recommendPreview ?: return
     BackHandler(onBack=model::closeRecommendation)
-    val wide=LocalConfiguration.current.screenWidthDp>=700
+    val wide=windowSizeDp().width.value>=700
     val largeFont=androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f
     Surface(Modifier.fillMaxSize().testTag("recommendationPreview")) {
         Column(Modifier.safeDrawingPadding()) {

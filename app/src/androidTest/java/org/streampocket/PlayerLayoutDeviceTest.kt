@@ -40,7 +40,7 @@ class PlayerLayoutDeviceTest {
             ui.activity.viewModelStore.clear()
             ui.activity.requestedOrientation=if (InstrumentationRegistry.getArguments().getString("widePlayer")=="true") android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
-                override fun <T:ViewModel> create(clazz:Class<T>):T {
+                override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST") return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
                 }
             })[AppModel::class.java]
@@ -137,15 +137,18 @@ class PlayerLayoutDeviceTest {
                 pv.showController()
             }
             captureUi(ui,"player-landscape")
-            val actions=ui.onNodeWithTag("fullscreenBottomActions").fetchSemanticsNode().boundsInRoot
+            val actions = ui.onNodeWithText("快速换源").fetchSemanticsNode().boundsInRoot
             ui.runOnIdle {
-                val progress=view(ui.activity.window.decorView)!!.findViewById<View>(androidx.media3.ui.R.id.exo_progress)
-                assertTrue("Native timeline remains visible",progress.isShown)
-                val xy=IntArray(2);progress.getLocationInWindow(xy)
-                assertTrue("Actions must be below the timeline",actions.center.y>xy[1]+progress.height/2)
-                assertTrue("Actions must stay in the bottom region",actions.top>ui.activity.window.decorView.height*.75f)
+                val player = view(ui.activity.window.decorView)!!
+                val progress = player.findViewById<View>(androidx.media3.ui.R.id.exo_progress)
+                assertTrue("Native timeline remains visible", progress.isShown)
+                val xy = IntArray(2)
+                progress.getLocationInWindow(xy)
+                assertTrue("Extra actions belong above the native timeline", actions.bottom < xy[1])
+                val settings = player.findViewById<View>(androidx.media3.ui.R.id.exo_settings)
+                assertTrue("Native settings must remain reachable", settings.isShown)
+                settings.performClick()
             }
-            ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.onNodeWithTag("playbackOptions").assertIsDisplayed()
             ui.onNodeWithTag("speed:1.5").performClick()
             ui.runOnIdle { assertEquals(1.5f,view(ui.activity.window.decorView)!!.player!!.playbackParameters.speed) }

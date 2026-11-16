@@ -69,7 +69,7 @@ import androidx.compose.ui.unit.dp
         }
         if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
         ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
                 IconButton(onClick={keyboard?.hide()},modifier=Modifier.size(48.dp)) { Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward,"搜索观看历史") }
             }
@@ -91,7 +91,7 @@ import androidx.compose.ui.unit.dp
                     sources.forEach { option -> DropdownMenuItem(text={Text(option.name)},onClick={source=option.key;sourceMenu=false}) }
                 }
             }
-            LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(6.dp)) { items(HistoryKind.entries) { option -> ContentFilterChip(selected=kind==option,onClick={kind=option},label={Text(option.label)}) } }
+            LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(8.dp)) { items(HistoryKind.entries) { option -> ContentFilterChip(selected=kind==option,onClick={kind=option},label={Text(option.label)}) } }
         }
         Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
             Text("${groups.size} 部 · ${filtered.size} 条记录",Modifier.weight(1f),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -116,7 +116,7 @@ import androidx.compose.ui.unit.dp
                 Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         if(model!=null) Poster(shown.playback.video,model,Modifier.size(72.dp,104.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             Text(VideoGroups.familyTitle(shown.playback.video),style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             val season=VideoGroups.identity(shown.playback.video).season
                             Text(listOfNotNull(season?.let { "第 $it 季" },shown.playback.episode.name,shown.playback.video.source.name).joinToString(" · "),

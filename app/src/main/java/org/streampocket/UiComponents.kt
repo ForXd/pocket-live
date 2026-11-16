@@ -136,3 +136,11 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
             }
         })
 }
+
+/** Current activity window in dp, including when Android resizes a split-screen window. */
+@Composable internal fun windowSizeDp(): androidx.compose.ui.unit.DpSize {
+    val pixels = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
+    return with(androidx.compose.ui.platform.LocalDensity.current) {
+        androidx.compose.ui.unit.DpSize(pixels.width.toDp(), pixels.height.toDp())
+    }
+}

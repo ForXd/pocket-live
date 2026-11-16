@@ -43,7 +43,7 @@ class SearchUiDeviceTest {
         lateinit var model:AppModel
         ui.runOnUiThread {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
-                override fun <T:ViewModel> create(clazz:Class<T>):T {
+                override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
                     return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
                 }

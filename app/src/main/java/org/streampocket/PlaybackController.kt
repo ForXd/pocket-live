@@ -2,6 +2,8 @@
 // Modified 2026-10-24: one owner for player, view binding and sampling job.
 package org.streampocket
 
+import androidx.core.net.toUri
+
 import android.content.Context
 import androidx.media3.common.*
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -188,8 +190,8 @@ class PlaybackController(
             p.playWhenReady=autoStart;autoStart=false
             preparation=scope.launch {
             try {
-            val inferred=androidx.media3.common.util.Util.inferContentType(android.net.Uri.parse(session.episode.url))
-            val mime=session.episode.mimeType ?: if(inferred==C.CONTENT_TYPE_OTHER && !android.net.Uri.parse(session.episode.url).path.orEmpty().endsWith(".mp4",ignoreCase=true)) {
+            val inferred=androidx.media3.common.util.Util.inferContentType(session.episode.url.toUri())
+            val mime=session.episode.mimeType ?: if(inferred==C.CONTENT_TYPE_OTHER && !session.episode.url.toUri().path.orEmpty().endsWith(".mp4",ignoreCase=true)) {
                 try { withTimeout(5_000) { PlaybackProbe(network).mediaType(session.episode.url) } }
                 catch(e:TimeoutCancellationException) { null }
                 catch(e:CancellationException) { throw e }

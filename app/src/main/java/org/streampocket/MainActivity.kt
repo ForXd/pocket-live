@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
 @Composable fun Pocket(model: AppModel) {
     val s by model.state.collectAsStateWithLifecycle()
     val imeVisible=WindowInsets.isImeVisible
-    val compact=LocalConfiguration.current.screenHeightDp<500 || WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
+    val compact=windowSizeDp().height.value<500 || WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext
@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
         val callbacks = object : android.content.ComponentCallbacks2 {
             override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
             override fun onLowMemory() { model.trimMemory() }
-            override fun onTrimMemory(level: Int) { if(level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) model.trimMemory() }
+            override fun onTrimMemory(level: Int) { model.trimMemory() }
         }
         app.registerComponentCallbacks(callbacks)
         onDispose { app.unregisterComponentCallbacks(callbacks) }
@@ -182,7 +182,7 @@ class MainActivity : ComponentActivity() {
     val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(liveTab.value) s.liveChannels.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
     val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
-    val wide=LocalConfiguration.current.screenWidthDp>=840
+    val wide=windowSizeDp().width.value>=840
     if(s.recommendPreview!=null) { RecommendationPreview(s,model,::search);return }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }

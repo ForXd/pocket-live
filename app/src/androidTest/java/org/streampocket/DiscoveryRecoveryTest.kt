@@ -34,7 +34,7 @@ class DiscoveryRecoveryTest {
         ui.runOnUiThread {
             ui.activity.viewModelStore.clear()
             model=androidx.lifecycle.ViewModelProvider(ui.activity,object:androidx.lifecycle.ViewModelProvider.Factory {
-                override fun <T:androidx.lifecycle.ViewModel> create(clazz:Class<T>):T {
+                override fun <T:androidx.lifecycle.ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
                     return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
                 }

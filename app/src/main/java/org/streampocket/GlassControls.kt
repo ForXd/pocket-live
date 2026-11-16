@@ -32,7 +32,7 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 @Composable internal fun GlassTextButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium, colors:ButtonColors=ButtonDefaults.textButtonColors(),
     contentPadding:PaddingValues=ButtonDefaults.TextButtonContentPadding,content:@Composable RowScope.()->Unit) {
-    TextButton(onClick=onClick,modifier=modifier,enabled=enabled,shape=shape,
+    TextButton(onClick=onClick,modifier=modifier.sizeIn(minWidth=48.dp,minHeight=48.dp),enabled=enabled,shape=shape,
         colors=colors,contentPadding=contentPadding,content=content)
 }
 
@@ -49,7 +49,7 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
     colors:IconButtonColors=IconButtonDefaults.filledTonalIconButtonColors(),
     border:BorderStroke?=null,content:@Composable ()->Unit) {
     val target = if (border == null) modifier else modifier.border(border, shape)
-    FilledTonalIconButton(onClick, target, enabled, shape, colors=colors, content=content)
+    FilledTonalIconButton(onClick, target.sizeIn(minWidth=48.dp,minHeight=48.dp), enabled, shape, colors=colors, content=content)
 }
 
 /** Color supplements an explicit label, so availability is never conveyed by color alone. */

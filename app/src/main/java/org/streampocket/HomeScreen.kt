@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.dp
         Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center) {
             ContentSearchField(query,onQuery,placeholder,onSearch={if(allowEmpty || query.isNotBlank()) submit()},modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=4.dp)
                 .focusRequester(requester).testTag("searchInput").semantics { contentDescription="影片或频道名称" },trailingIcon={
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
                             IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
                         }

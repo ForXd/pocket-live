@@ -41,7 +41,7 @@ class DetailLayoutDeviceTest {
         runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true,history=listOf(History(Playback(video,Episode("第17集","$base/main/17.mp4"),5000,duration=10000),System.currentTimeMillis())))) }
         ui.runOnUiThread {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
-                override fun <T:ViewModel> create(clazz:Class<T>):T {
+                override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
                     return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
                 }

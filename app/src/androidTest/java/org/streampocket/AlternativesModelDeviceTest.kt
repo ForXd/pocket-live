@@ -35,7 +35,7 @@ class AlternativesModelDeviceTest {
         }
         main {
             model=ViewModelProvider(store,object:ViewModelProvider.Factory {
-                override fun <T:ViewModel> create(clazz:Class<T>):T {
+                override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
                     return AppModel(instrument.targetContext.applicationContext as Application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
                 }

@@ -6,8 +6,8 @@ import org.junit.Assert.*
 class RecommendationLiveDeviceTest {
     @Test fun publicMovieAndSeriesIntroAreAvailable()=runBlocking {
         val address=InstrumentationRegistry.getArguments().getString("doubanAddress")
-        val dns=if(address==null) PublicNetwork.dns else object:okhttp3.Dns { override fun lookup(host:String):List<java.net.InetAddress> {
-            return if(host!="m.douban.com") PublicNetwork.dns.lookup(host) else listOf(java.net.InetAddress.getByName(address)).also { assertTrue(it.all(PublicNetwork::publicAddress)) }
+        val dns=if(address==null) PublicNetwork.dns else object:okhttp3.Dns { override fun lookup(hostname:String):List<java.net.InetAddress> {
+            return if(hostname!="m.douban.com") PublicNetwork.dns.lookup(hostname) else listOf(java.net.InetAddress.getByName(address)).also { assertTrue(it.all(PublicNetwork::publicAddress)) }
         }
         }
         val network=Network({false},dns)

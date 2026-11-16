@@ -23,8 +23,8 @@ class CollectionModelDeviceTest {
         val source=Source("片库","$base/api");val failing=AtomicBoolean(false)
         val requests=java.util.concurrent.CopyOnWriteArrayList<String>()
         server.dispatcher=object:Dispatcher() {
-            override fun dispatch(r:RecordedRequest):MockResponse {
-                val url=r.requestUrl!!
+            override fun dispatch(request:RecordedRequest):MockResponse {
+                val url=request.requestUrl!!
                 if(url.encodedPath=="/recommend") return MockResponse().setBody("{\"subjects\":[]}")
                 requests.add(url.queryParameter("wd").orEmpty())
                 if(failing.get()) return MockResponse().setResponseCode(503)

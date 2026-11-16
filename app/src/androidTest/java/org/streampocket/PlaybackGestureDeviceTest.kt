@@ -136,7 +136,7 @@ class PlaybackGestureDeviceTest {
             }
             ui.activity.viewModelStore.clear()
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
-                override fun <T:ViewModel> create(clazz:Class<T>):T {
+                override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST") return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
                 }
             })[AppModel::class.java]
@@ -247,8 +247,13 @@ class PlaybackGestureDeviceTest {
             instrument.runOnMainSync {
                 val v=playerView()
                 v.setOnClickListener { clickStates.add(v.isControllerFullyVisible);trace("performClick visible=${v.isControllerFullyVisible}") }
-                v.findViewById<androidx.media3.ui.PlayerControlView>(androidx.media3.ui.R.id.exo_controller).addVisibilityListener { visibility ->
-                    visibilityEvents.add(SystemClock.uptimeMillis() to visibility);trace("visibility=$visibility")
+                val controls = v.findViewById<View>(androidx.media3.ui.R.id.exo_controller)
+                controls.viewTreeObserver.addOnGlobalLayoutListener {
+                    val visibility = controls.visibility
+                    if (visibilityEvents.lastOrNull()?.second != visibility) {
+                        visibilityEvents.add(SystemClock.uptimeMillis() to visibility)
+                        trace("visibility=$visibility")
+                    }
                 }
             }
             if(InstrumentationRegistry.getArguments().getString("controlsOnly")!="true") {

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.core.net.toUri
+
 import androidx.compose.material3.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -73,7 +75,7 @@ object AppUpdates {
     }
     fun requestInstall() {
         if(context.packageManager.canRequestPackageInstalls()) install()
-        else try { permission.launch(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,android.net.Uri.parse("package:${context.packageName}"))) }
+        else try { permission.launch(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,"package:${context.packageName}".toUri())) }
         catch(_:android.content.ActivityNotFoundException) { updater.message("请在系统设置中允许此应用安装未知应用，然后返回安装") }
     }
     LaunchedEffect(transfer.phase,lifecycleState) {

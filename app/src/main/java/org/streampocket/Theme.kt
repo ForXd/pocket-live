@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.core.content.edit
+
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.rememberScrollState
@@ -29,7 +31,7 @@ object ThemePreference {
     private const val KEY="theme_mode"
     fun preferences(context:Context)=context.applicationContext.getSharedPreferences("appearance",Context.MODE_PRIVATE)
     fun read(context:Context)=runCatching { ThemeMode.valueOf(preferences(context).getString(KEY,ThemeMode.SYSTEM.name)!!) }.getOrDefault(ThemeMode.SYSTEM)
-    fun write(context:Context,mode:ThemeMode) { preferences(context).edit().putString(KEY,mode.name).apply() }
+    fun write(context:Context,mode:ThemeMode) { preferences(context).edit { putString(KEY,mode.name) } }
 }
 val LocalPocketDark=staticCompositionLocalOf { true }
 @Composable fun rememberThemeMode():ThemeMode {

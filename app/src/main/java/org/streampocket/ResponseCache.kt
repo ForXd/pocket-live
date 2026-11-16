@@ -31,7 +31,7 @@ data class CacheUsage(val memoryBytes: Long, val diskBytes: Long, val entries: I
 class ResponseCache(private val directory: File, private val now: () -> Long = System::currentTimeMillis,
     private val diskLimit: Long = StorageBudget.DISK_RESPONSES,
     private val memoryLimit: Long = StorageBudget.MEMORY_RESPONSES,
-    private val available: () -> Long = { directory.usableSpace }) {
+    private val available: () -> Long = { android.os.StatFs(directory.absolutePath).availableBytes }) {
     private data class Entry(val value: String, val created: Long, val expires: Long) {
         val weight: Long get() = value.length * 2L + 256 // logical UTF-16 payload plus accounting allowance
     }
