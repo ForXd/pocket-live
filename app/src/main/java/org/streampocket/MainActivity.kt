@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
         try { jsonPicker.launch(arrayOf("*/*")) }
         catch(_:android.content.ActivityNotFoundException) { fileTargetId=null;model.message("未找到文件选择器，可使用粘贴 JSON") }
     }
-    if(jsonDialog) GlassAlertDialog(onDismissRequest={model.cancelImport("new");jsonDialog=false;jsonText=""},title={Text("粘贴 JSON")},text={
+    if(jsonDialog) GlassAlertDialog(dismissOnOutside=false,onDismissRequest={model.cancelImport("new");jsonDialog=false;jsonText=""},title={Text("粘贴 JSON")},text={
         Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("粘贴订阅配置，支持与链接导入相同的格式。最多 2 MiB。")
             OutlinedTextField(shape=MaterialTheme.shapes.medium,value=jsonText,onValueChange={ if(it.length<=JsonData.LIMIT) jsonText=it else model.message("JSON 内容超过 2 MiB 上限") },
@@ -312,7 +312,7 @@ class MainActivity : ComponentActivity() {
     }
     }
     } // Bounded content
-    ruleSource?.let { source -> GlassAlertDialog(onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
+    ruleSource?.let { source -> GlassAlertDialog(dismissOnOutside=false,onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column(Modifier.verticalScroll(rememberScrollState())) { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
         OutlinedTextField(shape=MaterialTheme.shapes.medium,value=ruleText,onValueChange={ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={GlassTextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={GlassTextButton(onClick={ruleSource=null}) { Text("取消") }}) }
     delete?.let { sub -> GlassAlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={GlassTextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={GlassTextButton(onClick={delete=null}){Text("取消")}}) }
 }

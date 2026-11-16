@@ -75,7 +75,7 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
 /** Shared quiet surface for discovery, search and viewing history. */
 @Composable fun ContentCard(modifier:Modifier=Modifier,onClick:(()->Unit)?=null,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerLow,content:@Composable ColumnScope.()->Unit) {
     val colors=CardDefaults.cardColors(containerColor=containerColor)
-    val elevation = CardDefaults.cardElevation(defaultElevation = if (containerColor.alpha == 0f) 0.dp else 1.dp)
+    val elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     if(onClick==null) Card(modifier=modifier,shape=ContentCardShape,elevation=elevation,colors=colors,content=content)
     else {
         val interactions=remember { MutableInteractionSource() }

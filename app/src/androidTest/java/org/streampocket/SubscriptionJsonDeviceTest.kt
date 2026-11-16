@@ -63,6 +63,13 @@ class SubscriptionJsonDeviceTest {
             ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithText("粘贴 JSON").performScrollTo().performClick()
             ui.onNodeWithTag("subscriptionJsonInput").performTextInput("{bad}")
+            // Tap the scrim above the bottom sheet after entering a draft.
+            val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            val tapY = (48 * context.resources.displayMetrics.density).toInt()
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                automation.executeShellCommand("input tap 20 $tapY")
+            ).use { it.readBytes() }
+            ui.onNodeWithTag("subscriptionJsonInput").assertTextContains("{bad}")
             ui.onNodeWithText("导入",useUnmergedTree=true).performClick()
             ui.waitUntil(10000) { model.state.value.importing.isEmpty() && model.state.value.message?.contains("合法 JSON")==true }
             ui.onNodeWithTag("subscriptionJsonInput").assertTextContains("{bad}")

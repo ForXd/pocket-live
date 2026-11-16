@@ -15,9 +15,9 @@ import androidx.compose.ui.unit.dp
  */
 @Composable fun Modifier.destinationArrival(destination:Any):Modifier {
     val progress=remember(destination) { Animatable(0f) }
-    val distance=with(LocalDensity.current) { 12.dp.toPx() }
-    LaunchedEffect(progress) { progress.animateTo(1f,tween(220,easing=FastOutSlowInEasing)) }
-    return graphicsLayer { alpha=progress.value;translationY=distance*(1f-progress.value) }
+    val distance=with(LocalDensity.current) { 6.dp.toPx() }
+    LaunchedEffect(progress) { progress.animateTo(1f,tween(180,easing=LinearOutSlowInEasing)) }
+    return graphicsLayer { alpha=.72f+.28f*progress.value;translationY=distance*(1f-progress.value) }
 }
 
 /** Keep Material ripple and click semantics; transform only the rendered surface. */

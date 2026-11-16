@@ -35,9 +35,9 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
 /** Shared native blur with a bounded one-shot fallback; no capture loop or extra decoder. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable internal fun FrostedDialog(onDismissRequest:()->Unit,placement:GlassPlacement=GlassPlacement.BOTTOM,
-    immersive:Boolean=false,tag:String="glassDialog",content:@Composable ()->Unit) {
+    immersive:Boolean=false,tag:String="glassDialog",dismissOnOutside:Boolean=true,content:@Composable ()->Unit) {
     val context=LocalContext.current
-    val activity=androidx.activity.compose.LocalActivity.current
+    val allowOutside by rememberUpdatedState(dismissOnOutside)
     val composition=rememberCompositionContext()
     val config=LocalConfiguration.current
     val width=when(placement) { GlassPlacement.SIDE->(config.screenWidthDp*.5f).dp;GlassPlacement.BOTTOM->minOf(config.screenWidthDp,640).dp }
@@ -62,10 +62,15 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
                         if(placement!=GlassPlacement.SIDE) {
                             var settle by remember { mutableStateOf<Job?>(null) }
                             var dragOrigin by remember { mutableFloatStateOf(0f) }
+                            val velocity = remember { androidx.compose.ui.input.pointer.util.VelocityTracker() }
+                            val flingSpeed = with(density) { 900.dp.toPx() }
+                            val touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
                             val threshold=with(density) { 48.dp.toPx() }
-                            Box(Modifier.fillMaxWidth().height(40.dp).testTag("pickerDragHandle")
-                                .semantics { contentDescription="向下拖动关闭筛选";customActions=listOf(CustomAccessibilityAction("关闭") { dismiss();true }) }
+                            Box(Modifier.fillMaxWidth().height(48.dp).testTag("pickerDragHandle")
+                                .semantics { contentDescription="向下拖动关闭面板";customActions=listOf(CustomAccessibilityAction("关闭") { dismiss();true }) }
                                 .pointerInteropFilter { event ->
+                                    if (event.actionMasked == MotionEvent.ACTION_DOWN) velocity.resetTracking()
+                                    velocity.addPosition(event.eventTime, androidx.compose.ui.geometry.Offset(0f, event.rawY))
                                     when(event.actionMasked) {
                                         MotionEvent.ACTION_DOWN -> {
                                             settle?.cancel()
@@ -74,7 +79,9 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
                                         MotionEvent.ACTION_MOVE -> panel.translationY=(event.rawY-dragOrigin).coerceIn(0f,panel.height.toFloat())
                                         MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL -> {
                                             val start=panel.translationY
-                                            val close=event.actionMasked==MotionEvent.ACTION_UP && start>=threshold
+                                            val speed = velocity.calculateVelocity().y
+                                            val close = event.actionMasked == MotionEvent.ACTION_UP && speed > -flingSpeed &&
+                                                (start >= threshold || (start > touchSlop && speed >= flingSpeed))
                                             val end=if(close) panel.height.toFloat() else 0f
                                             settle=scope.launch {
                                                 androidx.compose.animation.core.animate(start,end,animationSpec=androidx.compose.animation.core.tween(
@@ -100,7 +107,7 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
         val host=android.widget.FrameLayout(dialog.context)
         host.addView(view,android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,if(placement==GlassPlacement.SIDE) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT))
         dialog.setContentView(host)
-        dialog.setCanceledOnTouchOutside(true)
+        dialog.setCanceledOnTouchOutside(allowOutside)
         dialog.setOnCancelListener { dismiss() }
         val background=GradientDrawable().apply { cornerRadius=radius;setStroke(with(density) { 1.dp.roundToPx() },stroke) }
         background.setColor(tint.toArgb())
@@ -139,12 +146,12 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
 }
 
 @Composable internal fun GlassAlertDialog(onDismissRequest:()->Unit,title:@Composable ()->Unit,text:@Composable ()->Unit,
-    confirmButton:@Composable ()->Unit,dismissButton:(@Composable ()->Unit)?=null) {
-    FrostedDialog(onDismissRequest) {
+    confirmButton:@Composable ()->Unit,dismissButton:(@Composable ()->Unit)?=null,dismissOnOutside:Boolean=true) {
+    FrostedDialog(onDismissRequest,dismissOnOutside=dismissOnOutside) {
         Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             ProvideTextStyle(MaterialTheme.typography.titleLarge,content=title)
             Box(Modifier.weight(1f,false)) { ProvideTextStyle(MaterialTheme.typography.bodyMedium,content=text) }
-            FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) { dismissButton?.invoke();confirmButton() }
+            FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp,androidx.compose.ui.Alignment.End)) { dismissButton?.invoke();confirmButton() }
         }
     }
 }
