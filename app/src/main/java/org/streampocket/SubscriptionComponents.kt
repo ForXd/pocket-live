@@ -6,6 +6,8 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,8 +19,15 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-@Composable internal fun SubscriptionHeader(sub:Subscription,expanded:Boolean,enabledCount:Int,importing:Boolean,onExpand:()->Unit,onUpdate:()->Unit,onCancel:()->Unit,onDelete:()->Unit) {
-    var menuOpen by remember(sub.id) { mutableStateOf(false) }
+@Composable internal fun SubscriptionHeader(sub:Subscription,expanded:Boolean,enabledCount:Int,importing:Boolean,revealed:Boolean,onReveal:(Boolean)->Unit,onExpand:()->Unit,onUpdate:()->Unit,onCancel:()->Unit,onDelete:()->Unit) {
+    val updateLabel = if(sub.isLocalJson) "重新选择 JSON 文件" else "更新订阅"
+    SwipeActionCard("swipeSubscription:${sub.id}",revealed,onReveal,124.dp,"显示更新和删除",actions={
+        Row(Modifier.align(Alignment.CenterEnd).padding(end=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            GlassIconButton(onClick={onReveal(false);onUpdate()},enabled=!importing) { Icon(Icons.Default.Refresh,updateLabel) }
+            GlassIconButton(onClick={onReveal(false);onDelete()},colors=IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Default.Delete,"删除订阅") }
+        }
+    }) {
     ContentCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(4.dp),verticalAlignment=Alignment.CenterVertically) {
             GlassTextButton(onClick=onExpand,modifier=Modifier.weight(1f).heightIn(min=80.dp).testTag("subscription:${sub.id}").semantics { stateDescription=if(expanded) "已展开" else "已收起" },shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(12.dp)) {
@@ -27,13 +36,6 @@ import androidx.compose.ui.unit.dp
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Text(sub.name,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface,maxLines=2,overflow=TextOverflow.Ellipsis)
                     Text("${if(sub.isLocalJson) "本地 JSON · " else ""}${sub.sources.size} 个源 · 已启用 $enabledCount 个",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Box {
-                GlassIconButton(onClick={menuOpen=true},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"管理订阅 ${sub.name}") }
-                GlassMenu(expanded=menuOpen,onDismissRequest={menuOpen=false}) {
-                    DropdownMenuItem(text={Text(if(sub.isLocalJson) "重新选择 JSON 文件" else "更新订阅")},enabled=!importing,onClick={menuOpen=false;onUpdate()})
-                    DropdownMenuItem(text={Text("删除订阅",color=MaterialTheme.colorScheme.error)},onClick={menuOpen=false;onDelete()})
                 }
             }
         }
@@ -45,6 +47,8 @@ import androidx.compose.ui.unit.dp
             }
         }
     }
+}
+
 }
 
 @Composable internal fun SubscriptionSourceRow(source:Source,enabled:Boolean,onToggle:()->Unit,onRules:(()->Unit)?=null,availability:Boolean?=null) {

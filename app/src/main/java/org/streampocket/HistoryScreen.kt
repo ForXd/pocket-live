@@ -175,16 +175,23 @@ import androidx.compose.ui.unit.dp
 /** A swipe only reveals the action; deleting always requires an explicit tap. */
 @Composable private fun SwipeHistoryCard(id:String,revealed:Boolean,onReveal:(Boolean)->Unit,onDelete:()->Unit,content:@Composable ()->Unit) {
     val haptic=androidx.compose.ui.platform.LocalHapticFeedback.current
-    val width=with(LocalDensity.current) { 88.dp.toPx() }
+    SwipeActionCard("swipeHistory:$id",revealed,onReveal,88.dp,"显示删除按钮",actions={
+        GlassIconButton(onClick={haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress);onDelete()},modifier=Modifier.align(Alignment.CenterEnd).padding(end=18.dp).size(52.dp).testTag("deleteHistory:$id"),
+            colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Default.Delete,"删除") }
+    },content=content)
+}
+
+@Composable internal fun SwipeActionCard(tag:String,revealed:Boolean,onReveal:(Boolean)->Unit,
+    actionWidth:androidx.compose.ui.unit.Dp,actionLabel:String,actions:@Composable BoxScope.()->Unit,content:@Composable ()->Unit) {
+    val width=with(LocalDensity.current) { actionWidth.toPx() }
     var offset by remember { mutableFloatStateOf(if(revealed) -width else 0f) }
     var release by remember { mutableIntStateOf(0) }
     LaunchedEffect(revealed,width,release) {
         androidx.compose.animation.core.animate(offset,if(revealed) -width else 0f) { value,_->offset=value }
     }
     Surface(Modifier.fillMaxWidth(),shape=ContentCardShape,shadowElevation=2.dp,color=MaterialTheme.colorScheme.surfaceContainerLow) {
-    Box(Modifier.fillMaxWidth().testTag("swipeHistory:$id").semantics { customActions=listOf(CustomAccessibilityAction("显示删除按钮") { onReveal(true);true }) }) {
-        if(offset < -1f) GlassIconButton(onClick={haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress);onDelete()},modifier=Modifier.align(Alignment.CenterEnd).padding(end=18.dp).size(52.dp).testTag("deleteHistory:$id"),
-            colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Default.Delete,"删除") }
+    Box(Modifier.fillMaxWidth().testTag(tag).semantics { customActions=listOf(CustomAccessibilityAction(actionLabel) { onReveal(true);true }) }) {
+        if(offset < -1f) actions()
         Box(Modifier.offset { IntOffset(offset.roundToInt(),0) }.draggable(
             state=rememberDraggableState { offset=(offset+it).coerceIn(-width,0f) },orientation=Orientation.Horizontal,
             onDragStopped={ velocity ->

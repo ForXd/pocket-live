@@ -2,6 +2,7 @@
 package org.streampocket
 
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -73,12 +74,11 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
     val shape=androidx.compose.foundation.shape.RoundedCornerShape(if(indicator) 22.dp else 24.dp)
     val surface=when {
         indicator -> fill
-        selected -> MaterialTheme.colorScheme.surfaceContainerHigh
         else -> Color.Transparent
     }
     androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint) {
         Column(modifier.heightIn(min=if(indicator) 64.dp else 56.dp)
-            .shadow(if(selected && !indicator) 3.dp else 0.dp,shape).clip(shape).background(surface)
+            .clip(shape).background(surface)
             .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick,
                 interactionSource=androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication=androidx.compose.foundation.LocalIndication.current)
@@ -87,5 +87,28 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
             icon()
             Text(label,style=MaterialTheme.typography.labelMedium,fontWeight=if(selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,maxLines=1)
         }
+    }
+}
+
+/** One traveling indicator. The shadow belongs to the moving surface. */
+@Composable internal fun SlidingTabs(index:Int,count:Int,dock:Boolean,modifier:Modifier=Modifier,
+    content:@Composable RowScope.()->Unit) {
+    BoxWithConstraints(modifier) {
+        val gap = if (dock) 4.dp else 0.dp
+        val cell = (maxWidth-gap*(count-1))/count
+        val position by androidx.compose.animation.core.animateDpAsState(
+            targetValue=(cell+gap)*index,
+            animationSpec=androidx.compose.animation.core.spring(dampingRatio=.88f,stiffness=420f),
+            label="tabPosition")
+        Box(Modifier.matchParentSize()) {
+            val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+            if (dock) Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(position.roundToPx(),0) }
+                .width(cell).fillMaxHeight().shadow(3.dp,shape).background(MaterialTheme.colorScheme.surfaceContainerHigh,shape))
+            else Box(Modifier.align(androidx.compose.ui.Alignment.BottomStart)
+                .offset { androidx.compose.ui.unit.IntOffset((position+cell*.25f).roundToPx(),0) }
+                .width(cell*.5f).height(3.dp).background(MaterialTheme.colorScheme.primary,shape))
+        }
+        Row(Modifier.fillMaxWidth().selectableGroup(),horizontalArrangement=Arrangement.spacedBy(gap),
+            verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,content=content)
     }
 }

@@ -137,6 +137,7 @@ class MainActivity : ComponentActivity() {
     },confirmButton={GlassTextButton(enabled=jsonText.isNotBlank() && "new" !in s.importing,onClick={model.message(null);model.importJson(jsonText,onImported={jsonDialog=false;jsonText=""})}) { Text("导入") }},
         dismissButton={GlassTextButton(onClick={model.cancelImport("new");jsonDialog=false;jsonText=""}) { Text("取消") }})
     var delete by remember { mutableStateOf<Subscription?>(null) }
+    var revealedSubscription by remember { mutableStateOf<String?>(null) }
     var expandedSubscription by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(s.loading,s.saved.subscriptions.map { it.id }) {
         if(!s.loading && s.saved.subscriptions.none { it.id==expandedSubscription }) expandedSubscription=null
@@ -220,7 +221,7 @@ class MainActivity : ComponentActivity() {
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
         bottomBar = { if(showDock) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=20.dp,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),color=MaterialTheme.colorScheme.surface,shadowElevation=2.dp) {
-            Row(Modifier.fillMaxWidth().padding(4.dp).selectableGroup(),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
+            SlidingTabs(listOf(0,2,1,3).indexOf(tab).coerceAtLeast(0),4,true,Modifier.fillMaxWidth().padding(4.dp)) {
             listOf(0,2,1,3).forEach { i ->
                 PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                     Modifier.weight(1f).testTag("nav:$i"),indicator=false,icon={navIcon(i)})
@@ -274,7 +275,7 @@ class MainActivity : ComponentActivity() {
                 1 -> Row(Modifier.fillMaxSize()) {
                     LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     item { Text("订阅",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(bottom=12.dp)) }
-                    item { Row(verticalAlignment=Alignment.CenterVertically) {
+                    item { Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
                             modifier=Modifier.weight(1f), style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
                         GlassTextButton(onClick={exportOpen=true}) { Text("分享片源") }
@@ -284,7 +285,8 @@ class MainActivity : ComponentActivity() {
                     s.saved.subscriptions.forEach { sub ->
                         item(key="subscription:${sub.id}") {
                             SubscriptionHeader(sub,expandedSubscription==sub.id,sub.sources.count { it.key !in s.saved.disabled },sub.id in s.importing,
-                                onExpand={expandedSubscription=if(expandedSubscription==sub.id) null else sub.id},
+                                revealed=revealedSubscription==sub.id,onReveal={revealedSubscription=if(it) sub.id else null},
+                                onExpand={revealedSubscription=null;expandedSubscription=if(expandedSubscription==sub.id) null else sub.id},
                                 onUpdate={if(sub.isLocalJson) chooseJson(sub) else model.importSubscription(sub.url,sub)},onCancel={model.cancelImport(sub.id)},onDelete={delete=sub})
                         }
                         // Keep source rows lazy: even a 300-source subscription composes only the viewport.

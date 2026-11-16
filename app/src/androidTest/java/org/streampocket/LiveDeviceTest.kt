@@ -56,6 +56,11 @@ class LiveDeviceTest {
             ui.onNodeWithTag("liveTab").performClick()
             ui.waitUntil(10000) { !model.state.value.liveLoading && model.state.value.liveChannels.size==2 }
             ui.onNodeWithTag("liveChannel:新闻频道").assertIsDisplayed()
+            val tabs = ui.onNodeWithTag("recommendToolbar").fetchSemanticsNode().boundsInRoot
+            val picker = ui.onNodeWithTag("liveSourcePicker").fetchSemanticsNode().boundsInRoot
+            val refresh = ui.onNodeWithTag("liveRefresh").fetchSemanticsNode().boundsInRoot
+            assertTrue("Live actions must clear the tabs", tabs.bottom < refresh.top)
+            assertTrue("Source and refresh targets must be separate", picker.right < refresh.left)
             captureUi(ui,"live-channels")
             ui.onNodeWithTag("searchInput").performTextInput("体育")
             ui.onNodeWithTag("searchInput").performImeAction()

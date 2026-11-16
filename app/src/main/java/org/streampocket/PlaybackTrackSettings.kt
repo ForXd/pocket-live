@@ -23,7 +23,7 @@ import androidx.media3.common.TrackSelectionOverride
     }
     val speed=remember(player,revision) { player.playbackParameters.speed }
     Text("播放速度",style=MaterialTheme.typography.titleSmall)
-    FlowRow(maxItemsInEachRow=3,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+    FlowRow(maxItemsInEachRow=3,horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         listOf(.5f,.75f,1f,1.25f,1.5f,2f).forEach { value ->
             ContentFilterChip(selected=speed==value,onClick={player.setPlaybackSpeed(value)},modifier=Modifier.weight(1f).testTag("speed:$value")) { Text("${value}×") }
         }
@@ -33,7 +33,7 @@ import androidx.media3.common.TrackSelectionOverride
         val groups=tracks.filter { it.type==type }
         if(groups.isNotEmpty()) {
             Text(title,style=MaterialTheme.typography.titleSmall)
-            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 val params=player.trackSelectionParameters
                 ContentFilterChip(selected=if(type==C.TRACK_TYPE_TEXT) type in params.disabledTrackTypes else groups.none { params.overrides.containsKey(it.mediaTrackGroup) },onClick={
                     player.trackSelectionParameters=params.buildUpon().clearOverridesOfType(type).setTrackTypeDisabled(type,type==C.TRACK_TYPE_TEXT).build()

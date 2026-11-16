@@ -79,8 +79,8 @@ class SubscriptionUiDeviceTest {
             scroll("subscription:group-a")
             ui.onNodeWithTag("subscription:group-a").performClick()
             ui.onNodeWithText("直播来源").assertDoesNotExist()
-            ui.onNodeWithContentDescription("管理订阅 我的影视订阅").performClick()
-            ui.onNodeWithText("更新订阅").performClick()
+            ui.onNodeWithTag("swipeSubscription:group-a").performTouchInput { swipeLeft() }
+            ui.onNodeWithContentDescription("更新订阅").performClick()
             ui.waitUntil(15000) { model.state.value.saved.subscriptions.first().sources.size==2 }
             assertTrue(sources[0].key in model.state.value.saved.disabled)
             ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("新增来源"))
@@ -88,12 +88,12 @@ class SubscriptionUiDeviceTest {
             scroll("subscription:group-a")
             ui.onNodeWithTag("subscription:group-a").performClick()
             scroll("subscription:group-b")
-            ui.onNodeWithContentDescription("管理订阅 我的直播订阅").performClick()
-            ui.onNodeWithText("删除订阅").performClick()
+            ui.onNodeWithTag("swipeSubscription:group-b").performTouchInput { swipeLeft() }
+            ui.onNodeWithContentDescription("删除订阅").performClick()
             ui.onNodeWithText("取消").performClick()
             assertEquals(2,model.state.value.saved.subscriptions.size)
-            ui.onNodeWithContentDescription("管理订阅 我的直播订阅").performClick()
-            ui.onNodeWithText("删除订阅").performClick()
+            ui.onNodeWithTag("swipeSubscription:group-b").performTouchInput { swipeLeft() }
+            ui.onNodeWithContentDescription("删除订阅").performClick()
             ui.onNodeWithText("删除",useUnmergedTree=true).performClick()
             ui.waitUntil(5000) { model.state.value.saved.subscriptions.size==1 }
             assertEquals("group-a",model.state.value.saved.subscriptions.single().id)

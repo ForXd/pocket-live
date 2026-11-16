@@ -154,14 +154,14 @@ import androidx.compose.ui.text.style.TextOverflow
     }
     Column(Modifier.fillMaxSize()) {
         val selectedTab=if(liveTab.value) 2 else if(recommendations.value) 0 else 1
-        val tabs:@Composable ()->Unit = {
-            Tab(unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && recommendations.value,onClick={liveTab.value=false;recommendations.value=true},text={Text("推荐")})
-            Tab(unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && !recommendations.value,onClick={liveTab.value=false;recommendations.value=false},text={Text("分类")})
-            Tab(unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=liveTab.value,onClick={liveTab.value=true},text={Text("直播")},modifier=Modifier.testTag("liveTab"))
+        val tabs:@Composable RowScope.()->Unit = {
+            Tab(modifier=Modifier.weight(1f),unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && recommendations.value,onClick={liveTab.value=false;recommendations.value=true},text={Text("推荐")})
+            Tab(modifier=Modifier.weight(1f),unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && !recommendations.value,onClick={liveTab.value=false;recommendations.value=false},text={Text("分类")})
+            Tab(modifier=Modifier.weight(1f).testTag("liveTab"),unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=liveTab.value,onClick={liveTab.value=true},text={Text("直播")})
         }
         Row(Modifier.fillMaxWidth().testTag("recommendToolbar"),verticalAlignment=Alignment.CenterVertically) {
-            PrimaryScrollableTabRow(selectedTabIndex=selectedTab,edgePadding=20.dp,containerColor=MaterialTheme.colorScheme.background,modifier=Modifier.weight(1f),divider={},tabs=tabs)
-            if(recommendations.value && !liveTab.value) GlassIconButton(onClick={recommendationFilters.value=true},modifier=Modifier.padding(end=12.dp).testTag("recommendCategoryPicker")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"筛选推荐") }
+            SlidingTabs(selectedTab,3,false,Modifier.weight(1f).padding(start=20.dp),content=tabs)
+            if(recommendations.value && !liveTab.value) GlassIconButton(onClick={recommendationFilters.value=true},modifier=Modifier.padding(end=12.dp).testTag("recommendCategoryPicker")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"筛选推荐") } else Spacer(Modifier.width(60.dp))
         }
         if(liveTab.value) { LiveScreen(s,model,liveQuery,addSource);return@Column }
         if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort,{ recommendationSort=it },onTop,recommendationFilters); return@Column }
@@ -345,7 +345,7 @@ import androidx.compose.ui.text.style.TextOverflow
     if(rating!=null) Surface(modifier=modifier.testTag("${prefix}Rating:${video.id}").semantics { contentDescription="${if(prefix=="recommend") "豆瓣" else "来源"}评分 $rating 分" },
         shape=RoundedCornerShape(50),color=Color(0xdd111113),contentColor=Color.White) {
         Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-            Icon(Icons.Default.Star,null,Modifier.size(12.dp),tint=if(prefix=="recommend") Color(0xffffc12b) else Color.White)
+            Icon(Icons.Default.Star,null,Modifier.size(12.dp),tint=Color(0xffffc12b))
             Text(rating,style=MaterialTheme.typography.labelSmall)
         }
     }

@@ -101,7 +101,7 @@ import kotlinx.coroutines.launch
                             if(!wide) Poster(detail.video,model,Modifier.fillMaxWidth().height(backdropHeight),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
                             Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,MaterialTheme.colorScheme.background),startY=with(LocalDensity.current) { (backdropHeight-160.dp).toPx() },endY=with(LocalDensity.current) { (backdropHeight-100.dp).toPx() })))
                             Column(Modifier.fillMaxWidth().padding(start=24.dp,end=24.dp,top=if(wide) 20.dp else backdropHeight-100.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                Text(detail.video.title,style=MaterialTheme.typography.headlineLarge,color=MaterialTheme.colorScheme.onSurface)
+                                Text(detail.video.title,style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.onSurface)
                                 Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
                                     Text(detail.video.source.name,Modifier.weight(1f),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                     if(detail.video.rating!=null) Text("★ ${detail.video.rating}",style=MaterialTheme.typography.labelLarge,color=Color(0xffffd580))
@@ -112,14 +112,40 @@ import kotlinx.coroutines.launch
                         }
                     }
                     if(!wide && detail.description.isNotBlank()) item(key="description") {
-                        Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).animateContentSize()) {
+                        ContentCard(Modifier.fillMaxWidth().padding(horizontal=20.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp).animateContentSize(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Text("剧情简介",style=MaterialTheme.typography.titleSmall)
                             Text(detail.description,onTextLayout={if(!expanded) descriptionOverflows=it.hasVisualOverflow},maxLines=if(expanded) Int.MAX_VALUE else 3,
                                 overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             if(expanded || descriptionOverflows) GlassTextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
                         }
                     }
+                    }
                     item(key="playback-actions") {
                         Column(Modifier.fillMaxWidth()) {
+                        ContentCard(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp)) {
+                            Column {
+                                Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                    val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull { it.url==verified?.url } ?: line?.episodes?.firstOrNull()
+                                    Row(Modifier.fillMaxWidth().testTag("detailPlaybackSummary"),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                                        primary?.let { episode ->
+                                            Text(episode.name,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
+                                            latest?.let { entry ->
+                                                val time=android.text.format.DateUtils.formatElapsedTime((entry.playback.position/1000).coerceAtLeast(0))
+                                                Text("已观看 $time",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier=Modifier.semantics { contentDescription="上次播放位置 $time" })
+                                            }
+                                        }
+                                    }
+                                    latest?.let { WatchProgress(it.playback) }
+                                    Button(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=MaterialTheme.shapes.medium,
+                                        modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("detailPlay")) {
+                                        Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp))
+                                        Text(if(primary==null) "暂无剧集" else if(latest!=null) "继续观看" else "立即播放")
+                                    }
+                                }
+                            }
+                        }
                             Box(Modifier.padding(horizontal=20.dp)) { CollectionControls(detail.video,state,model,model::open) }
                             if(wide && detail.description.isNotBlank()) Text(detail.description,Modifier.padding(horizontal=20.dp),maxLines=if(expanded) Int.MAX_VALUE else 4,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             if(wide && detail.description.isNotBlank()) GlassTextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
@@ -136,29 +162,7 @@ import kotlinx.coroutines.launch
                                     }
                                 }
                             }
-            ContentCard(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp)) {
-                Column {
-                    Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                        val primary=latest?.playback?.episode ?: line?.episodes?.firstOrNull { it.url==verified?.url } ?: line?.episodes?.firstOrNull()
-                        Row(Modifier.fillMaxWidth().testTag("detailPlaybackSummary"),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                            primary?.let { episode ->
-                                Text(episode.name,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
-                                latest?.let { entry ->
-                                    val time=android.text.format.DateUtils.formatElapsedTime((entry.playback.position/1000).coerceAtLeast(0))
-                                    Text("已观看 $time",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier=Modifier.semantics { contentDescription="上次播放位置 $time" })
-                                }
-                            }
-                        }
-                        latest?.let { WatchProgress(it.playback) }
-                        GlassButton(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=MaterialTheme.shapes.medium,
-                            modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("detailPlay")) {
-                            Icon(painterResource(R.drawable.ic_play),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp))
-                            Text(if(primary==null) "暂无剧集" else if(latest!=null) "继续观看" else "立即播放")
-                        }
-                    }
-                }
-            }
+
 
                         }
                     }

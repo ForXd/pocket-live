@@ -35,11 +35,11 @@ import androidx.compose.ui.unit.dp
         }
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically) {
-            GlassTextButton(onClick={picker=true},enabled=sources.isNotEmpty(),shape=MaterialTheme.shapes.medium,modifier=Modifier.weight(4f,false).testTag("liveSourcePicker")) {
+        if(sources.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+            GlassTextButton(onClick={picker=true},enabled=sources.isNotEmpty(),shape=MaterialTheme.shapes.medium,modifier=Modifier.weight(1f).testTag("liveSourcePicker")) {
                 Text(sources.find { it.key==s.liveSourceKey }?.name ?: "选择直播来源",modifier=Modifier.weight(1f,false),maxLines=1,overflow=TextOverflow.Ellipsis);Icon(Icons.Default.ArrowDropDown,null,Modifier.size(20.dp))
             }
-            Spacer(Modifier.weight(1f));GlassIconButton(onClick={model.loadLive(refresh=true)},enabled=sources.isNotEmpty() && !s.liveLoading,modifier=Modifier.testTag("liveRefresh")) { Icon(Icons.Default.Refresh,"刷新频道") }
+            GlassIconButton(onClick={model.loadLive(refresh=true)},enabled=sources.isNotEmpty() && !s.liveLoading,modifier=Modifier.testTag("liveRefresh")) { Icon(Icons.Default.Refresh,"刷新频道") }
         }
         if(groups.isNotEmpty()) LazyRow(contentPadding=PaddingValues(horizontal=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             item { ContentFilterChip(group.isEmpty(),{group=""},label={Text("全部")}) }
