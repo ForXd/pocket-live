@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
@@ -23,10 +25,10 @@ import androidx.compose.ui.unit.dp
 @Composable fun DetailScreen(detail:Detail,model:AppModel) {
     val state by model.state.collectAsState()
     val progress = remember(detail.video,state.saved.history) { episodeProgress(detail.video,state.saved.history) }
-    val recent = remember(detail,state.saved.history) { detailResume(detail,state.saved.history)?.playback?.episode }
+    val recent = remember(detail,state.saved.history) { detailResume(detail,state.saved.history)?.playback }
     val verified = state.probeEpisodes[detail.video.probeKey()]
     val lines = remember(detail) { detail.lines.filter { it.episodes.isNotEmpty() } }
-    val primary = recent ?: verified?.let { match -> lines.firstNotNullOfOrNull { l -> l.episodes.find { it.url==match.url } } }
+    val primary = recent?.episode ?: verified?.let { match -> lines.firstNotNullOfOrNull { l -> l.episodes.find { it.url==match.url } } }
         ?: lines.firstOrNull()?.episodes?.firstOrNull()
     var choosing by rememberSaveable(detail.video.id,detail.video.source.key) { mutableStateOf(false) }
     var expanded by rememberSaveable(detail.video.id,detail.video.source.key) { mutableStateOf(false) }
@@ -53,26 +55,48 @@ import androidx.compose.ui.unit.dp
         Column(Modifier.fillMaxSize()) {
             Box {
                 Poster(detail.video,model,Modifier.fillMaxWidth().height(coverHeight),contentScale=ContentScale.Crop,large=true)
+                Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.82f)))))
+                Text(detail.video.title,Modifier.align(Alignment.BottomStart).padding(20.dp),
+                    style=MaterialTheme.typography.headlineMedium,color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
                 IconButton(onClick=model::closeDetail,modifier=Modifier.align(Alignment.TopStart).padding(8.dp),
                     colors=IconButtonDefaults.iconButtonColors(containerColor=Color.Black.copy(alpha=.5f),contentColor=Color.White)) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回")
                 }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                Text(detail.video.title,Modifier.weight(1f),style=MaterialTheme.typography.titleLarge,maxLines=2,overflow=TextOverflow.Ellipsis)
-                GlassButton(onClick={choosing=true},enabled=lines.isNotEmpty(),modifier=Modifier.testTag("detailEpisodes")) { Text("选集") }
-                FilledIconButton(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=CircleShape,
-                    modifier=Modifier.size(52.dp).testTag("detailPlay")) {
-                    Icon(painterResource(R.drawable.ic_play),if(recent!=null) "继续观看" else "立即播放")
+                val fraction = recent?.takeIf { it.duration > 0 }?.let { (it.position.toFloat()/it.duration).coerceIn(0f,1f) }
+                Box(Modifier.size(56.dp),contentAlignment=Alignment.Center) {
+                    if(fraction!=null) CircularProgressIndicator(progress={fraction},modifier=Modifier.fillMaxSize().testTag("detailProgress"),
+                        strokeWidth=3.dp,color=MaterialTheme.colorScheme.primary,trackColor=MaterialTheme.colorScheme.surfaceVariant)
+                    FilledIconButton(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=CircleShape,
+                        modifier=Modifier.size(48.dp).testTag("detailPlay")) {
+                        Icon(painterResource(R.drawable.ic_play),if(recent!=null) "继续观看" else "立即播放")
+                    }
                 }
+                Column(Modifier.weight(1f)) {
+                    Text(primary?.name ?: "暂无可播放剧集",style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    val quality = primary?.quality ?: VideoQuality()
+                    val resolution = when {
+                        quality.evidence==QualityEvidence.MEASURED -> quality.label
+                        primary!=null && verified?.url==primary.url && state.probeResolutions[detail.video.probeKey()]!=null -> state.probeResolutions.getValue(detail.video.probeKey())
+                        quality.evidence!=QualityEvidence.UNKNOWN -> quality.label
+                        else -> detail.video.quality.takeUnless { it.evidence==QualityEvidence.MEASURED }?.label ?: "清晰度未知"
+                    }
+                    Text("${detail.video.source.name} · $resolution",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                OutlinedButton(onClick={choosing=true},enabled=lines.isNotEmpty(),modifier=Modifier.testTag("detailEpisodes")) { Text("选集 ›") }
             }
+            HorizontalDivider(Modifier.padding(horizontal=20.dp))
             if(synopsis.isNotEmpty()) Column(Modifier.fillMaxWidth().weight(1f).padding(horizontal=20.dp,vertical=8.dp)) {
                 var overflow by remember(synopsis) { mutableStateOf(false) }
-                if(expanded) GlassTextButton(onClick={expanded=false}) { Text("收起简介") }
+                Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {
+                    Text("剧情简介",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
+                    if(expanded || overflow) GlassTextButton(onClick={expanded=!expanded}) { Text(if(expanded) "收起简介" else "展开简介") }
+                }
                 Text(synopsis,modifier=Modifier.weight(1f,false).then(if(expanded) Modifier.verticalScroll(rememberScrollState()) else Modifier),
                     maxLines=if(expanded) Int.MAX_VALUE else 3,overflow=TextOverflow.Ellipsis,
                     onTextLayout={if(!expanded) overflow=it.hasVisualOverflow},style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                if(!expanded && overflow) GlassTextButton(onClick={expanded=true}) { Text("展开简介") }
+
             }
         }
     }

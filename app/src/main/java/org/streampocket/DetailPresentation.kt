@@ -7,6 +7,8 @@ internal fun detailResume(detail:Detail,history:List<History>):History? {
     return history.filter { it.playback.video.source.key==detail.video.source.key &&
         it.playback.video.id==detail.video.id && it.playback.episode.url in episodes }
         .maxByOrNull { it.updated }?.let { entry ->
-            entry.copy(playback=entry.playback.copy(episode=episodes.getValue(entry.playback.episode.url)))
+            val current = episodes.getValue(entry.playback.episode.url)
+            val measured = entry.playback.episode.quality.takeIf { it.evidence == QualityEvidence.MEASURED }
+            entry.copy(playback=entry.playback.copy(episode=current.copy(quality=measured ?: current.quality)))
         }
 }

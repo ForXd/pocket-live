@@ -56,6 +56,8 @@ class DetailLayoutDeviceTest {
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     @Test fun oneScreenResumeAndEpisodeSheet() {
         ui.onNodeWithTag("detailPlay").assertIsDisplayed().assertContentDescriptionContains("继续观看")
+        ui.onNodeWithText("第17集").assertIsDisplayed()
+        ui.onNodeWithTag("detailProgress").assertRangeInfoEquals(androidx.compose.ui.semantics.ProgressBarRangeInfo(.5f,0f..1f))
         ui.onNodeWithText("展开简介").performClick()
         ui.onNodeWithText("收起简介").performClick()
         ui.onNodeWithTag("detailPlay").performClick()
@@ -68,6 +70,14 @@ class DetailLayoutDeviceTest {
         ui.onNodeWithTag("detailLine:1").performClick()
         ui.onNodeWithText("特别篇").performClick()
         ui.waitUntil(5000) { model.state.value.playback?.episode?.url=="$base/special.mp4" }
+    }
+    @Test fun firstVisitShowsFirstEpisodeWithoutHistoryRing() {
+        val fresh = Detail(video.copy(id="new"),"",listOf(Line("主线路",listOf(Episode("第1集","$base/main/1.mp4")))))
+        ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(fresh,model) } } }
+        ui.onNodeWithText("第1集").assertIsDisplayed()
+        ui.onNodeWithText("星河片库 · 清晰度未知").assertIsDisplayed()
+        ui.onNodeWithTag("detailProgress").assertDoesNotExist()
+        ui.onNodeWithTag("detailPlay").assertContentDescriptionContains("立即播放")
     }
     @Test fun emptyDetailDisablesPlayback() {
         ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(Detail(video,"",emptyList()),model) } } }
