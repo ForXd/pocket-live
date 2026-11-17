@@ -53,9 +53,6 @@ import androidx.compose.ui.unit.dp
     val sources=remember(history) { history.map { it.playback.video.source }.distinctBy { it.key } }
 
     var revealed by rememberSaveable { mutableStateOf<String?>(null) }
-    var expanded by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedHistoryWork by rememberSaveable { mutableStateOf<String?>(null) }
-    var expandedEpisode by rememberSaveable { mutableStateOf<String?>(null) }
     var clearing by remember { mutableStateOf(false) }
     val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
     LaunchedEffect(imeVisible) { if(imeVisible) searchScroll.reveal() }
@@ -104,16 +101,11 @@ import androidx.compose.ui.unit.dp
     }
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).testTag("historyGroups")) {
         if(groups.isEmpty()) item { EmptyPanel(if(history.isEmpty()) "还没有观看记录" else "没有匹配记录",if(history.isEmpty()) "播放影片后，可在这里继续观看。" else "试试其他关键词或重置筛选。",R.drawable.ic_history) }
-        groups.forEach { group ->
-            val latest=group.latest
-            val id=group.key.stableKey
-            val seasonVideos=if (expanded != id) emptyList() else group.entries.map { it.playback.video }.distinctBy { VideoGroups.workKey(it) }
-            val selectedVideo=seasonVideos.firstOrNull { VideoGroups.workKey(it)==selectedHistoryWork } ?: latest.playback.video
-            val seasonEntries=if (expanded != id) emptyList() else group.entries.filter { VideoGroups.sameWork(it.playback.video,selectedVideo) }
-            item(key="group:$id") {
-                val shown=if(expanded==id) seasonEntries.first() else latest
+        items(groups,key={it.key.stableKey}) { group ->
+            val shown = group.latest
+            val id = group.key.stableKey
                 SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{remove(group.key);revealed=null}) {
-                Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { expanded=if(expanded==id) null else id;expandedEpisode=null }.padding(16.dp).testTag("historyGroup:$id")) {
+                Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { if(revealed==id) revealed=null else resume(shown) }.testTag("historyGroup:$id").padding(16.dp)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         if(model!=null) Poster(shown.playback.video,model,Modifier.size(72.dp,104.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -128,42 +120,6 @@ import androidx.compose.ui.unit.dp
                             Icon(painterResource(R.drawable.ic_play),"继续观看")
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    if(expanded==id) SeasonChips(seasonVideos,selectedVideo,{selectedHistoryWork=VideoGroups.workKey(it);expandedEpisode=null})
-                    GlassTextButton(onClick={expanded=if(expanded==id) null else id;expandedEpisode=null},modifier=Modifier.testTag("expandHistory:$id")) { Text(if(expanded==id) "收起分集进度" else "分集进度 · ${group.episodes.size} 集") }
-                }
-            }
-            }
-            if(expanded==id) HistoryGroup(group.key,seasonEntries).episodes.forEach { episode ->
-                val episodeId="$id:${episode.key}"
-                item(key="episode-group:$episodeId") {
-                    ContentCard(Modifier.fillMaxWidth().padding(start=12.dp).testTag("historyEpisodeGroup:$episodeId")) {
-                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                                    Text(episode.latest.playback.episode.name,style=MaterialTheme.typography.titleMedium)
-                                    Text(HistoryGroups.progress(episode.latest),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                GlassIconButton(onClick={resume(episode.latest)},modifier=Modifier.size(48.dp).testTag("continueEpisode:$episodeId")) {
-                                    Icon(painterResource(R.drawable.ic_play),if(watchFraction(episode.latest.playback)==1f) "重新播放本集" else "继续本集")
-                                }
-                            }
-                            WatchProgress(episode.latest.playback)
-                            if(episode.entries.size>1) GlassTextButton(onClick={expandedEpisode=if(expandedEpisode==episodeId) null else episodeId},modifier=Modifier.testTag("expandEpisode:$episodeId")) {
-                                Text(if(expandedEpisode==episodeId) "收起来源" else "查看 ${episode.entries.size} 个来源")
-                            }
-                        }
-                    }
-                }
-                if(expandedEpisode==episodeId) items(episode.entries,key={"record:$id:${it.playback.key}"}) { entry ->
-                    ContentCard(onClick={resume(entry)},modifier=Modifier.fillMaxWidth().padding(start=24.dp).testTag("historyEpisode:${entry.playback.key}")) {
-                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            Text(entry.playback.video.source.name,style=MaterialTheme.typography.titleSmall)
-                            Text(entry.playback.episode.name,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
-                            WatchProgress(entry.playback)
-                            Text(HistoryGroups.progress(entry),style=MaterialTheme.typography.bodySmall)
-                        }
-                    }
                 }
             }
         }
@@ -175,23 +131,33 @@ import androidx.compose.ui.unit.dp
 /** A swipe only reveals the action; deleting always requires an explicit tap. */
 @Composable private fun SwipeHistoryCard(id:String,revealed:Boolean,onReveal:(Boolean)->Unit,onDelete:()->Unit,content:@Composable ()->Unit) {
     val haptic=androidx.compose.ui.platform.LocalHapticFeedback.current
-    SwipeActionCard("swipeHistory:$id",revealed,onReveal,88.dp,"显示删除按钮",actions={
-        GlassIconButton(onClick={haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress);onDelete()},modifier=Modifier.align(Alignment.CenterEnd).padding(end=18.dp).size(52.dp).testTag("deleteHistory:$id"),
-            colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Default.Delete,"删除") }
+    SwipeActionCard("swipeHistory:$id",revealed,onReveal,64.dp,"显示删除按钮",actions={
+        SwipeTile(onClick={haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress);onDelete()},
+            modifier=Modifier.testTag("deleteHistory:$id"),destructive=true) { Icon(Icons.Default.Delete,"删除") }
     },content=content)
 }
 
+@Composable internal fun SwipeTile(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
+    destructive:Boolean=false,icon:@Composable ()->Unit) {
+    Surface(onClick=onClick,enabled=enabled,modifier=modifier.fillMaxHeight().width(56.dp),
+        shape=ContentCardShape,border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant),
+        color=if(destructive) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+        contentColor=if(destructive) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer) {
+        Box(contentAlignment=Alignment.Center) { icon() }
+    }
+}
+
 @Composable internal fun SwipeActionCard(tag:String,revealed:Boolean,onReveal:(Boolean)->Unit,
-    actionWidth:androidx.compose.ui.unit.Dp,actionLabel:String,actions:@Composable BoxScope.()->Unit,content:@Composable ()->Unit) {
+    actionWidth:androidx.compose.ui.unit.Dp,actionLabel:String,actions:@Composable RowScope.()->Unit,content:@Composable ()->Unit) {
     val width=with(LocalDensity.current) { actionWidth.toPx() }
     var offset by remember { mutableFloatStateOf(if(revealed) -width else 0f) }
     var release by remember { mutableIntStateOf(0) }
     LaunchedEffect(revealed,width,release) {
         androidx.compose.animation.core.animate(offset,if(revealed) -width else 0f) { value,_->offset=value }
     }
-    Surface(Modifier.fillMaxWidth(),shape=ContentCardShape,shadowElevation=2.dp,color=MaterialTheme.colorScheme.surfaceContainerLow) {
-    Box(Modifier.fillMaxWidth().testTag(tag).semantics { customActions=listOf(CustomAccessibilityAction(actionLabel) { onReveal(true);true }) }) {
-        if(offset < -1f) actions()
+    Box(Modifier.fillMaxWidth().clip(ContentCardShape).testTag(tag).semantics { customActions=listOf(CustomAccessibilityAction(actionLabel) { onReveal(true);true }) }) {
+        if(offset < -1f) Row(Modifier.matchParentSize(),horizontalArrangement=Arrangement.spacedBy(8.dp,Alignment.End),
+            content=actions)
         Box(Modifier.offset { IntOffset(offset.roundToInt(),0) }.draggable(
             state=rememberDraggableState { offset=(offset+it).coerceIn(-width,0f) },orientation=Orientation.Horizontal,
             onDragStopped={ velocity ->
@@ -199,6 +165,5 @@ import androidx.compose.ui.unit.dp
                 onReveal(open)
                 release++
             })) { content() }
-    }
     }
 }

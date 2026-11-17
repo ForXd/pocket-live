@@ -21,12 +21,9 @@ import androidx.compose.ui.unit.dp
 
 @Composable internal fun SubscriptionHeader(sub:Subscription,expanded:Boolean,enabledCount:Int,importing:Boolean,revealed:Boolean,onReveal:(Boolean)->Unit,onExpand:()->Unit,onUpdate:()->Unit,onCancel:()->Unit,onDelete:()->Unit) {
     val updateLabel = if(sub.isLocalJson) "重新选择 JSON 文件" else "更新订阅"
-    SwipeActionCard("swipeSubscription:${sub.id}",revealed,onReveal,124.dp,"显示更新和删除",actions={
-        Row(Modifier.align(Alignment.CenterEnd).padding(end=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            GlassIconButton(onClick={onReveal(false);onUpdate()},enabled=!importing) { Icon(Icons.Default.Refresh,updateLabel) }
-            GlassIconButton(onClick={onReveal(false);onDelete()},colors=IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Default.Delete,"删除订阅") }
-        }
+    SwipeActionCard("swipeSubscription:${sub.id}",revealed,onReveal,128.dp,"显示更新和删除",actions={
+        SwipeTile(onClick={onReveal(false);onUpdate()},enabled=!importing) { Icon(Icons.Default.Refresh,updateLabel) }
+        SwipeTile(onClick={onReveal(false);onDelete()},destructive=true) { Icon(Icons.Default.Delete,"删除订阅") }
     }) {
     ContentCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(4.dp),verticalAlignment=Alignment.CenterVertically) {

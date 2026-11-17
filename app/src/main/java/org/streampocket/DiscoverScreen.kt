@@ -261,11 +261,10 @@ import androidx.compose.ui.text.style.TextOverflow
         }
     }
     fun refresh() { if(!s.recommendLoading) { refreshing=true;recommendationDemand=-1;model.recommend() } }
-    var draftTag by rememberSaveable { mutableStateOf(s.recommendTag) }
-    LaunchedEffect(categoryPicker.value) { if(categoryPicker.value) draftTag=s.recommendTag }
-    val focus=androidx.compose.ui.platform.LocalFocusManager.current
-    val keyboard=LocalSoftwareKeyboardController.current
     if(categoryPicker.value) HandleOnlySheet(onDismissRequest={categoryPicker.value=false}) {
+        var draftType by rememberSaveable { mutableStateOf(s.recommendType) }
+        var draftTag by rememberSaveable { mutableStateOf(s.recommendTag) }
+        var draftSort by rememberSaveable { mutableStateOf(sort) }
         SheetSystemBars()
         Column(Modifier.fillMaxWidth()) {
             LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("recommendCategorySheet"),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp)) {
@@ -273,13 +272,20 @@ import androidx.compose.ui.text.style.TextOverflow
                     Text("推荐分类",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                     GlassTextButton(onClick={categoryPicker.value=false}) { Text("取消") }
                 } }
-                item { Row(verticalAlignment=Alignment.CenterVertically) {
-                    listOf("tv" to "剧集","movie" to "电影").forEach { (type,label) -> ContentFilterChip(selected=s.recommendType==type,onClick={if(s.recommendType!=type) { draftTag="热门";model.recommend(type) }},modifier=Modifier.testTag("recommendType:$type"),label={Text(label)}) }
-                    Spacer(Modifier.weight(1f));DiscoverySortControl(sort,onSort,s.recommendations,true,compact=true)
+                item { Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    listOf("tv" to "剧集","movie" to "电影").forEach { (type,label) -> ContentFilterChip(selected=draftType==type,onClick={if(draftType!=type) { draftType=type;draftTag="热门" }},modifier=Modifier.testTag("recommendType:$type"),label={Text(label)}) }
+                    Spacer(Modifier.weight(1f))
                     GlassIconButton(onClick={refresh();categoryPicker.value=false},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Refresh,"刷新推荐") }
                 } }
+                item { Text("排序",Modifier.padding(top=8.dp),style=MaterialTheme.typography.titleSmall) }
+                item { FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    DiscoverySort.entries.filter { it!=DiscoverySort.UPDATED }.forEach { option ->
+                        ContentFilterChip(selected=draftSort==option,onClick={draftSort=option},label={Text(option.label)})
+                    }
+                } }
+                item { Text("题材",Modifier.padding(top=8.dp),style=MaterialTheme.typography.titleSmall) }
                 item { FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Recommendations.tags(s.recommendType).forEach { tag ->
+                    Recommendations.tags(draftType).forEach { tag ->
                         ContentFilterChip(selected=draftTag==tag,onClick={draftTag=tag},reserveSelectionSpace=true,
                             modifier=Modifier.testTag("recommendCategory:$tag"),label={Text(tag)})
                     }
@@ -287,8 +293,8 @@ import androidx.compose.ui.text.style.TextOverflow
             }
             HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
-                GlassTextButton(onClick={draftTag="热门"}) { Text("重置") }
-                GlassButton(shape=MaterialTheme.shapes.medium,onClick={categoryPicker.value=false;model.recommend(tag=draftTag)},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("applyRecommendCategory")) { Text("应用") }
+                GlassTextButton(onClick={draftTag="热门";draftSort=DiscoverySort.DEFAULT}) { Text("重置") }
+                GlassButton(shape=MaterialTheme.shapes.medium,onClick={categoryPicker.value=false;onSort(draftSort);if(draftType!=s.recommendType || draftTag!=s.recommendTag) model.recommend(draftType,draftTag)},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("applyRecommendCategory")) { Text("应用") }
             }
         }
     }

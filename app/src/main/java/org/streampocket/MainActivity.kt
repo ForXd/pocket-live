@@ -262,8 +262,8 @@ class MainActivity : ComponentActivity() {
                 Box(Modifier.fillMaxSize()) {
                     if(wide && searchMode) Row(Modifier.fillMaxSize()) {
                         Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1}) }
-                        Box(Modifier.weight(.62f)) { DetailScreen(detail,model,splitArtwork=false) { model.closeDetail();search(detail.video.title) } }
-                    } else DetailScreen(detail,model) { model.closeDetail();search(detail.video.title) }
+                        Box(Modifier.weight(.62f)) { DetailScreen(detail,model) }
+                    } else DetailScreen(detail,model)
                 }
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {

@@ -438,7 +438,7 @@ import kotlinx.coroutines.delay
 }
 
 /** Presentation only; selection delegates to the existing session owner. */
-@Composable private fun PlaybackEpisodeGrid(episodes:List<Episode>,currentUrl:String,select:(Episode)->Unit,history:Map<String,Playback>,modifier:Modifier=Modifier) {
+@Composable internal fun PlaybackEpisodeGrid(episodes:List<Episode>,currentUrl:String,select:(Episode)->Unit,history:Map<String,Playback>,modifier:Modifier=Modifier) {
     val playingIndex=episodes.indexOfFirst { it.url==currentUrl }
     val selected=playingIndex.coerceAtLeast(0)
     val grid=rememberLazyGridState(initialFirstVisibleItemIndex=selected)

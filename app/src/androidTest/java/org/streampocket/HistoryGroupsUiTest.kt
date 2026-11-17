@@ -23,28 +23,22 @@ class HistoryGroupsUiTest {
         val id=HistoryGroups.key(a.playback.video).stableKey
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyGroup:$id"))
         ui.onNodeWithTag("continue:$id").performClick();ui.runOnIdle { assertEquals(sameEpisode,selected) }
-        ui.onNodeWithTag("expandHistory:$id").performClick()
-        val episodeId="$id:${HistoryGroups.episodeKey(a)}"
-        ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continueEpisode:$episodeId"))
-        ui.onNodeWithTag("continueEpisode:$episodeId").performClick();ui.runOnIdle { assertEquals(sameEpisode,selected) }
-        ui.onNodeWithTag("expandEpisode:$episodeId").performClick()
-        ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyEpisode:${sameEpisode.playback.key}"))
-        ui.onNodeWithTag("historyEpisode:${sameEpisode.playback.key}").performClick();ui.runOnIdle { assertEquals(81000L,selected!!.playback.position) }
-        ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyEpisode:${a.playback.key}"))
-        ui.onNodeWithTag("historyEpisode:${a.playback.key}").performClick();ui.runOnIdle { assertEquals(a,selected) }
+        ui.onNodeWithText("分集进度",substring=true).assertDoesNotExist()
         val instrument=InstrumentationRegistry.getInstrumentation()
-        val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"history-code7").apply { mkdirs() }
-        instrument.uiAutomation.takeScreenshot()?.let { image -> try { java.io.File(dir,"expanded.png").outputStream().use { image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { image.recycle() } }
-        ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyGroup:$id"))
         ui.onNodeWithTag("swipeHistory:$id").performTouchInput { swipeLeft() }
         ui.runOnIdle { assertEquals(5,records.value.size) }
         ui.onNodeWithTag("deleteHistory:$id").assertIsDisplayed()
+        val card=ui.onNodeWithTag("historyGroup:$id").getUnclippedBoundsInRoot()
+        val action=ui.onNodeWithTag("deleteHistory:$id").getUnclippedBoundsInRoot()
+        assertEquals(card.top.value,action.top.value,1f)
+        assertEquals(card.bottom.value,action.bottom.value,1f)
+        assertTrue(card.right < action.left)
         captureUi(ui,"history-swipe-delete")
         ui.onNodeWithContentDescription("删除").performClick();ui.runOnIdle { assertEquals(listOf(b),records.value) }
         ui.onNodeWithTag("historyGroups").performScrollToIndex(0)
         ui.onNodeWithContentDescription("筛选历史").performClick()
         ui.onNodeWithText("清空历史").performClick();ui.onNodeWithText("清空").performClick()
         ui.onNodeWithText("还没有观看记录").assertExists()
-        instrument.sendStatus(0,android.os.Bundle().apply { putString("history_ui_result","grouped latest continue;expanded episode continue;delete one group;clear passed;Compose swipe gesture and explicit delete tap") })
+        instrument.sendStatus(0,android.os.Bundle().apply { putString("history_ui_result","grouped latest continue;delete one group;clear passed;Compose swipe gesture and explicit delete tap") })
     }
 }

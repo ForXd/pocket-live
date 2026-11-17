@@ -135,11 +135,12 @@ class AppFlowDeviceTest {
             ui.onNodeWithText("测试源").performClick()
             ui.waitUntil(60000) { model.state.value.detail!=null }
             if(fullFlow) {
-                ui.onNodeWithTag("detailSearchSame").performClick()
+                ui.onNodeWithContentDescription("返回").performClick()
                 ui.waitUntil(60000) { !model.state.value.searching && model.state.value.results.size==2 }
                 ui.onNode(hasText("测试源2 · ",substring=true)).performClick()
                 ui.waitUntil(60000) { model.state.value.detail?.video?.source?.name=="测试源2" }
                 failMedia.set(true)
+                ui.onNodeWithTag("detailEpisodes").performClick()
                 ui.onNodeWithText("MP4集").performClick()
                 ui.waitUntil(60000) { ui.onAllNodes(hasText("播放失败",substring=true)).fetchSemanticsNodes().isNotEmpty() }
                 val framesBeforeRetry=PlaybackMetrics.frames
@@ -172,9 +173,8 @@ class AppFlowDeviceTest {
             for((cycle,label) in (listOf("MP4集","HLS集")+List(stress) { if(it%2==0) "MP4集" else "HLS集" }).withIndex()) {
                 val frames=PlaybackMetrics.frames
                 val frameStart=android.os.SystemClock.elapsedRealtime()
-                ui.onNodeWithTag("detailGrid").performScrollToNode(hasText(if(label=="HLS集") "HLS · 1 集" else "MP4 · 1 集"))
-                ui.onNodeWithText(if(label=="HLS集") "HLS · 1 集" else "MP4 · 1 集").performClick()
-                ui.onNodeWithTag("detailGrid").performScrollToNode(hasText(label))
+                ui.onNodeWithTag("detailEpisodes").performClick()
+                ui.onNodeWithText(if(label=="HLS集") "HLS" else "MP4").performClick()
                 ui.onNodeWithText(label).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
                 ui.waitUntil(120000) { PlaybackMetrics.frames>frames }
                 val firstFrame=android.os.SystemClock.elapsedRealtime()-frameStart

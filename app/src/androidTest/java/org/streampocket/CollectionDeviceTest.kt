@@ -84,13 +84,14 @@ class CollectionDeviceTest {
             capture("01b-sources")
             ui.onNodeWithTag("sourceChoice:${b.key}:s2").performScrollTo().performClick()
             ui.waitUntil(10000) { model.state.value.detail?.video?.id=="s2" && model.state.value.detail?.video?.source?.key==b.key }
-            ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("season:1:"))
-            ui.onNode(hasTestTag("season:1:") and hasAnyAncestor(hasTestTag("detailGrid"))).performClick()
+            ui.onNodeWithContentDescription("返回").performClick()
+            ui.onNodeWithTag("season:1:").performClick()
+            ui.onNodeWithTag("searchVideo:s1").performClick()
+            ui.onNodeWithTag("sourceChoice:${b.key}:s1").performScrollTo().performClick()
             ui.waitUntil(10000) { model.state.value.detail?.video?.id=="s1" }
-            assertEquals(b.key,model.state.value.detail!!.video.source.key)
-            ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("episode:第1集"))
             capture("02-detail")
-            ui.onNodeWithTag("episode:第1集").performClick()
+            ui.onNodeWithTag("detailEpisodes").performClick()
+            ui.onNodeWithText("第1集").performClick()
             ui.waitUntil(15000) { model.state.value.playback!=null && PlaybackMetrics.frames>0 }
             fun nativeView(view:android.view.View):GesturePlayerView? { if(view is GesturePlayerView) return view;if(view is android.view.ViewGroup) for(i in 0 until view.childCount) nativeView(view.getChildAt(i))?.let { return it };return null }
             ui.runOnIdle { nativeView(ui.activity.window.decorView)!!.apply { player!!.pause();controllerShowTimeoutMs=0;showController() } }
@@ -110,9 +111,7 @@ class CollectionDeviceTest {
             ui.waitUntil(10000) { PlaybackMetrics.created==PlaybackMetrics.released }
             ui.onNodeWithTag("nav:2").performClick()
             val id=HistoryGroups.key(first).stableKey
-            ui.onNodeWithTag("expandHistory:$id").performClick()
-            ui.onNodeWithTag("season:1:").performClick()
-            ui.onNodeWithTag("historyGroups").performScrollToIndex(1)
+            ui.onNodeWithTag("historyGroup:$id").assertIsDisplayed()
             capture("05-history")
             assertEquals(1,HistoryGroups.group(model.state.value.saved.history).size)
             assertTrue(model.state.value.saved.history.any { it.playback.video.id=="s1" && it.playback.position==2500L })

@@ -314,7 +314,7 @@ class HomeBrowseDeviceTest {
     @Test fun recommendationCategoryUsesDraftSheetAndResetsForType() {
         ui.onNodeWithTag("recommendCategoryPicker").performClick()
         ui.onNodeWithTag("recommendType:movie").performClick()
-        ui.waitUntil(10000) { model.state.value.recommendType=="movie" && !model.state.value.recommendLoading }
+        assertEquals("tv",model.state.value.recommendType)
 
         ui.onNodeWithTag("recommendCategory:经典").performClick()
         assertEquals("热门",model.state.value.recommendTag)
@@ -322,13 +322,14 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithText("取消").performClick()
         assertEquals("热门",model.state.value.recommendTag)
         ui.onNodeWithTag("recommendCategoryPicker").performClick()
+        ui.onNodeWithTag("recommendType:movie").performClick()
         ui.onNodeWithTag("recommendCategory:经典").performClick()
         ui.onNodeWithTag("applyRecommendCategory").performClick()
         ui.waitUntil(10000) { model.state.value.recommendTag=="经典" && !model.state.value.recommendLoading }
         ui.onNodeWithTag("recommendCategoryPicker").assertContentDescriptionContains("筛选推荐")
         ui.onNodeWithTag("recommendCategoryPicker").performClick()
         ui.onNodeWithTag("recommendType:tv").performClick()
-        ui.waitUntil(10000) { model.state.value.recommendType=="tv" && model.state.value.recommendTag=="热门" && !model.state.value.recommendLoading }
+        ui.onNodeWithTag("recommendCategory:热门").assertIsSelected()
         val tv=ui.onNodeWithTag("recommendType:tv").getUnclippedBoundsInRoot()
         val movie=ui.onNodeWithTag("recommendType:movie").getUnclippedBoundsInRoot()
         assertEquals(tv.top.value,movie.top.value,1f)

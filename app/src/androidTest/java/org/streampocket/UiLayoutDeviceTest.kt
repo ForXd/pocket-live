@@ -107,7 +107,6 @@ class UiLayoutDeviceTest {
                 ui.onNodeWithTag("sourceChoice:${source.key}:1").performClick()
                 ui.waitUntil(10000) { model.state.value.detail!=null }
                 capture("design-detail")
-                ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("detailPlay"))
                 ui.onNodeWithTag("detailPlay").assertIsDisplayed()
                 ui.runOnIdle { model.closeDetail() }
                 ui.onNodeWithTag("nav:1").performClick()
@@ -115,11 +114,6 @@ class UiLayoutDeviceTest {
                 capture("design-subscriptions")
                 ui.onNodeWithTag("nav:2").performClick()
                 capture("design-history")
-                val historyKey=HistoryGroups.key(video).stableKey
-                ui.onNodeWithTag("expandHistory:$historyKey").performClick()
-                ui.onNodeWithTag("historyEpisodeGroup:$historyKey:${HistoryGroups.episodeKey(history)}").assertExists()
-                capture("design-history-episodes")
-                ui.onNodeWithTag("expandHistory:$historyKey").performClick()
                 ui.onNodeWithTag("nav:3").performClick()
                 capture("design-settings")
                 ui.onNodeWithTag("settingsAppearance").performClick()
@@ -181,10 +175,8 @@ class UiLayoutDeviceTest {
             ui.onNodeWithText("星河漫游").performClick()
             ui.onNodeWithTag("sourceChoice:${source.key}:1").performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
-            ui.onNodeWithTag("detailGrid").performScrollToNode(hasTestTag("detailPlay"))
             ui.onNodeWithTag("detailPlay").assertIsDisplayed()
-            ui.onNodeWithTag("detailPlay").assertTextContains("继续观看",substring=true)
-            ui.onNodeWithTag("detailGrid").performScrollToIndex(0)
+            ui.onNodeWithTag("detailPlay").assertContentDescriptionContains("继续观看")
             capture("06-detail")
             ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
             ui.waitUntil(5000) { model.state.value.detail==null }

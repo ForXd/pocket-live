@@ -80,6 +80,13 @@ class SubscriptionUiDeviceTest {
             ui.onNodeWithTag("subscription:group-a").performClick()
             ui.onNodeWithText("直播来源").assertDoesNotExist()
             ui.onNodeWithTag("swipeSubscription:group-a").performTouchInput { swipeLeft() }
+            val row = ui.onNodeWithTag("swipeSubscription:group-a").getUnclippedBoundsInRoot()
+            val update = ui.onNodeWithContentDescription("更新订阅").getUnclippedBoundsInRoot()
+            val delete = ui.onNodeWithContentDescription("删除订阅").getUnclippedBoundsInRoot()
+            assertEquals(row.top.value, update.top.value, 1f)
+            assertEquals(row.bottom.value, delete.bottom.value, 1f)
+            assertTrue(update.right < delete.left)
+            captureUi(ui,"subscription-swipe-actions")
             ui.onNodeWithContentDescription("更新订阅").performClick()
             ui.waitUntil(15000) { model.state.value.saved.subscriptions.first().sources.size==2 }
             assertTrue(sources[0].key in model.state.value.saved.disabled)

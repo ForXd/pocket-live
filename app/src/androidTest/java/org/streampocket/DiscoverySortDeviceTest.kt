@@ -27,9 +27,9 @@ class DiscoverySortDeviceTest {
             ui.activity.setContent { PocketTheme { androidx.compose.material3.Surface(Modifier.safeDrawingPadding()) { DiscoverScreen(snapshot,model,{},{}) } } }
         }
         fun choose(label:String,grid:Boolean) {
-            ui.onNodeWithTag("discoverySort").assertIsDisplayed()
-            ui.onNodeWithTag("discoverySort").performClick()
-            ui.onNodeWithText(label).performClick()
+            ui.onNodeWithTag(if(grid) "recommendCategoryPicker" else "discoverySort").performClick()
+            ui.onNodeWithText(label).performScrollTo().performClick()
+            if(grid) ui.onNodeWithTag("applyRecommendCategory").performClick()
         }
         try {
             choose("评分最高",true)
@@ -39,22 +39,19 @@ class DiscoverySortDeviceTest {
             ui.runOnIdle { snapshot=snapshot.copy(recommendations=snapshot.recommendations+Video(source,"d","Delta",rating=10.0)) }
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("recommendation:d"))
             ui.onNodeWithTag("recommendation:d").assertExists()
-            ui.onNodeWithTag("discoverySort").assertIsDisplayed()
-            ui.onNodeWithTag("discoverySort").performClick()
-            ui.onNodeWithText("最近更新").assertIsNotEnabled()
-            ui.onNodeWithText("默认顺序").performClick()
+            choose("默认顺序",true)
             ui.onNodeWithTag("recommendationGrid").performScrollToNode(hasTestTag("recommendation:a"))
             choose("评分最高",true)
             ui.onNodeWithText("分类").performClick()
             choose("最近更新",false)
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:b"))
-            val b=ui.onNodeWithTag("catalogVideo:b").getUnclippedBoundsInRoot().top
-            val a=ui.onNodeWithTag("catalogVideo:a").getUnclippedBoundsInRoot().top
-            assertTrue(b<a)
+            val b=ui.onNodeWithTag("catalogVideo:b").getUnclippedBoundsInRoot()
+            val a=ui.onNodeWithTag("catalogVideo:a").getUnclippedBoundsInRoot()
+            assertTrue(b.top < a.top || (b.top == a.top && b.left < a.left))
             captureUi(ui,"discovery-sort-updated")
             ui.onNodeWithText("推荐").performClick()
-            ui.onNodeWithTag("discoverySort").assertIsDisplayed()
-            ui.onNodeWithTag("discoverySort").assertContentDescriptionContains("排序：评分最高")
+            ui.onNodeWithTag("recommendCategoryPicker").performClick()
+            ui.onNodeWithText("评分最高").assertIsSelected()
             captureUi(ui,"discovery-sort-rating")
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() } }
     }

@@ -54,58 +54,25 @@ class DetailLayoutDeviceTest {
         ui.waitUntil(10000) { model.state.value.detail!=null }
     }
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
-    @Test fun longCatalogJumpStickyToolsResumeAndLineSelectionRemainReachable() {
-        val list=ui.onNodeWithTag("detailGrid")
-        list.performScrollToNode(hasTestTag("detailPlay"))
-        ui.onNodeWithTag("detailPlay").assertIsDisplayed().assertTextContains("继续观看",substring=true)
-        captureUi(ui,"detail-header")
-        list.performScrollToNode(hasTestTag("episode:第17集"))
-        ui.onNodeWithTag("episode:第17集").assertTextContains("已看 50%")
-        captureUi(ui,"episode-progress")
-
-        list.performScrollToNode(hasText("展开简介"));ui.onNodeWithText("展开简介").performClick()
-        list.performScrollToNode(hasText("收起简介"));ui.onNodeWithText("收起简介").performClick()
-        list.performScrollToNode(hasTestTag("episodeJump"));ui.onNodeWithTag("episodeJump").performClick()
-        ui.onNodeWithTag("detailPicker").performScrollToNode(hasTestTag("episodeRange:9"))
-        ui.onNodeWithTag("episodeRange:9").performClick()
-        ui.onNodeWithTag("episode:第451集").assertIsDisplayed()
-        val toolbar=ui.onNodeWithTag("episodeToolbar").getUnclippedBoundsInRoot()
-        if(ui.activity.resources.configuration.screenWidthDp<840) {
-            val navigation=ui.onNodeWithTag("detailNavigation").getUnclippedBoundsInRoot()
-            assertTrue("Sticky episode heading must stay below the back navigation",toolbar.top>=navigation.bottom)
-        }
-        assertTrue(ui.onNodeWithTag("episode:第451集").getUnclippedBoundsInRoot().top>=toolbar.bottom)
-        ui.onNodeWithTag("detailBackToTop").assertIsDisplayed()
-        ui.onNodeWithTag("backToTop").assertDoesNotExist()
-        captureUi(ui,"detail-jump")
-        ui.onNodeWithTag("episodeOrder").performClick()
-        ui.onNodeWithTag("episodeOrder").assertIsOn().assertContentDescriptionContains("当前倒序，切换正序")
-        ui.onNodeWithTag("episode:第500集").assertIsDisplayed()
-        captureUi(ui,"detail-last-episode")
-        list.performScrollToNode(hasTestTag("detailPlay"))
-        val sourceButton=ui.onNodeWithTag("detailLinePicker").getUnclippedBoundsInRoot()
-        val sameButton=ui.onNodeWithTag("detailSearchSame").getUnclippedBoundsInRoot()
-        assertTrue(sourceButton.right<=sameButton.left)
-        ui.onNodeWithTag("detailPlay").assertTextEquals("继续观看").performClick()
+    @Test fun oneScreenResumeAndEpisodeSheet() {
+        ui.onNodeWithTag("detailPlay").assertIsDisplayed().assertContentDescriptionContains("继续观看")
+        ui.onNodeWithText("展开简介").performClick()
+        ui.onNodeWithText("收起简介").performClick()
+        ui.onNodeWithTag("detailPlay").performClick()
         ui.waitUntil(5000) { model.state.value.playback?.episode?.url=="$base/main/17.mp4" }
         ui.runOnIdle { model.stopPlayback() }
-        ui.waitUntil(5000) { model.state.value.playback==null }
-        list.performScrollToNode(hasTestTag("detailLinePicker"))
-        ui.onNodeWithTag("detailLinePicker").performClick()
-        captureUi(ui,"detail-lines")
+        ui.onNodeWithTag("detailEpisodes").performClick()
+        ui.onNodeWithTag("playbackEpisodeRanges").performScrollToNode(hasTestTag("playbackRange:9"))
+        ui.onNodeWithTag("playbackRange:9").performClick()
+        ui.onNodeWithText("第451集").assertIsDisplayed()
         ui.onNodeWithTag("detailLine:1").performClick()
-        ui.onNodeWithTag("episode:特别篇").assertIsDisplayed().performClick()
+        ui.onNodeWithText("特别篇").performClick()
         ui.waitUntil(5000) { model.state.value.playback?.episode?.url=="$base/special.mp4" }
-        ui.runOnIdle { model.stopPlayback() }
-        list.performScrollToNode(hasTestTag("detailSearchSame"))
-        ui.onNodeWithTag("detailSearchSame").performClick()
-        ui.waitUntil(5000) { model.state.value.detail==null }
-        ui.onNodeWithTag("searchInput").assertTextContains(video.title)
     }
-    @Test fun emptyDetailKeepsRecoveryAction() {
-        ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(Detail(video,"",emptyList()),model,searchSame={}) } } }
+    @Test fun emptyDetailDisablesPlayback() {
+        ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(Detail(video,"",emptyList()),model) } } }
         ui.onNodeWithTag("detailPlay").assertIsNotEnabled()
-        ui.onNodeWithTag("detailSearchSame").assertIsEnabled().assertIsDisplayed()
+        ui.onNodeWithTag("detailEpisodes").assertIsNotEnabled()
     }
     @Test fun interactiveReviewSession() {
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("reviewSession")=="true")
