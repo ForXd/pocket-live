@@ -210,7 +210,7 @@ import kotlinx.coroutines.delay
                         SettingSwitch("流畅优先","多清晰度优先 720p；单清晰度可通过换源改善",state.smoothPlayback,model::smoothPlayback)
                         BufferingLabel { health }
                         if(state.saved.adFilter) Text(filterSummary.ifBlank { "广告过滤已启用" }+" · 可在设置页关闭",style=MaterialTheme.typography.bodySmall)
-                        if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
+                        if(state.detailLoading) LoadingStatus("正在加载选集…")
                         else if(!hasEpisodes) {
                             Text("选集暂不可用",style=MaterialTheme.typography.bodySmall)
                             GlassTextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
@@ -322,7 +322,7 @@ import kotlinx.coroutines.delay
                         }
                         if(playback.video.source.kind==SourceKind.VOD) GlassButton(shape=MaterialTheme.shapes.medium,onClick=::showAlternatives,modifier=Modifier.heightIn(min=48.dp)) { Text("快速换源") }
                     }
-                    if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
+                    if(state.detailLoading) LoadingStatus("正在加载选集…")
                     else if(!hasEpisodes) {
                         Text(if(state.detailError!=null) "选集暂不可用：${state.detailError}" else "当前集不在可用线路中，选集暂不可用",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         GlassTextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
@@ -381,7 +381,9 @@ import kotlinx.coroutines.delay
             if(!full && !pip) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=8.dp,bottom=if(controlsVisible) 48.dp else 8.dp)
                     .background(Color.Black.copy(alpha=.48f),androidx.compose.foundation.shape.CircleShape)) {
-                    PlayerIconAction(R.drawable.ic_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();entryOrientation=orientation;rotatingBack=false;requestFull=true})
+                    CompositionLocalProvider(LocalContentColor provides Color.White) {
+                        PlayerIconAction(R.drawable.ic_fullscreen_enter,"横屏全屏",modifier=Modifier.testTag("fullscreenToggle"),onClick={playerView?.cancelGestures();entryOrientation=orientation;rotatingBack=false;requestFull=true})
+                    }
                 }
             }
             if(gestureFeedback.isNotEmpty() && !pip) {
