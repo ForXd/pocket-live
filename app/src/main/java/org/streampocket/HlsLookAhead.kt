@@ -112,14 +112,18 @@ internal class HlsLookAhead(private val upstream:DataSource.Factory,private val 
                 source=androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(boundedCalls).createDataSource()
                 val size=source.open(DataSpec(target.toUri()))
                 if(size>segmentLimit) { synchronized(this@HlsLookAhead) { disabled=true };return@launch }
-                // Fixed allocation: no ByteArrayOutputStream growth or full-array copy.
-                val data=ByteArray(if(size in 1..segmentLimit.toLong()) size.toInt() else segmentLimit)
+                // Chunked responses often omit their length. Grow only after observing more bytes.
+                var data=ByteArray(if(size in 1..segmentLimit.toLong()) size.toInt() else minOf(64 * 1024, segmentLimit))
                 var count=0
                 val overflow=ByteArray(1)
                 while(isActive) {
                     val n=if(count<data.size) source.read(data,count,data.size-count) else source.read(overflow,0,1)
                     if(n==C.RESULT_END_OF_INPUT) { if(count>0) item.result.complete(Segment(data,count));return@launch }
-                    if(count+n>data.size) { synchronized(this@HlsLookAhead) { disabled=true };return@launch }
+                    if (count == data.size && n > 0) {
+                        if (count == segmentLimit) { synchronized(this@HlsLookAhead) { disabled=true };return@launch }
+                        data = data.copyOf(minOf(count * 2, segmentLimit))
+                        data[count] = overflow[0]
+                    }
                     count+=n
                 }
 
