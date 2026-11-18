@@ -36,6 +36,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private val store = Storage(application, purgeCache={ responseCache.clear(); posters.clear() })
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
+    internal val posterRefresh = state.map { it.posterRefresh }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), state.value.posterRefresh)
     private val lock = Mutex()
     val network = Network({ _state.value.saved.allowHttp }, dns=dns, cache = responseCache)
     private val searchRepository = SearchRepository(network)

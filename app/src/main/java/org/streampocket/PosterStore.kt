@@ -18,8 +18,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.sync.Semaphore
@@ -125,12 +123,12 @@ class PosterStore(private val directory: File) {
 }
 @Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier,shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false,frosted:Boolean=false) {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=remember(model) { model.state.value.posterRefresh })
-    key(video.poster, large, frosted, model, refresh) {
+    val refresh by model.posterRefresh.collectAsStateWithLifecycle()
+    key(video.poster, large, frosted, model) {
         var bitmap by remember { mutableStateOf<Bitmap?>(null) }
         var preview by remember { mutableStateOf<Bitmap?>(null) }
         var finished by remember { mutableStateOf(false) }
-        LaunchedEffect(lifecycle) {
+        LaunchedEffect(lifecycle,refresh) {
             lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 if(bitmap==null) {
                     finished=false

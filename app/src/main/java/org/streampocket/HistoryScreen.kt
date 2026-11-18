@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
     val sources=remember(history) { history.map { it.playback.video.source }.distinctBy { it.key } }
 
     var revealed by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingRemoval by remember { mutableStateOf<HistoryGroup?>(null) }
     var clearing by remember { mutableStateOf(false) }
     val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
     LaunchedEffect(imeVisible) { if(imeVisible) searchScroll.reveal() }
@@ -119,7 +120,7 @@ import androidx.compose.ui.unit.dp
         items(entries,key={it.key.stableKey}) { group ->
             val shown = group.latest
             val id = group.key.stableKey
-                SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{remove(group.key);revealed=null}) {
+                SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{pendingRemoval=group}) {
                 Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { if(revealed==id) revealed=null else resume(shown) }.testTag("historyGroup:$id").padding(16.dp)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         if(model!=null) Poster(shown.playback.video,model,Modifier.size(72.dp,104.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
@@ -140,6 +141,12 @@ import androidx.compose.ui.unit.dp
         }
     }
     }
+    }
+    pendingRemoval?.let { group ->
+        GlassAlertDialog(onDismissRequest={pendingRemoval=null},title={Text("删除此剧的观看记录？")},
+            text={Text("将删除《${VideoGroups.familyTitle(group.latest.playback.video)}》的观看断点。")},
+            confirmButton={GlassTextButton(onClick={remove(group.key);pendingRemoval=null;revealed=null}) { Text("删除") }},
+            dismissButton={GlassTextButton(onClick={pendingRemoval=null}) { Text("取消") }})
     }
     if(clearing) GlassAlertDialog(onDismissRequest={clearing=false},title={Text("清空观看历史？")},text={Text("所有剧目的观看断点将被删除，订阅仍会保留。")},confirmButton={GlassTextButton(onClick={clear();clearing=false}) { Text("清空") }},dismissButton={GlassTextButton(onClick={clearing=false}) { Text("取消") }})
 }
