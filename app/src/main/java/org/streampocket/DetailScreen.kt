@@ -101,6 +101,6 @@ import androidx.compose.ui.unit.dp
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.82f)))))
         Text(video.title,Modifier.align(Alignment.BottomStart).padding(20.dp),style=MaterialTheme.typography.headlineMedium,
             color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
-        PocketBack(back,label,Modifier.align(Alignment.TopStart).padding(start=18.dp,top=6.dp),overVideo=true)
+        PocketBack(back, Modifier.align(Alignment.TopStart).padding(start=18.dp,top=6.dp), label = label,overVideo=true)
     }
 }

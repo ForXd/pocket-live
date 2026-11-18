@@ -109,11 +109,16 @@ class PosterStore(private val directory: File) {
                         val body=r.body ?: throw IOException("Empty image")
                         if(body.contentLength()>PosterLimits.DOWNLOAD) throw IOException("Image too large")
                         val out=java.io.ByteArrayOutputStream()
-                        body.byteStream().use { input -> val block=ByteArray(8192)
-                            while(true) { val n=input.read(block);if(n<0) break
-                                if(out.size()+n>PosterLimits.DOWNLOAD) throw IOException("Image too large")
-                                out.write(block,0,n) }
-                        };out.toByteArray()
+                        body.byteStream().use { input ->
+                            val block = ByteArray(8192)
+                            while (true) {
+                                val n = input.read(block)
+                                if (n < 0) break
+                                if (out.size() + n > PosterLimits.DOWNLOAD) throw IOException("Image too large")
+                                out.write(block, 0, n)
+                            }
+                        }
+                        out.toByteArray()
                     }
                     if(continuation.isActive) continuation.resume(bytes)
                 } catch(e:Exception) { if(continuation.isActive) continuation.resumeWithException(e) }

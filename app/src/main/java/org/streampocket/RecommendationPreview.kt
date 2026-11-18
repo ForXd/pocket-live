@@ -39,10 +39,10 @@ internal fun recommendationMetadata(json:String):String? {
     Surface(Modifier.fillMaxSize().testTag("recommendationPreview")) {
         Column(Modifier.safeDrawingPadding()) {
             if(wide) Row(Modifier.fillMaxWidth().padding(horizontal=18.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-                PocketBack(model::closeRecommendation,"返回推荐")
+                PocketBack(model::closeRecommendation, label = "返回推荐")
                 Text("影片介绍",Modifier.padding(12.dp),style=MaterialTheme.typography.titleMedium)
             }
-            if(!wide) TitleCover(video,model,minOf(windowSizeDp().height*.32f,290.dp),model::closeRecommendation,"返回推荐")
+            if(!wide) TitleCover(video,model,minOf(windowSizeDp().height*.32f,290.dp),model::closeRecommendation, label = "返回推荐")
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal=24.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                 if(wide) FlowRow(maxItemsInEachRow=if(largeFont && !wide) 1 else 2,horizontalArrangement=Arrangement.spacedBy(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                     Poster(video,model,Modifier.width(if(wide) 220.dp else 112.dp).aspectRatio(.7f),shape=MaterialTheme.shapes.large,contentScale=ContentScale.Crop,large=wide)

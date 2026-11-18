@@ -126,7 +126,7 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
     return clip(shape).background(tint, shape).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha=.34f), shape)
 }
 
-@Composable internal fun PocketBack(onClick: () -> Unit, label: String = "返回", modifier: Modifier = Modifier, overVideo: Boolean = false) {
+@Composable internal fun PocketBack(onClick: () -> Unit, modifier: Modifier = Modifier, label: String = "返回", overVideo: Boolean = false) {
     IconButton(onClick, modifier.size(48.dp)) {
         Box(Modifier.size(34.dp).background(if(overVideo) Color.Black.copy(alpha=.50f) else glassFill(true), CircleShape),
             contentAlignment=androidx.compose.ui.Alignment.Center) {

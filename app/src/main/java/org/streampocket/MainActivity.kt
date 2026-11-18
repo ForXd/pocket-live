@@ -211,7 +211,7 @@ class MainActivity : ComponentActivity() {
                     Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
                     GlassIconButton(onClick={focusSearch=true;searchOpen=true},colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer),modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
                 } else Column {
-                    if(!inCatalog && !inLive) PocketBack(::showRecommendations,"返回推荐",Modifier.padding(start=18.dp))
+                    if(!inCatalog && !inLive) PocketBack(::showRecommendations, Modifier.padding(start=18.dp), label = "返回推荐")
                     HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
                     {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},
                     {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else { query="";model.cancelSearch();searchMode=false;searchOpen=true;focusSearch=true }},
