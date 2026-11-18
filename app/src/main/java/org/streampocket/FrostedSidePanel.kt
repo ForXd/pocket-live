@@ -37,12 +37,12 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
 /** Shared native blur with a bounded one-shot fallback; no capture loop or extra decoder. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable internal fun FrostedDialog(onDismissRequest:()->Unit,placement:GlassPlacement=GlassPlacement.BOTTOM,
-    immersive:Boolean=false,tag:String="glassDialog",dismissOnOutside:Boolean=true,content:@Composable ()->Unit) {
+    immersive:Boolean=false,tag:String="glassDialog",dismissOnOutside:Boolean=true,sideFraction:Float=.5f,content:@Composable ()->Unit) {
     val context=LocalContext.current
     val allowOutside by rememberUpdatedState(dismissOnOutside)
     val composition=rememberCompositionContext()
     val windowSize = windowSizeDp()
-    val width=when(placement) { GlassPlacement.SIDE->(windowSize.width.value*.5f).dp;GlassPlacement.BOTTOM->minOf(windowSize.width,640.dp) }
+    val width=when(placement) { GlassPlacement.SIDE->(windowSize.width.value*sideFraction).dp;GlassPlacement.BOTTOM->minOf(windowSize.width,640.dp) }
     val density=LocalDensity.current
     val widthPx=with(density) { width.roundToPx() }
     val radius=with(density) { 20.dp.toPx() }
@@ -111,17 +111,21 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
         dialog.setContentView(host)
         dialog.setCanceledOnTouchOutside(allowOutside)
         dialog.setOnCancelListener { dismiss() }
-        val background=GradientDrawable().apply { cornerRadius=radius;setStroke(with(density) { 1.dp.roundToPx() },stroke) }
-        background.setColor(tint.toArgb())
-        if(placement==GlassPlacement.BOTTOM) {
-            window.setBackgroundDrawable(android.graphics.Color.TRANSPARENT.toDrawable())
-            view.background=background
-        } else window.setBackgroundDrawable(background)
+        val colors = if(dark) intArrayOf(0xf534424a.toInt(), 0xf7192329.toInt())
+            else intArrayOf(0xf7f8fafb.toInt(), 0xf3e1e8eb.toInt())
+        val background = GradientDrawable(GradientDrawable.Orientation.TL_BR, colors).apply {
+            cornerRadii = if(placement==GlassPlacement.SIDE) floatArrayOf(radius,radius,0f,0f,0f,0f,radius,radius)
+                else floatArrayOf(radius,radius,radius,radius,0f,0f,0f,0f)
+            setStroke(with(density) { 1.dp.roundToPx() }, stroke)
+        }
+        window.setBackgroundDrawable(android.graphics.Color.TRANSPARENT.toDrawable())
+        view.background = background
+        if(Build.VERSION.SDK_INT >= 31) window.setBackgroundBlurRadius(with(density) { 18.dp.roundToPx() })
         window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.END or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
         window.setWindowAnimations(if(placement==GlassPlacement.SIDE) R.style.PocketSidePanelAnimation else R.style.PocketDrawerAnimation)
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         WindowCompat.setDecorFitsSystemWindows(window,!immersive)
-        window.setDimAmount(.16f)
+        window.setDimAmount(if(immersive) .40f else .32f)
         dialog.show()
         WindowCompat.getInsetsController(window,view).apply {
             isAppearanceLightStatusBars=!dark
@@ -150,7 +154,10 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
     confirmButton:@Composable ()->Unit,dismissButton:(@Composable ()->Unit)?=null,dismissOnOutside:Boolean=true) {
     FrostedDialog(onDismissRequest,dismissOnOutside=dismissOnOutside) {
         Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-            ProvideTextStyle(MaterialTheme.typography.titleLarge,content=title)
+            Row(Modifier.fillMaxWidth(), verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { ProvideTextStyle(MaterialTheme.typography.titleLarge,content=title) }
+                PocketClose(onDismissRequest)
+            }
             Box(Modifier.weight(1f,false)) { ProvideTextStyle(MaterialTheme.typography.bodyMedium,content=text) }
             FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp,androidx.compose.ui.Alignment.End)) { dismissButton?.invoke();confirmButton() }
         }

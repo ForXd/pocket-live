@@ -24,7 +24,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 
-@Composable internal fun FullscreenStatus() {
+@Composable internal fun FullscreenStatus(compact: Boolean = false) {
     val context=LocalContext.current
     var percent by remember { mutableStateOf<Int?>(null) }
     DisposableEffect(context) {
@@ -38,18 +38,19 @@ import androidx.compose.ui.viewinterop.AndroidView
         context.registerReceiver(receiver,IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         onDispose { context.unregisterReceiver(receiver) }
     }
-    Box(Modifier.fillMaxWidth().heightIn(min=24.dp).testTag("fullscreenStatus")) {
+    Row((if(compact) Modifier else Modifier.fillMaxWidth()).heightIn(min=24.dp).testTag("fullscreenStatus"),
+        horizontalArrangement=Arrangement.spacedBy(6.dp,Alignment.CenterHorizontally),verticalAlignment=Alignment.CenterVertically) {
         AndroidView(factory={ android.widget.TextClock(it).apply {
             setTextColor(android.graphics.Color.WHITE)
             textSize=13f
             format24Hour="HH:mm"
             format12Hour="h:mm a"
-        } },modifier=Modifier.align(Alignment.Center))
+        } })
         val value=percent
-        Row(Modifier.align(Alignment.CenterEnd).padding(end=8.dp).semantics(mergeDescendants=true) {
+        Row(Modifier.semantics(mergeDescendants=true) {
             contentDescription=if(value==null) "电量未知" else "电量 $value%"
         },verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-            Text(value?.let { "$it%" } ?: "—",color=Color.White,style=MaterialTheme.typography.labelMedium)
+            if(!compact) Text(value?.let { "$it%" } ?: "—",color=Color.White,style=MaterialTheme.typography.labelMedium)
             Canvas(Modifier.size(23.dp,12.dp)) {
                 val line=1.3.dp.toPx()
                 val width=size.width-3.dp.toPx()

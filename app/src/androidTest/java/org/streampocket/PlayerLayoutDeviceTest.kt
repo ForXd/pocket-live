@@ -26,6 +26,9 @@ class PlayerLayoutDeviceTest {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
         val assets=InstrumentationRegistry.getInstrumentation().context.assets
+        val reference = InstrumentationRegistry.getArguments().getString("referenceVideo") == "true"
+        val videoBytes = if(reference) java.io.File(ui.activity.getExternalFilesDir(null),"design-reference.mp4").readBytes()
+            else assets.open("test.mp4").use { it.readBytes() }
         val probeCapture=InstrumentationRegistry.getArguments().getString("alternativeProbeCapture")=="true"
         val separator="${'$'}${'$'}${'$'}"
         val lineNames=if(true) "高清线路${separator}备用 A${separator}备用 B" else "高清线路"
@@ -33,7 +36,7 @@ class PlayerLayoutDeviceTest {
             if(true) "${separator}第1集${'$'}$base/test.mp4?alt=a${separator}第1集${'$'}$base/test.mp4?alt=b" else ""
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse = if(request.requestUrl!!.encodedPath=="/api") MockResponse().setBody("""{"list":[{"vod_play_from":"$lineNames","vod_play_url":"$playUrls"}]}""")
-                else MockResponse().setBody(Buffer().write(assets.open("test.mp4").use { it.readBytes() })).setHeader("Content-Type","video/mp4")
+                else MockResponse().setBody(Buffer().write(videoBytes)).setHeader("Content-Type","video/mp4")
         }
         lateinit var model:AppModel
         ui.runOnUiThread {
@@ -44,6 +47,7 @@ class PlayerLayoutDeviceTest {
                     @Suppress("UNCHECKED_CAST") return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
                 }
             })[AppModel::class.java]
+            if(reference) ThemePreference.write(ui.activity,ThemeMode.DARK)
             ui.activity.setContent { PocketTheme { Pocket(model) } }
         }
         try {
@@ -59,14 +63,15 @@ class PlayerLayoutDeviceTest {
             if(probeCapture) {
                 ui.runOnIdle { model.openAlternatives(model.state.value.playback!!.sessionId) }
                 ui.waitUntil(10000) { !model.state.value.alternativesLoading && model.state.value.alternatives.count { it.probeStatus==ProbeStatus.READY }==2 }
-                ui.onNodeWithText("已找到 2 个媒体可用资源，检测已停止").assertIsDisplayed()
+                ui.onNodeWithTag("playingSource").assertExists()
                 captureUi(ui,"player-alternatives-verified")
                 val target=model.state.value.alternatives.last()
-                val label="${target.line} · ${target.episode.name}"
-                ui.onNodeWithTag("playbackAlternatives").performScrollToNode(hasText(label))
+                val row=hasTestTag("alternative:${target.episode.url}")
+                ui.onNodeWithTag("playbackAlternatives").performScrollToNode(row)
+                ui.onNode(row).assertTextContains("已探测")
                 captureUi(ui,"player-alternatives-scrolled")
                 val frames=PlaybackMetrics.frames
-                ui.onNodeWithText(label).performClick()
+                ui.onNode(row).performClick()
                 ui.waitUntil(10000) { model.state.value.playback?.episode?.url==target.episode.url && PlaybackMetrics.frames>frames }
                 ui.runOnIdle { model.stopPlayback() }
                 ui.waitUntil(5000) { PlaybackMetrics.created==PlaybackMetrics.released && model.activeAlternativeProbeCalls()==0 }
@@ -94,8 +99,8 @@ class PlayerLayoutDeviceTest {
                 ui.waitUntil(10000) { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }
                 return
             }
-            ui.onNodeWithContentDescription("上一集").assertIsNotEnabled()
-            ui.onNodeWithContentDescription("下一集").assertHeightIsAtLeast(48.dp)
+            ui.onNodeWithText("上一集").assertIsNotEnabled()
+            ui.onNodeWithText("下一集").assertHeightIsAtLeast(48.dp)
             ui.onNodeWithText("选集").assertHeightIsAtLeast(48.dp)
             ui.runOnIdle {
                 val playerView=view(ui.activity.window.decorView)!!
@@ -137,7 +142,7 @@ class PlayerLayoutDeviceTest {
                 pv.showController()
             }
             captureUi(ui,"player-landscape")
-            val actions = ui.onNodeWithText("快速换源").fetchSemanticsNode().boundsInRoot
+            val actions = ui.onNodeWithText("换源").fetchSemanticsNode().boundsInRoot
             ui.runOnIdle {
                 val player = view(ui.activity.window.decorView)!!
                 val progress = player.findViewById<View>(androidx.media3.ui.R.id.exo_progress)
@@ -155,7 +160,7 @@ class PlayerLayoutDeviceTest {
             captureUi(ui,"player-fullscreen-options")
             ui.onNodeWithContentDescription("关闭").performClick()
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
-            ui.onNodeWithText("快速换源").performClick()
+            ui.onNodeWithText("换源").performClick()
             ui.waitUntil(10000) { !model.state.value.alternativesLoading && model.state.value.alternatives.count { it.probeStatus==ProbeStatus.READY }==2 }
             captureUi(ui,"player-fullscreen-alternatives")
             ui.onNodeWithContentDescription("关闭").performClick()

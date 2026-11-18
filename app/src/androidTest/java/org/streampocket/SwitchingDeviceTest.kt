@@ -59,15 +59,15 @@ class SwitchingDeviceTest {
                 finally { bitmap.recycle() }
             }
             capture("failure.png")
-            ui.onNodeWithText("快速换源").assertExists().performClick()
-            ui.onNodeWithText("备用线路 · 第1集").assertExists()
+            ui.onNodeWithText("换源").assertExists().performClick()
+            ui.onNodeWithText("备用线路").assertExists()
             capture("quick-switch.png")
             val failedSession=model.state.value.playback!!.sessionId
             instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
             ui.waitUntil(5000) { model.state.value.alternativeSession==null }
             assertEquals(failedSession,model.state.value.playback!!.sessionId)
-            ui.onNodeWithText("快速换源").performClick()
-            ui.onNodeWithText("备用线路 · 第1集").assertExists().performClick()
+            ui.onNodeWithText("换源").performClick()
+            ui.onNodeWithText("备用线路").assertExists().performClick()
             val before=PlaybackMetrics.frames
             ui.waitUntil(30000) { model.state.value.playback?.episode?.url=="$base/test.mp4" && PlaybackMetrics.frames>before }
             ui.runOnIdle { model.stopPlayback() }
@@ -98,7 +98,7 @@ class SwitchingDeviceTest {
             ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.onNodeWithText("流畅优先").assertExists()
             ui.onNodeWithContentDescription("关闭").performClick()
-            ui.onNodeWithText("快速换源").assertExists()
+            ui.onNodeWithText("换源").assertExists()
             ui.runOnIdle { model.stopPlayback() }
             ui.waitUntil(5000) { PlaybackMetrics.created==PlaybackMetrics.released && PlaybackMetrics.samplers==0 }
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }

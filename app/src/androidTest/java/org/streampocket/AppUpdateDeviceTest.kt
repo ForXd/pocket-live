@@ -48,6 +48,7 @@ class AppUpdateDeviceTest {
             ui.onNodeWithContentDescription("关闭").performClick()
             ui.onNodeWithTag("settingsList").assertExists()
             ui.onNodeWithTag("nav:0").performClick()
+            ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").assertExists()
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() } }
     }
