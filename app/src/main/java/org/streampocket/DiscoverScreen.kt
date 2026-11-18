@@ -155,9 +155,9 @@ import androidx.compose.ui.text.style.TextOverflow
     Column(Modifier.fillMaxSize()) {
         val selectedTab=if(liveTab.value) 2 else if(recommendations.value) 0 else 1
         val tabs:@Composable RowScope.()->Unit = {
-            Tab(modifier=Modifier.weight(1f),unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && recommendations.value,onClick={liveTab.value=false;recommendations.value=true},text={Text("推荐")})
-            Tab(modifier=Modifier.weight(1f),unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && !recommendations.value,onClick={liveTab.value=false;recommendations.value=false},text={Text("分类")})
-            Tab(modifier=Modifier.weight(1f).testTag("liveTab"),unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=liveTab.value,onClick={liveTab.value=true},text={Text("直播")})
+            DiscoveryTab("推荐", selectedTab==0) { liveTab.value=false;recommendations.value=true }
+            DiscoveryTab("分类", selectedTab==1) { liveTab.value=false;recommendations.value=false }
+            DiscoveryTab("直播", selectedTab==2, Modifier.testTag("liveTab")) { liveTab.value=true }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("recommendToolbar"),verticalAlignment=Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
@@ -342,6 +342,13 @@ import androidx.compose.ui.text.style.TextOverflow
 }
 
 /** Artwork meets the outer clip; no inset surface or independently rounded poster. */
+@Composable private fun RowScope.DiscoveryTab(label:String,selected:Boolean,modifier:Modifier=Modifier,onClick:()->Unit) {
+    Tab(selected=selected,onClick=onClick,modifier=modifier.weight(1f).heightIn(min=IconTarget),
+        selectedContentColor=MaterialTheme.colorScheme.primary,unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant) {
+        Text(label,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis)
+    }
+}
+
 @Composable private fun DiscoveryCard(modifier:Modifier=Modifier,onClick:()->Unit,content:@Composable ColumnScope.()->Unit) {
     val interaction=remember { MutableInteractionSource() }
     Card(onClick=onClick,modifier=modifier.pressFeedback(interaction),interactionSource=interaction,
