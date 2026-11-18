@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
@@ -160,7 +161,7 @@ import androidx.compose.ui.unit.dp
     val video=options.first()
     ContentCard(modifier.fillMaxWidth().testTag("searchGroup:${VideoGroups.familyKey(video)}"), containerColor=MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(MediaCardInset),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth().clickable { expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
+            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
                 horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
                 Poster(video,model,Modifier.size(68.dp,88.dp),shape=MaterialTheme.shapes.small)
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
