@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.core.net.toUri
 
 import androidx.compose.material3.*
@@ -61,7 +63,7 @@ object AppUpdates {
 
 @Composable fun UpdateDialog(state:UiState,model:AppModel,updater:ApkUpdater=model.updater,close:()->Unit) {
     val context=LocalContext.current
-    val transfer by updater.state.collectAsState()
+    val transfer by updater.state.collectAsStateWithLifecycle()
     val scope=rememberCoroutineScope()
     var installWhenReady by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle

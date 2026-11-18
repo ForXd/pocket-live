@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.view.WindowManager
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.lazy.LazyColumn
@@ -64,7 +66,7 @@ import kotlinx.coroutines.delay
         activity.addOnPictureInPictureModeChangedListener(listener)
         onDispose { activity.removeOnPictureInPictureModeChangedListener(listener) }
     }
-    val state by model.state.collectAsState()
+    val state by model.state.collectAsStateWithLifecycle()
     var playerView by remember(playback.sessionId) { mutableStateOf<GesturePlayerView?>(null) }
     var controlsVisible by remember(playback.sessionId) { mutableStateOf(false) }
     var knownDuration by remember(playback.sessionId) { mutableLongStateOf(playback.duration) }
@@ -160,7 +162,7 @@ import kotlinx.coroutines.delay
     val hasEpisodes=matchingDetail?.lines?.any { line -> line.episodes.any { it.url==playback.episode.url } }==true
     val previous=adjacentEpisode(state.detail,playback,-1)
     val next=adjacentEpisode(state.detail,playback,1)
-    val bufferingText=if(health.buffering) "正在缓冲 · ${health.bufferedSeconds} 秒" else "已缓冲 ${health.bufferedSeconds} 秒"
+    val slowBuffering by remember(playback.sessionId) { derivedStateOf { health.slow } }
     val openEpisodes={ controller.checkpointNow();playerView?.cancelGestures();playerView?.hideController();episodesOpen=true }
     val openOptions={ playerView?.cancelGestures();playerView?.hideController();optionsOpen=true }
     val leavePlayback={ playerView?.cancelGestures();model.stopPlayback() }
@@ -205,7 +207,7 @@ import kotlinx.coroutines.delay
                     Column(Modifier.weight(1f,false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         PlaybackTrackSettings(playerView?.player)
                         SettingSwitch("流畅优先","多清晰度优先 720p；单清晰度可通过换源改善",state.smoothPlayback,model::smoothPlayback)
-                        Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        BufferingLabel { health }
                         if(state.saved.adFilter) Text(filterSummary.ifBlank { "广告过滤已启用" }+" · 可在设置页关闭",style=MaterialTheme.typography.bodySmall)
                         if(state.detailLoading) Text("正在加载选集…",style=MaterialTheme.typography.bodySmall)
                         else if(!hasEpisodes) {
@@ -288,7 +290,7 @@ import kotlinx.coroutines.delay
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                             Text("当前剧集",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
                             Text(playback.episode.name,style=MaterialTheme.typography.headlineSmall)
-                            Text(bufferingText,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            BufferingLabel { health }
                         }
                         if(supportsPip) PlayerIconAction(R.drawable.ic_pip,"进入画中画",onClick=::enterPip)
                         QualityBadge(playback.episode.quality)
@@ -311,7 +313,7 @@ import kotlinx.coroutines.delay
                         Text(if(state.detailError!=null) "选集暂不可用：${state.detailError}" else "当前集不在可用线路中，选集暂不可用",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         GlassTextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
                     }
-                    (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let { problem ->
+                    (error ?: if(slowBuffering) "缓冲较慢，可重连或快速换源" else null)?.let { problem ->
                         Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=MaterialTheme.shapes.large) {
                             Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                 Text(problem,style=MaterialTheme.typography.bodyMedium)
@@ -395,7 +397,7 @@ import kotlinx.coroutines.delay
             }
             PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f))
         }
-        if(full && !pip && !episodesOpen && controlsVisible && error==null && !health.slow) {
+        if(full && !pip && !episodesOpen && controlsVisible && error==null && !slowBuffering) {
             Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().then(fullscreenPadding)) {
                 FullscreenStatus()
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
@@ -413,7 +415,7 @@ import kotlinx.coroutines.delay
         }
         // Recovery must remain reachable even with hidden controls or no initialized player.
         if(full && !pip) {
-            (error ?: if(health.slow) "缓冲较慢，可重连或快速换源" else null)?.let {
+            (error ?: if(slowBuffering) "缓冲较慢，可重连或快速换源" else null)?.let {
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha=0.8f)).then(fullscreenPadding).heightIn(max=(windowSizeDp().height.value * 0.6f).dp).verticalScroll(rememberScrollState()).padding(16.dp).testTag("playbackError")) {
                     Text(it)
                     FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -504,4 +506,12 @@ import kotlinx.coroutines.delay
             else -> PlaybackEpisodeGrid(entries,current.episode.url,{episode -> shown?.let { if(it.video.probeKey()!=current.video.probeKey() || episode.url!=current.episode.url) model.playDetail(it,episode);close() }},progress,Modifier.weight(1f))
         }
     }
+}
+
+
+@Composable private fun BufferingLabel(readHealth: () -> PlaybackHealth) {
+    val status = readHealth()
+    val prefix = if (status.buffering) "正在缓冲 ·" else "已缓冲"
+    Text("$prefix ${status.bufferedSeconds} 秒", style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

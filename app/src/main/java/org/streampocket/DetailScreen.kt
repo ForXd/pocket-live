@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.*
@@ -23,7 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable fun DetailScreen(detail:Detail,model:AppModel) {
-    val state by model.state.collectAsState()
+    val state by model.state.collectAsStateWithLifecycle()
     val progress = remember(detail.video,state.saved.history) { episodeProgress(detail.video,state.saved.history) }
     val recent = remember(detail,state.saved.history) { detailResume(detail,state.saved.history)?.playback }
     val verified = state.probeEpisodes[detail.video.probeKey()]
