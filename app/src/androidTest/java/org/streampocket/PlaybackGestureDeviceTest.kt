@@ -195,7 +195,7 @@ class PlaybackGestureDeviceTest {
                 waitFor { ui.activity.window.decorView.width>ui.activity.window.decorView.height && !playerView().isControllerFullyVisible }
                 ui.onNodeWithTag("playbackError").assertIsDisplayed()
                 ui.onNodeWithText("重试播放").assertIsDisplayed()
-                ui.onNodeWithText("返回选集").assertIsDisplayed()
+                ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
                 stage("actual-http404-fullscreen-recovery-visible")
                 val requestsBefore=server.requestCount
                 ui.onNodeWithText("重试播放").performClick()
@@ -222,7 +222,8 @@ class PlaybackGestureDeviceTest {
                 ui.onNodeWithTag("playbackError").assertIsDisplayed()
                 stage("empty-player-error-state-retry-passed")
                 capture("fullscreen-error")
-                ui.onNodeWithText("返回选集").performClick()
+                ui.onNodeWithContentDescription("退出全屏").performClick()
+                ui.onNodeWithContentDescription("返回选集").performClick()
                 waitFor { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }
                 instrument.runOnMainSync { assertEquals(0,PlaybackMetrics.samplers) }
                 stage("error-exit-and-release-passed")
