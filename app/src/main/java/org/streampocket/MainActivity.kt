@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
             Text("粘贴订阅配置，支持与链接导入相同的格式。最多 2 MiB。")
             OutlinedTextField(shape=MaterialTheme.shapes.medium,value=jsonText,onValueChange={ if(it.length<=JsonData.LIMIT) jsonText=it else model.message("JSON 内容超过 2 MiB 上限") },
                 modifier=Modifier.fillMaxWidth().heightIn(max=280.dp).testTag("subscriptionJsonInput"),label={Text("JSON 内容")},minLines=5,maxLines=10,enabled="new" !in s.importing)
-            if("new" in s.importing) Text("正在导入…") else s.message?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
+            if("new" in s.importing) LoadingStatus("正在导入…") else s.message?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
         }
     },confirmButton={GlassTextButton(enabled=jsonText.isNotBlank() && "new" !in s.importing,onClick={model.message(null);model.importJson(jsonText,onImported={jsonDialog=false;jsonText=""})}) { Text("导入") }},
         dismissButton={GlassTextButton(onClick={model.cancelImport("new");jsonDialog=false;jsonText=""}) { Text("取消") }})
@@ -155,12 +155,21 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(tab,searchMode,recommendations.value,liveTab.value,imeVisible) { searchScroll.reveal() }
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val playback = s.playback
-    if(playback != null) { PlaybackScreen(playback, model); return }
+    val route = when {
+        playback != null -> "playback"
+        s.detail != null || s.detailLoading -> "detail"
+        s.recommendPreview != null -> "preview"
+        tab == 0 && (searchOpen || searchMode) -> "search"
+        else -> "tab:$tab"
+    }
+    val depth = when(route) { "playback" -> 3; "detail" -> 2; "preview","search" -> 1; else -> 0 }
+    val arrival = Modifier.destinationArrival(route,depth)
+    if(playback != null) { Box(Modifier.fillMaxSize().then(arrival)) { PlaybackScreen(playback, model) }; return }
     if(exportOpen) SourceExportSheet(model) { exportOpen=false }
     if(addingSubscription) HandleOnlySheet(onDismissRequest={model.cancelImport("new");addingSubscription=false}) {
         SheetSystemBars()
                         Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                            Text("添加订阅",style=MaterialTheme.typography.headlineSmall)
+                            SheetHeading("添加订阅") { model.cancelImport("new");addingSubscription=false }
                             OutlinedTextField(url,{url=it.take(4096)},modifier=Modifier.fillMaxWidth().testTag("subscriptionInput"),label={Text("粘贴订阅链接")},singleLine=true,shape=MaterialTheme.shapes.medium,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri))
                             GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.importSubscription(url)},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=url.isNotBlank() && "new" !in s.importing) {
                                 Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("添加订阅")
@@ -184,7 +193,7 @@ class MainActivity : ComponentActivity() {
     val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
     val wide=windowSizeDp().width.value>=840
-    if(s.recommendPreview!=null) { RecommendationPreview(s,model,::search);return }
+    if(s.recommendPreview!=null) { Box(Modifier.fillMaxSize().then(arrival)) { RecommendationPreview(s,model,::search) };return }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
     val showDock = !wide && !imeVisible && s.detail==null && !s.detailLoading
@@ -202,11 +211,12 @@ class MainActivity : ComponentActivity() {
                     Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
                     GlassIconButton(onClick={focusSearch=true;searchOpen=true},colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer),modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
                 } else Column {
+                    if(!inCatalog && !inLive) PocketBack(::showRecommendations,"返回推荐",Modifier.padding(start=18.dp))
                     HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
                     {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},
-                    {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else showRecommendations()},
+                    {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else { query="";model.cancelSearch();searchMode=false;searchOpen=true;focusSearch=true }},
                     placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
-                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清空并返回推荐",allowEmpty=inCatalog || inLive,focusOnOpen=focusSearch,onFocused={focusSearch=false})
+                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清除输入",allowEmpty=inCatalog || inLive,focusOnOpen=focusSearch,onFocused={focusSearch=false})
                     if(!inCatalog && !inLive && query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
                         androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                             item { Text("最近搜索",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -220,8 +230,8 @@ class MainActivity : ComponentActivity() {
             }
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
-        bottomBar = { if(showDock) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=20.dp,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),color=MaterialTheme.colorScheme.surface,shadowElevation=2.dp) {
-            SlidingTabs(listOf(0,2,1,3).indexOf(tab).coerceAtLeast(0),4,true,Modifier.fillMaxWidth().padding(4.dp)) {
+        bottomBar = { if(showDock) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=20.dp,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),color=androidx.compose.ui.graphics.Color.Transparent,shadowElevation=0.dp) {
+            SlidingTabs(listOf(0,2,1,3).indexOf(tab).coerceAtLeast(0),4,true,Modifier.fillMaxWidth().smokeGlass(RoundedCornerShape(28.dp)).padding(4.dp)) {
             listOf(0,2,1,3).forEach { i ->
                 PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                     Modifier.weight(1f).testTag("nav:$i"),indicator=false,icon={navIcon(i)})
@@ -238,15 +248,9 @@ class MainActivity : ComponentActivity() {
             listOf(0,2,1,3).forEach { i -> PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                 Modifier.padding(horizontal=8.dp,vertical=4.dp).width(64.dp).testTag("nav:$i"),icon={navIcon(i)}) }
         }
-        val destination=when {
-            s.detailLoading -> "detailLoading"
-            s.detail!=null -> "detail"
-            tab==0 && searchMode -> "search"
-            else -> "tab:$tab"
-        }
-        Box(Modifier.weight(1f).fillMaxSize().destinationArrival(destination)) {
+        Box(Modifier.weight(1f).fillMaxSize().then(arrival)) {
             if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
-            if(s.loading) { Column(Modifier.padding(24.dp)) { PocketLoading(); Text("正在读取本地数据…") }; return@Box }
+            if(s.loading) { LoadingStatus("正在读取本地数据…",Modifier.align(Alignment.Center)); return@Box }
             if(s.detailLoading) {
                 Box(Modifier.fillMaxSize().testTag("detailLoading"),contentAlignment=Alignment.Center) {
                     Column(Modifier.padding(24.dp).widthIn(max=320.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {

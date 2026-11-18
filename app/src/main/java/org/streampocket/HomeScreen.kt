@@ -85,7 +85,7 @@ import androidx.compose.ui.unit.dp
                     val failureHint = if (s.failures > 0) " · ${s.failures} 个失败" else ""
                     Text("${groups.size} 部 · ${videos.size} 个片源 · "+(if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源")+failureHint, Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    GlassIconButton(onClick=back,modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回推荐") }
+
                     if (s.results.isNotEmpty()) Box {
                         GlassIconButton(onClick={sortMenu=true},modifier=Modifier.size(48.dp).testTag("searchSort")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"排序：${s.searchOrder.label}") }
                         GlassMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {

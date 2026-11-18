@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    androidx.activity.compose.BackHandler(enabled=searchOpen && !filtersOpen && !imeVisible) { searchOpen=false;query="" }
     var period by rememberSaveable { mutableStateOf(HistoryPeriod.ALL) }
     var kind by rememberSaveable { mutableStateOf(HistoryKind.ALL) }
     var source by rememberSaveable { mutableStateOf<String?>(null) }
@@ -60,8 +61,9 @@ import androidx.compose.ui.unit.dp
     Column(Modifier.fillMaxSize().nestedScroll(scrollConnection)) {
     Column(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min=68.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text("历史",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
-            GlassIconButton(onClick={searchOpen=!searchOpen}) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
+            if(searchOpen) PocketBack({ searchOpen=false;query="";keyboard?.hide() })
+            Text(if(searchOpen) "搜索历史" else "历史",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
+            if(!searchOpen) GlassIconButton(onClick={searchOpen=true}) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
             GlassIconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
         }
         if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
@@ -75,7 +77,7 @@ import androidx.compose.ui.unit.dp
         if(filtersOpen) HandleOnlySheet(onDismissRequest={filtersOpen=false}) {
         SheetSystemBars()
         Column(Modifier.padding(horizontal=20.dp,vertical=16.dp)) {
-        Text("筛选历史",style=MaterialTheme.typography.titleLarge)
+        SheetHeading("筛选历史") { filtersOpen=false }
 
         LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             items(HistoryPeriod.entries) { option -> ContentFilterChip(selected=period==option,onClick={period=option},label={Text(option.label)},modifier=Modifier.testTag("historyPeriod:${option.name}")) }
@@ -99,9 +101,22 @@ import androidx.compose.ui.unit.dp
         }
     }
     }
+    val datedGroups=remember(groups,now) {
+        val zone=java.time.ZoneId.systemDefault()
+        val today=java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        groups.groupBy { group ->
+            when(java.time.Instant.ofEpochMilli(group.latest.updated).atZone(zone).toLocalDate()) {
+                today -> "今天"
+                today.minusDays(1) -> "昨天"
+                else -> "更早"
+            }
+        }
+    }
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).testTag("historyGroups")) {
         if(groups.isEmpty()) item { EmptyPanel(if(history.isEmpty()) "还没有观看记录" else "没有匹配记录",if(history.isEmpty()) "播放影片后，可在这里继续观看。" else "试试其他关键词或重置筛选。",R.drawable.ic_history) }
-        items(groups,key={it.key.stableKey}) { group ->
+        datedGroups.forEach { (day,entries) ->
+        item(key="day:$day") { Text(day,style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        items(entries,key={it.key.stableKey}) { group ->
             val shown = group.latest
             val id = group.key.stableKey
                 SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{remove(group.key);revealed=null}) {
@@ -123,6 +138,7 @@ import androidx.compose.ui.unit.dp
                 }
             }
         }
+    }
     }
     }
     if(clearing) GlassAlertDialog(onDismissRequest={clearing=false},title={Text("清空观看历史？")},text={Text("所有剧目的观看断点将被删除，订阅仍会保留。")},confirmButton={GlassTextButton(onClick={clear();clearing=false}) { Text("清空") }},dismissButton={GlassTextButton(onClick={clearing=false}) { Text("取消") }})

@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                GlassTextButton(onClick={choosing=false}) { Text("关闭") }
+                PocketClose({choosing=false})
             }
             if(lines.size>1) LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 items(lines.size) { i -> ContentFilterChip(i==selected,{selected=i},modifier=Modifier.testTag("detailLine:$i"),label={Text(lines[i].name)}) }
@@ -55,17 +55,8 @@ import androidx.compose.ui.unit.dp
     BoxWithConstraints(Modifier.fillMaxSize().testTag("detailGrid")) {
         val coverHeight = minOf(maxHeight*.42f,340.dp)
         Column(Modifier.fillMaxSize()) {
-            Box {
-                Poster(detail.video,model,Modifier.fillMaxWidth().height(coverHeight),contentScale=ContentScale.Crop,large=true)
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.82f)))))
-                Text(detail.video.title,Modifier.align(Alignment.BottomStart).padding(20.dp),
-                    style=MaterialTheme.typography.headlineMedium,color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
-                IconButton(onClick=model::closeDetail,modifier=Modifier.align(Alignment.TopStart).padding(8.dp),
-                    colors=IconButtonDefaults.iconButtonColors(containerColor=Color.Black.copy(alpha=.5f),contentColor=Color.White)) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack,"返回")
-                }
-            }
-            Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+            TitleCover(detail.video,model,coverHeight,model::closeDetail)
+            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp).smokeGlass(MaterialTheme.shapes.large).padding(horizontal=10.dp,vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                 val fraction = recent?.takeIf { it.duration > 0 }?.let { (it.position.toFloat()/it.duration).coerceIn(0f,1f) }
                 Box(Modifier.size(56.dp),contentAlignment=Alignment.Center) {
                     if(fraction!=null) CircularProgressIndicator(progress={fraction},modifier=Modifier.fillMaxSize().testTag("detailProgress"),
@@ -101,5 +92,15 @@ import androidx.compose.ui.unit.dp
 
             }
         }
+    }
+}
+
+@Composable internal fun TitleCover(video:Video,model:AppModel,height:androidx.compose.ui.unit.Dp,back:()->Unit,label:String="返回") {
+    Box {
+        Poster(video,model,Modifier.fillMaxWidth().height(height),contentScale=ContentScale.Crop,large=true)
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.82f)))))
+        Text(video.title,Modifier.align(Alignment.BottomStart).padding(20.dp),style=MaterialTheme.typography.headlineMedium,
+            color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
+        PocketBack(back,label,Modifier.align(Alignment.TopStart).padding(start=18.dp,top=6.dp),overVideo=true)
     }
 }

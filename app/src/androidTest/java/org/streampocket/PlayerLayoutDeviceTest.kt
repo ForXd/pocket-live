@@ -105,7 +105,7 @@ class PlayerLayoutDeviceTest {
             captureUi(ui,"player-portrait")
             ui.onNodeWithText("选集").performClick()
             captureUi(ui,"player-portrait-episodes")
-            ui.onNodeWithText("关闭").performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             val session=model.state.value.playback!!.sessionId
             val created=PlaybackMetrics.created
@@ -114,7 +114,7 @@ class PlayerLayoutDeviceTest {
             val smooth=model.state.value.smoothPlayback
             ui.onNodeWithText("流畅优先").performClick()
             ui.waitUntil(5000) { model.state.value.smoothPlayback!=smooth }
-            ui.onNodeWithText("关闭").performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
             assertEquals(session,model.state.value.playback!!.sessionId)
             assertEquals(created,PlaybackMetrics.created)
             ui.onNodeWithContentDescription("横屏全屏").performClick()
@@ -153,12 +153,12 @@ class PlayerLayoutDeviceTest {
             ui.onNodeWithTag("speed:1.5").performClick()
             ui.runOnIdle { assertEquals(1.5f,view(ui.activity.window.decorView)!!.player!!.playbackParameters.speed) }
             captureUi(ui,"player-fullscreen-options")
-            ui.onNodeWithText("关闭").performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             ui.onNodeWithText("快速换源").performClick()
             ui.waitUntil(10000) { !model.state.value.alternativesLoading && model.state.value.alternatives.count { it.probeStatus==ProbeStatus.READY }==2 }
             captureUi(ui,"player-fullscreen-alternatives")
-            ui.onNodeWithText("关闭").performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
 
             assertEquals(created,PlaybackMetrics.created)
@@ -181,7 +181,7 @@ class PlayerLayoutDeviceTest {
                             try { instrument.uiAutomation.injectInputEvent(event,true) } finally { event.recycle() }
                         }
                     }
-                    else -> ui.onNodeWithText("关闭").performClick()
+                    else -> ui.onNodeWithContentDescription("关闭").performClick()
                 }
                 ui.onNodeWithTag("fullscreenEpisodePanel").assertDoesNotExist()
                 if(android.os.Build.VERSION.SDK_INT>=29) ui.waitUntil(5000) {
@@ -195,18 +195,27 @@ class PlayerLayoutDeviceTest {
             ui.onNodeWithTag("playbackEpisodeRanges").performScrollToNode(hasTestTag("playbackRange:9"))
             ui.onNodeWithTag("playbackRange:9").performClick()
             ui.onNodeWithText("第451集").assertIsDisplayed()
+            ui.onNodeWithTag("playbackEpisodes").performScrollToIndex(49)
+            ui.onNodeWithText("第500集").assertIsDisplayed()
             captureUi(ui,"player-episodes-500")
             ui.onNodeWithTag("playbackCurrent").performClick()
             ui.onNodeWithText("第1集").assertIsDisplayed()
             captureUi(ui,"player-episodes")
+            ui.onNodeWithTag("playbackEpisodeRanges").performScrollToNode(hasTestTag("playbackRange:9"))
+            ui.onNodeWithTag("playbackRange:9").performClick()
+            ui.onNodeWithTag("playbackEpisodes").performScrollToIndex(49)
             val nextFrames=PlaybackMetrics.frames
-            ui.onNodeWithText("第2集").performClick()
-            ui.waitUntil(20000) { model.state.value.playback?.episode?.name=="第2集" && PlaybackMetrics.frames>nextFrames }
+            ui.onNodeWithText("第500集").performClick()
+            ui.waitUntil(20000) { model.state.value.playback?.episode?.name=="第500集" && PlaybackMetrics.frames>nextFrames }
             // A new session intentionally hides controls. Wait for that effect, then reveal them.
             ui.waitUntil(5000) {
                 ui.runOnUiThread { view(ui.activity.window.decorView)?.apply { player?.pause();controllerShowTimeoutMs=0;showController() } }
                 ui.onAllNodesWithContentDescription("上一集").fetchSemanticsNodes().isNotEmpty()
             }
+            ui.onNodeWithText("选集").performClick()
+            ui.onNodeWithText("第500集").assertIsDisplayed()
+            ui.onNodeWithContentDescription("关闭").performClick()
+            ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             ui.onNodeWithContentDescription("上一集").assertIsEnabled()
             ui.onNodeWithContentDescription("退出全屏").performClick()
             if(ui.activity.resources.configuration.smallestScreenWidthDp<600) {

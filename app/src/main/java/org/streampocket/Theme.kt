@@ -30,7 +30,7 @@ enum class ThemeMode(val title:String,val description:String) {
 object ThemePreference {
     private const val KEY="theme_mode"
     fun preferences(context:Context)=context.applicationContext.getSharedPreferences("appearance",Context.MODE_PRIVATE)
-    fun read(context:Context)=runCatching { ThemeMode.valueOf(preferences(context).getString(KEY,ThemeMode.SYSTEM.name)!!) }.getOrDefault(ThemeMode.SYSTEM)
+    fun read(context:Context)=runCatching { ThemeMode.valueOf(preferences(context).getString(KEY,ThemeMode.DARK.name)!!) }.getOrDefault(ThemeMode.SYSTEM)
     fun write(context:Context,mode:ThemeMode) { preferences(context).edit { putString(KEY,mode.name) } }
 }
 val LocalPocketDark=staticCompositionLocalOf { true }
@@ -46,14 +46,14 @@ val LocalPocketDark=staticCompositionLocalOf { true }
     return mode
 }
 internal val NightColors=darkColorScheme(
-    primary=Color.White,onPrimary=Color(0xff232323),primaryContainer=Color(0xff373737),onPrimaryContainer=Color(0xffececec),
-    secondary=Color(0xffc3c3c3),onSecondary=Color(0xff2c2c2c),secondaryContainer=Color(0xff353535),onSecondaryContainer=Color(0xffe6e6e6),
+    primary=Color.White,onPrimary=Color(0xff1a2126),primaryContainer=Color(0xff304048),onPrimaryContainer=Color(0xffe5eeef),
+    secondary=Color(0xffc3c3c3),onSecondary=Color(0xff2c2c2c),secondaryContainer=Color(0xff303b42),onSecondaryContainer=Color(0xffe6e6e6),
     tertiary=Color(0xffb7b7b7),onTertiary=Color(0xff2c2c2c),
-    background=Color(0xff1b1b1b),onBackground=Color(0xfff0f0f0),surface=Color(0xff1b1b1b),onSurface=Color(0xfff0f0f0),
-    surfaceVariant=Color(0xff313131),onSurfaceVariant=Color(0xffb6b6b6),surfaceTint=Color(0xffe4e4e4),
-    surfaceContainerLowest=Color(0xff121212),surfaceContainerLow=Color(0xff232323),surfaceContainer=Color(0xff2e2e2e),
-    surfaceContainerHigh=Color(0xff353535),surfaceContainerHighest=Color(0xff414141),surfaceDim=Color(0xff1b1b1b),surfaceBright=Color(0xff3b3b3b),
-    outline=Color(0xff8b8b8b),outlineVariant=Color(0xff444444))
+    background=Color(0xff101417),onBackground=Color(0xfff0f0f0),surface=Color(0xff101417),onSurface=Color(0xfff0f0f0),
+    surfaceVariant=Color(0xff313131),onSurfaceVariant=Color(0xffb2c0c7),surfaceTint=Color(0xffe4e4e4),
+    surfaceContainerLowest=Color(0xff0d1215),surfaceContainerLow=Color(0xff1a2126),surfaceContainer=Color(0xff232c32),
+    surfaceContainerHigh=Color(0xff303b42),surfaceContainerHighest=Color(0xff39474f),surfaceDim=Color(0xff101417),surfaceBright=Color(0xff3b3b3b),
+    outline=Color(0xff8b8b8b),outlineVariant=Color(0xff48565e))
 internal val DayColors=lightColorScheme(
     primary=Color(0xff171717),onPrimary=Color.White,primaryContainer=Color(0xffebebeb),onPrimaryContainer=Color(0xff333333),
     secondary=Color(0xff555555),onSecondary=Color.White,secondaryContainer=Color(0xfff2f2f2),onSecondaryContainer=Color.Black,

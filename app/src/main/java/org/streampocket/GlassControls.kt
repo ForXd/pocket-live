@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
@@ -110,5 +113,44 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
         }
         Row(Modifier.fillMaxWidth().selectableGroup(),horizontalArrangement=Arrangement.spacedBy(gap),
             verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,content=content)
+    }
+}
+
+
+/** Static tinted surfaces stay inexpensive over the video and during list scrolling. */
+@Composable internal fun Modifier.smokeGlass(shape: Shape): Modifier {
+    val dark = LocalPocketDark.current
+    val top = if (dark) Color(0xE640505B) else Color(0xF7FFFFFF)
+    val bottom = if (dark) Color(0xED202B32) else Color(0xE9DCE4E8)
+    val tint = androidx.compose.runtime.remember(top, bottom) { Brush.linearGradient(listOf(top, bottom)) }
+    return clip(shape).background(tint, shape).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha=.34f), shape)
+}
+
+@Composable internal fun PocketBack(onClick: () -> Unit, label: String = "返回", modifier: Modifier = Modifier, overVideo: Boolean = false) {
+    IconButton(onClick, modifier.size(48.dp)) {
+        Box(Modifier.size(34.dp).background(if(overVideo) Color.Black.copy(alpha=.50f) else glassFill(true), CircleShape),
+            contentAlignment=androidx.compose.ui.Alignment.Center) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, label, Modifier.size(20.dp),
+                tint=if(overVideo) Color.White else MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+@Composable internal fun PocketClose(onClick: () -> Unit) {
+    IconButton(onClick, Modifier.size(48.dp)) { Icon(Icons.Default.Close,"关闭", Modifier.size(20.dp)) }
+}
+
+@Composable internal fun SheetHeading(title:String, close:()->Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+        Text(title, Modifier.weight(1f), style=MaterialTheme.typography.titleLarge)
+        PocketClose(close)
+    }
+}
+
+@Composable internal fun LoadingStatus(text:String,modifier:Modifier=Modifier) {
+    Row(modifier, verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement=Arrangement.spacedBy(12.dp,androidx.compose.ui.Alignment.CenterHorizontally)) {
+        PocketLoading()
+        Text(text,style=MaterialTheme.typography.bodyMedium)
     }
 }

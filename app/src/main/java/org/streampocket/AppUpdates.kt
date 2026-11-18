@@ -87,9 +87,9 @@ object AppUpdates {
     }
     val busy=transfer.phase==UpdatePhase.DOWNLOADING || transfer.phase==UpdatePhase.VERIFYING
     val release=if(busy || transfer.phase==UpdatePhase.READY) transfer.release else state.appRelease ?: transfer.release
-    GlassAlertDialog(onDismissRequest=close,title={Text("应用更新")},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    GlassAlertDialog(onDismissRequest=close,title={SheetHeading("应用更新",close)},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Text("Pocket Live · ${BuildConfig.VERSION_NAME}",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-        if(state.updateChecking) { PocketLoading(Modifier.fillMaxWidth());Text("正在检查新版…") }
+        if(state.updateChecking) { LoadingStatus("正在检查新版…",Modifier.fillMaxWidth()) }
         state.updateError?.let { Text("检查失败：$it") }
         release?.let {
             Text("新版 ${it.version} · ${"%.1f".format(it.bytes/1_000_000.0)} MB",style=MaterialTheme.typography.titleMedium)
@@ -97,11 +97,11 @@ object AppUpdates {
         }
         when(transfer.phase) {
             UpdatePhase.DOWNLOADING -> {
-                PocketLoading(progress={transfer.received.toFloat()/(transfer.release?.bytes ?: 1).coerceAtLeast(1)},modifier=Modifier.fillMaxWidth())
-                Text("正在下载 ${(transfer.received*100/(transfer.release?.bytes ?: 1).coerceAtLeast(1))}%")
+                LinearProgressIndicator(progress={ (transfer.received.toFloat()/(transfer.release?.bytes ?: 1).coerceAtLeast(1)).coerceIn(0f,1f) },modifier=Modifier.fillMaxWidth())
+                Text("正在下载 ${(transfer.received*100/(transfer.release?.bytes ?: 1).coerceAtLeast(1))}% · ${transfer.received/1024} / ${(transfer.release?.bytes ?: 0L)/1024} KiB")
                 GlassTextButton(onClick={installWhenReady=false;updater.cancel()}) { Text("取消下载") }
             }
-            UpdatePhase.VERIFYING -> { PocketLoading(Modifier.fillMaxWidth());Text("正在校验安装包和签名…") }
+            UpdatePhase.VERIFYING -> { LoadingStatus("正在校验安装包和签名…",Modifier.fillMaxWidth()) }
             UpdatePhase.READY -> Text("下载及签名校验完成，可直接安装。")
             else -> Unit
         }
@@ -114,5 +114,5 @@ object AppUpdates {
         if(transfer.phase==UpdatePhase.READY) GlassTextButton(onClick=::requestInstall) { Text("安装更新") }
         else if(release!=null) GlassTextButton(enabled=!busy,onClick={installWhenReady=true;updater.download(release)}) { Text(if(transfer.phase==UpdatePhase.ERROR) "重新下载" else "下载并安装") }
         else GlassTextButton(enabled=!state.updateChecking,onClick={model.checkUpdates(true)}) { Text("检查更新") }
-    },dismissButton={GlassTextButton(onClick=close) { Text("关闭") }})
+    })
 }

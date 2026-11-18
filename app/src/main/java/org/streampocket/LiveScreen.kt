@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
     if(picker) HandleOnlySheet(onDismissRequest={picker=false}) {
         SheetSystemBars()
         LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current)) {
-            item { Row(verticalAlignment=Alignment.CenterVertically) { Text("直播来源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge);GlassTextButton(onClick={picker=false}) { Text("取消") } } }
+            item { Row(verticalAlignment=Alignment.CenterVertically) { Text("直播来源",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge);PocketClose { picker=false } } }
             items(sources,key={it.key}) { source -> ListItem(colors=ListItemDefaults.colors(containerColor=androidx.compose.ui.graphics.Color.Transparent),headlineContent={Text(source.name)},leadingContent={RadioButton(source.key==s.liveSourceKey,onClick=null)},modifier=Modifier.clickable { model.loadLive(source.key);picker=false }.testTag("liveSource:${source.key}")) }
         }
     }

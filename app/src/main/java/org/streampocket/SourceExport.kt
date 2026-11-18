@@ -76,7 +76,7 @@ internal suspend fun uploadSourceDocument(document:String,client:okhttp3.OkHttpC
     }
     HandleOnlySheet(close) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text("分享已验证片源",style=MaterialTheme.typography.titleLarge)
+            SheetHeading("分享已验证片源",close)
             Text("共 ${sources.size} 个已启用来源。发布后，持有链接的人可读取片源地址及其参数。在「添加订阅」中粘贴链接或选择 JSON 文件即可导入。",style=MaterialTheme.typography.bodyMedium)
             if(link.isEmpty()) GlassButton(enabled=sources.isNotEmpty() && !busy,onClick={
                 busy=true;status=""

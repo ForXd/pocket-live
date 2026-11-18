@@ -97,7 +97,7 @@ class SwitchingDeviceTest {
             ui.waitUntil(15000) { ui.onAllNodes(hasText("缓冲较慢",substring=true)).fetchSemanticsNodes().isNotEmpty() }
             ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.onNodeWithText("流畅优先").assertExists()
-            ui.onNodeWithText("关闭").performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
             ui.onNodeWithText("快速换源").assertExists()
             ui.runOnIdle { model.stopPlayback() }
             ui.waitUntil(5000) { PlaybackMetrics.created==PlaybackMetrics.released && PlaybackMetrics.samplers==0 }

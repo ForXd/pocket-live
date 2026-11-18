@@ -319,7 +319,7 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("recommendCategory:经典").performClick()
         assertEquals("热门",model.state.value.recommendTag)
         captureUi(ui,"recommend-category-sheet")
-        ui.onNodeWithText("取消").performClick()
+        ui.onNodeWithContentDescription("关闭").performClick()
         assertEquals("热门",model.state.value.recommendTag)
         ui.onNodeWithTag("recommendCategoryPicker").performClick()
         ui.onNodeWithTag("recommendType:movie").performClick()

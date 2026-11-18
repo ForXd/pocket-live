@@ -45,7 +45,7 @@ class AppUpdateDeviceTest {
             ui.onNodeWithText("重新检查").performClick()
             ui.waitUntil(5000) { calls.get()==4 && !model.state.value.updateChecking }
             assertNull(model.state.value.updateError)
-            ui.onNodeWithText("关闭").performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
             ui.onNodeWithTag("settingsList").assertExists()
             ui.onNodeWithTag("nav:0").performClick()
             ui.onNodeWithTag("searchInput").assertExists()

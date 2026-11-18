@@ -88,7 +88,7 @@ import androidx.compose.ui.text.style.TextOverflow
         LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("catalogPicker"),contentPadding=PaddingValues(start=20.dp,end=20.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             item { Row(verticalAlignment=Alignment.CenterVertically) {
                 Text(if(picker=="source") "选择片库" else "筛选题材",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                GlassTextButton(onClick={picker=null}) { Text("取消") }
+                PocketClose { picker=null }
             } }
             if(picker=="source") {
                 item { Text("不选即搜索所有来源",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -270,7 +270,7 @@ import androidx.compose.ui.text.style.TextOverflow
             LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("recommendCategorySheet"),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp)) {
                 item { Row(verticalAlignment=Alignment.CenterVertically) {
                     Text("推荐分类",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                    GlassTextButton(onClick={categoryPicker.value=false}) { Text("取消") }
+                    PocketClose { categoryPicker.value=false }
                 } }
                 item { Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     listOf("tv" to "剧集","movie" to "电影").forEach { (type,label) -> ContentFilterChip(selected=draftType==type,onClick={if(draftType!=type) { draftType=type;draftTag="热门" }},modifier=Modifier.testTag("recommendType:$type"),label={Text(label)}) }
@@ -319,7 +319,7 @@ import androidx.compose.ui.text.style.TextOverflow
             PosterGridCard(video,model,Modifier.testTag("recommendation:${video.id}"),"recommend") { model.openRecommendation(video) }
         }
 
-        if(s.recommendLoading && !refreshing) item(span={GridItemSpan(maxLineSpan)}) { PocketLoading(Modifier.fillMaxWidth()) }
+        if(s.recommendLoading && !refreshing) item(span={GridItemSpan(maxLineSpan)}) { LoadingStatus(if(s.recommendAppending) "正在加载更多…" else "正在加载推荐…",Modifier.fillMaxWidth()) }
         s.recommendError?.let { error -> item(span={GridItemSpan(maxLineSpan)}) {
             Column { Text("推荐加载失败：$error")
                 GlassTextButton(onClick={model.recommend(more=s.recommendAppending)}) { Text("重试推荐") } }

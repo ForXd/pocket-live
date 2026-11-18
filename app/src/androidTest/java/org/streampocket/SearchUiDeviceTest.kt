@@ -107,7 +107,7 @@ class SearchUiDeviceTest {
             ui.onNodeWithTag("searchVideo:noise").assertExists()
             // The search bar collapses after scrolling; reveal it before physical touch.
             ui.onNodeWithTag("searchResults").performTouchInput { swipeDown() }
-            ui.onNodeWithContentDescription("清空并返回推荐").assertIsDisplayed().performClick()
+            ui.onNodeWithContentDescription("返回推荐").assertIsDisplayed().performClick()
             capture("03-returned-home")
             ui.onNodeWithText("分类").performClick()
             ui.waitUntil(10000) { model.state.value.categories.isNotEmpty() }
@@ -166,7 +166,7 @@ class SearchUiDeviceTest {
             // Dismissal discards edits; applying no selections means no genre restriction.
             ui.onNodeWithTag("catalogGenrePicker").performClick()
             ui.onNodeWithTag("clearCatalogFilters").performClick()
-            ui.onNodeWithText("取消",useUnmergedTree=true).performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
             assertEquals(setOf(Genre.ROMANCE,Genre.MYSTERY),model.state.value.catalogGenres)
             ui.onNodeWithTag("activeGenre:ROMANCE").performClick()
             ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenres==setOf(Genre.MYSTERY) }

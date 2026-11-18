@@ -66,7 +66,7 @@ class DiscoveryDeviceTest {
             ui.runOnIdle { model.importSubscription("$base/sub") }
             ui.waitUntil(15000) { model.state.value.saved.subscriptions.any { it.url=="$base/sub" } }
             ui.onNodeWithTag("nav:0").performClick()
-            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
+            if(ui.onAllNodesWithContentDescription("返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("返回推荐").performClick()
             ui.waitUntil(15000) { model.state.value.recommendations.size==20 && !model.state.value.recommendLoading }
             ui.onNodeWithText("tv 推荐 1-1").assertExists()
             ui.waitUntil(15000) { ui.onAllNodesWithContentDescription("tv 推荐 1-1 封面").fetchSemanticsNodes().isNotEmpty() }
@@ -88,7 +88,7 @@ class DiscoveryDeviceTest {
             ui.waitUntil(15000) { !model.state.value.searching && model.state.value.results.isNotEmpty() }
             ui.onNodeWithTag("searchInput").assertTextContains("movie 推荐 1-1")
             ui.onNodeWithTag("nav:0").performClick()
-            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
+            if(ui.onAllNodesWithContentDescription("返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("返回推荐").performClick()
             ui.onNodeWithText("分类").performClick()
             ui.waitUntil(15000) { model.state.value.categories.isNotEmpty() }
             ui.onNodeWithTag("catalogGenrePicker").performClick()

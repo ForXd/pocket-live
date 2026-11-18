@@ -6,8 +6,8 @@ import androidx.core.graphics.scale
 import kotlin.math.max
 
 /** Three separable box passes approximate a Gaussian at <= 320 pixels on the long edge. */
-internal fun blurGlassBitmap(source:Bitmap):Bitmap {
-    val scale=minOf(1f,320f/max(source.width,source.height))
+internal fun blurGlassBitmap(source:Bitmap,maxEdge:Int=320):Bitmap {
+    val scale=minOf(1f,maxEdge.toFloat()/max(source.width,source.height))
     val small=source.scale(max(1,(source.width*scale).toInt()),max(1,(source.height*scale).toInt()),true)
     val result=small.copy(Bitmap.Config.ARGB_8888,true)
     if(small!==source) small.recycle()

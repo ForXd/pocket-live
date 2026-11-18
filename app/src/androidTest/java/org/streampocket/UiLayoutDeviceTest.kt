@@ -89,7 +89,7 @@ class UiLayoutDeviceTest {
                 assertTrue(model.state.value.searchQuery.isEmpty())
                 ui.onNodeWithTag("searchRecommendationSources").assertIsDisplayed()
                 capture("design-recommendation-preview")
-                ui.onNodeWithText("返回推荐").performClick()
+                ui.onNodeWithContentDescription("返回推荐").performClick()
                 ui.onNodeWithTag("recommendation:1").assertIsDisplayed()
                 ui.onNodeWithTag("recommendation:1").performClick()
                 ui.onNodeWithTag("searchRecommendationSources").performClick()
@@ -209,7 +209,7 @@ class UiLayoutDeviceTest {
             capture("04-history")
 
             ui.onNodeWithTag("nav:0").performClick()
-            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
+            if(ui.onAllNodesWithContentDescription("返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("返回推荐").performClick()
             ui.waitUntil(10000) { !model.state.value.recommendLoading && model.state.value.recommendations.size==5 }
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             capture("05-discovery")
@@ -279,7 +279,7 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("recommendationGrid").assertExists()
             assertFalse(model.state.value.searching)
             ui.onNodeWithTag("nav:0").performClick()
-            if(ui.onAllNodesWithContentDescription("清空并返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("清空并返回推荐").performClick()
+            if(ui.onAllNodesWithContentDescription("返回推荐").fetchSemanticsNodes().isNotEmpty()) ui.onNodeWithContentDescription("返回推荐").performClick()
             ui.onNodeWithTag("continueWatching").assertDoesNotExist()
             ui.onNodeWithTag("nav:2").performClick()
             ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("continue:${HistoryGroups.key(video).stableKey}"))

@@ -4,6 +4,10 @@ package org.streampocket
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -72,6 +76,8 @@ class PosterStore(private val directory: File) {
         try { temp.writeBytes(bytes);if(!temp.renameTo(target)) throw IOException("Cache commit failed") }
         finally { temp.delete() }
     }
+    internal fun thumbnail(url: String?): Bitmap? = validUrl(url)?.let { memory.get(hash(it)) }
+
     suspend fun load(url:String?,network:Network,large:Boolean=false):Bitmap? {
         val valid=validUrl(url) ?: return null
         val key=hash(valid);val memoryKey=if(large) "$key:hero" else key;val owner=epoch.get()
@@ -79,7 +85,8 @@ class PosterStore(private val directory: File) {
         return slots.withPermit { withContext(Dispatchers.IO) {
             memory.get(memoryKey)?.let { return@withContext it }
             try {
-                val bytes=read(key) ?: download(valid,network).also { ensureActive() }
+                val cached=read(key)
+                val bytes=cached ?: download(valid,network).also { ensureActive() }
                 ensureActive()
                 val bounds=BitmapFactory.Options().apply { inJustDecodeBounds=true }
                 BitmapFactory.decodeByteArray(bytes,0,bytes.size,bounds)
@@ -87,7 +94,7 @@ class PosterStore(private val directory: File) {
                 val bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size,BitmapFactory.Options().apply { inSampleSize=sample;inPreferredConfig=Bitmap.Config.ARGB_8888 }) ?: return@withContext null
                 ensureActive()
                 if(bitmap.width.toLong()*bitmap.height>pixels) return@withContext null
-                if(owner==epoch.get()) { memory.put(memoryKey,bitmap);save(key,bytes,owner) }
+                if(owner==epoch.get()) { memory.put(memoryKey,bitmap);if(cached==null) save(key,bytes,owner) }
                 bitmap
             } catch(e:CancellationException) { throw e } catch(_:Exception) { null }
         } }
@@ -119,18 +126,37 @@ class PosterStore(private val directory: File) {
 @Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier,shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false,frosted:Boolean=false) {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val refresh by remember(model) { model.state.map { it.posterRefresh }.distinctUntilChanged() }.collectAsStateWithLifecycle(initialValue=remember(model) { model.state.value.posterRefresh })
-    val bitmap by produceState<Bitmap?>(null,video.poster,model,refresh,lifecycle,large,frosted) {
-        value=null // A changed URL must never reuse the previous poster bitmap.
-        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            // A stopped screen cancels its calls; foreground entry retries a failed image.
-            if(value==null) {
-                val loaded=model.posters.load(video.poster,model.network,large)
-                value=if(frosted && loaded!=null) withContext(Dispatchers.Default) { blurGlassBitmap(loaded) } else loaded
+    key(video.poster, large, frosted, model, refresh) {
+        var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+        var preview by remember { mutableStateOf<Bitmap?>(null) }
+        var finished by remember { mutableStateOf(false) }
+        LaunchedEffect(lifecycle) {
+            lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                if(bitmap==null) {
+                    finished=false
+                    if(large && !frosted) {
+                        preview=withContext(Dispatchers.Default) {
+                            model.posters.thumbnail(video.poster)?.let { blurGlassBitmap(it,48) }
+                        }
+                    }
+                    val loaded=model.posters.load(video.poster,model.network,large)
+                    bitmap=if(frosted && loaded!=null) withContext(Dispatchers.Default) { blurGlassBitmap(loaded) } else loaded
+                    finished=true
+                }
             }
         }
-    }
-    Surface(modifier,shape=shape,color=if(frosted) androidx.compose.ui.graphics.Color.Transparent else containerColor) {
-        bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",modifier=Modifier.fillMaxSize(),contentScale=contentScale) }
-            ?: if(!frosted) Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) { Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant) } else Unit
+        val opacity by animateFloatAsState(if(bitmap==null) 0f else 1f,tween(140),label="posterReveal")
+        val highlight=MaterialTheme.colorScheme.onSurface.copy(alpha=.09f)
+        val glass=remember(highlight,containerColor) { Brush.linearGradient(listOf(highlight,containerColor)) }
+        Surface(modifier,shape=shape,color=if(frosted) androidx.compose.ui.graphics.Color.Transparent else containerColor) {
+            Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) {
+                if(!frosted && opacity<1f) {
+                    Box(Modifier.matchParentSize().background(glass))
+                    preview?.let { Image(it.asImageBitmap(),null,Modifier.matchParentSize(),contentScale=contentScale) }
+                    if(finished && bitmap==null) Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",Modifier.fillMaxSize(),contentScale=contentScale,alpha=opacity) }
+            }
+        }
     }
 }
