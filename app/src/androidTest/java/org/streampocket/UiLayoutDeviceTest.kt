@@ -184,7 +184,7 @@ class UiLayoutDeviceTest {
                 assertTrue(model.state.value.searchQuery.isEmpty())
                 ui.onNodeWithTag("searchRecommendationSources").assertIsDisplayed()
                 capture("design-recommendation-preview")
-                ui.onNodeWithContentDescription("返回推荐").performClick()
+                ui.onNodeWithContentDescription("关闭").performClick()
                 ui.onNodeWithTag("recommendation:1").assertIsDisplayed()
                 ui.onNodeWithTag("recommendation:1").performClick()
                 ui.onNodeWithTag("searchRecommendationSources").performClick()
@@ -210,7 +210,7 @@ class UiLayoutDeviceTest {
                 capture("design-detail")
                 ui.onNodeWithTag("detailPlay").assertIsDisplayed()
                 ui.onNodeWithTag("detailEpisodes").performClick();capture("sheet-detail-episodes");back()
-                ui.onNodeWithContentDescription("返回").performClick()
+                ui.onNodeWithContentDescription("关闭").performClick()
                 ui.onNodeWithTag("nav:1").performClick()
                 capture("design-subscriptions")
                 ui.onNodeWithTag("swipeSubscription:fixture").performTouchInput { swipeLeft() }
@@ -321,7 +321,7 @@ class UiLayoutDeviceTest {
             ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
             ui.waitForIdle()
             assertSame("Previous page artwork stays warm through ordinary backgrounding",warmCover,model.posters.cached(video.poster))
-            ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
+            ui.onNodeWithContentDescription("关闭",useUnmergedTree=true).performClick()
             ui.waitUntil(5000) { model.state.value.detail==null }
             ui.onNodeWithTag("nav:1").performClick()
             ui.onNodeWithText("订阅管理").assertDoesNotExist()
@@ -418,9 +418,37 @@ class UiLayoutDeviceTest {
                 ui.mainClock.advanceTimeBy(480)
                 ui.onNodeWithTag("recommendationPreview").assertIsDisplayed()
                 capture("poster-expanded")
+                val dispatcher=ui.activity.onBackPressedDispatcher
+                fun drag(edge:Int) {
+                    val width=ui.activity.window.decorView.width.toFloat()
+                    ui.runOnIdle {
+                        val start=if(edge==androidx.activity.BackEventCompat.EDGE_LEFT) 0f else width
+                        dispatcher.dispatchOnBackStarted(androidx.activity.BackEventCompat(start,0f,0f,edge))
+                        dispatcher.dispatchOnBackProgressed(androidx.activity.BackEventCompat(width*.5f,0f,.5f,edge))
+                    }
+                    ui.mainClock.advanceTimeByFrame()
+                }
+                drag(androidx.activity.BackEventCompat.EDGE_RIGHT)
+                capture("poster-return-half")
+                ui.runOnIdle { dispatcher.dispatchOnBackCancelled() }
+                ui.mainClock.advanceTimeBy(250)
+                ui.onNodeWithContentDescription("关闭").assertIsDisplayed()
+                assertEquals("4", model.state.value.recommendPreview?.id)
+                capture("poster-return-cancelled")
+                drag(androidx.activity.BackEventCompat.EDGE_LEFT)
+                ui.runOnIdle { dispatcher.onBackPressed() }
+                ui.mainClock.advanceTimeBy(350)
+                assertNull(model.state.value.recommendPreview)
+                ui.onNodeWithTag("expandedPoster").assertDoesNotExist()
+                assertEquals(nextLeft,bounds("4"))
+                capture("poster-returned")
+                ui.onNodeWithTag("recommendation:4").performClick()
+                ui.mainClock.advanceTimeBy(350)
+                ui.onNodeWithContentDescription("关闭").performClick()
+                ui.mainClock.advanceTimeBy(350)
+                assertNull(model.state.value.recommendPreview)
+                assertEquals(nextLeft,bounds("4"))
             } finally { ui.mainClock.autoAdvance=true }
-            ui.onNodeWithContentDescription("返回推荐").performClick()
-            ui.waitForIdle()
             grid.performTouchInput { swipeUp(durationMillis=600) }
             ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
             capture("08-aligned-grid")

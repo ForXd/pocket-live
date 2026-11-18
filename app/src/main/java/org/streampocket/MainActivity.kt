@@ -33,6 +33,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
@@ -168,6 +169,14 @@ class MainActivity : ComponentActivity() {
     val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
     LaunchedEffect(tab,searchMode,recommendations.value,liveTab.value,imeVisible) { searchScroll.reveal() }
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
+    val expansion = rememberSaveable(saver=PosterExpansion.Saver) { PosterExpansion() }
+    val selected = expansion.selected
+    val cardVideo = s.recommendPreview ?: s.detailLoadingVideo ?: s.detail?.video
+    val destinationKey = remember(cardVideo?.source?.key,cardVideo?.id) { cardVideo?.let { hash(it.probeKey()) } }
+    val inline = selected != null && selected.destinationKey == destinationKey
+    LaunchedEffect(cardVideo,s.playback) {
+        if(cardVideo == null && s.playback == null) expansion.selected=null
+    }
     val playback = s.playback
     // The same hierarchy supplies the destination preview for buttons and system gestures.
     val routes = buildList {
@@ -176,8 +185,8 @@ class MainActivity : ComponentActivity() {
         if(tab!=0) add("tab:$tab")
         if(tab==2 && historySearch.value) add("history-search")
         if(tab==3 && settingsPage!=null) add("settings:${settingsPage!!.name}")
-        if(s.recommendPreview!=null) add("preview")
-        if(s.detail!=null || s.detailLoading) add("detail")
+        if(!inline && s.recommendPreview!=null) add("preview")
+        if(!inline && (s.detail!=null || s.detailLoading)) add("detail")
         if(playback!=null) add("playback")
     }
     CardRouteHost(routes) {
@@ -200,7 +209,7 @@ class MainActivity : ComponentActivity() {
     }
     if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
     if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
-    CardBackHandler(s.detail != null || s.detailLoading || searchMode || searchOpen || scopeSearch || tab!=0) {
+    CardBackHandler(!inline && (s.detail != null || s.detailLoading || searchMode || searchOpen || scopeSearch || tab!=0)) {
         when {
             s.detail!=null || s.detailLoading -> model.closeDetail()
             tab==3 && settingsPage!=null -> settingsPage=null
@@ -210,13 +219,15 @@ class MainActivity : ComponentActivity() {
         }
     }
     val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(liveTab.value) s.liveChannels.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
-    val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
+    val homeSearchVisible=tab==0 && (inline || (s.detail==null && !s.detailLoading))
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
     val wide=windowSizeDp().width.value>=840
-    if(s.recommendPreview!=null) { RecommendationPreview(s,model,::search);return@CardRouteHost }
+    if(!inline && s.recommendPreview!=null) { RecommendationPreview(s,model,::search);return@CardRouteHost }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
-    val showDock = !wide && !imeVisible && s.detail==null && !s.detailLoading
+    val showDock = !wide && !imeVisible && (inline || (s.detail==null && !s.detailLoading))
+    CompositionLocalProvider(LocalPosterExpansion provides expansion) {
+    Box(if(inline) Modifier.fillMaxSize().clearAndSetSemantics {} else Modifier.fillMaxSize()) {
     Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
         topBar = {
             if(homeSearchVisible || (tab==0 && wide && searchMode)) {
@@ -284,7 +295,7 @@ class MainActivity : ComponentActivity() {
             if(s.loading) { LoadingStatus("正在读取本地数据…",Modifier.align(Alignment.Center)); return@Box }
             val detail = s.detail
             val loadingVideo = s.detailLoadingVideo
-            if(detail != null || loadingVideo != null) {
+            if(!inline && (detail != null || loadingVideo != null)) {
                 val detailPane: @Composable () -> Unit = {
                     if(detail != null) DetailScreen(detail,model)
                     else if(loadingVideo != null) PendingDetail(loadingVideo,model) { motion.commit(model::closeDetail) }
@@ -343,6 +354,22 @@ class MainActivity : ComponentActivity() {
     }
     }
     } // Bounded content
+    } // Browsing surface
+    if(inline && selected!=null) key(selected) {
+        val isRecommendation=s.recommendPreview!=null
+        val detail=s.detail
+        val loadingVideo=s.detailLoadingVideo
+        ExpandedPosterCard(selected,onClose={
+            if(isRecommendation) model.closeRecommendation() else model.closeDetail()
+        }) {
+            when {
+                isRecommendation -> RecommendationPreview(s,model,::search)
+                detail!=null -> DetailScreen(detail,model)
+                loadingVideo!=null -> PendingDetail(loadingVideo,model,checkNotNull(LocalPosterClose.current))
+            }
+        }
+    }
+    } // Poster expansion
     ruleSource?.let { source -> GlassAlertDialog(dismissOnOutside=false,onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column(Modifier.verticalScroll(rememberScrollState())) { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
         OutlinedTextField(shape=MaterialTheme.shapes.medium,value=ruleText,onValueChange={ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={GlassTextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={GlassTextButton(onClick={ruleSource=null}) { Text("取消") }}) }
     delete?.let { sub -> GlassAlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={GlassTextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={GlassTextButton(onClick={delete=null}){Text("取消")}}) }

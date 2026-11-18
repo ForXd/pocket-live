@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -117,13 +118,17 @@ private fun detailCoverHeight(height: androidx.compose.ui.unit.Dp) = minOf(heigh
 }
 
 @Composable internal fun TitleCover(video:Video,model:AppModel,height:androidx.compose.ui.unit.Dp,back:()->Unit,label:String="返回") {
-    Box(Modifier.posterDestination(video)) {
+    Box(Modifier.posterDestination()) {
         Poster(video,model,Modifier.fillMaxWidth().height(height),contentScale=ContentScale.Crop,large=true)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.82f)))))
         Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
             RecommendationRating(video)
             Text(video.title,style=MaterialTheme.typography.headlineLarge,color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
         }
-        PocketBack(back, Modifier.align(Alignment.TopStart).padding(start=PageGutter,top=6.dp), label = label,overVideo=true)
+        val close=LocalPosterClose.current
+        if(close!=null) GlassIconButton(onClick=close,modifier=Modifier.align(Alignment.TopEnd).padding(8.dp),
+            colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=Color.Black.copy(alpha=.52f),contentColor=Color.White)) {
+            Icon(androidx.compose.material.icons.Icons.Default.Close,"关闭")
+        } else PocketBack(back, Modifier.align(Alignment.TopStart).padding(start=PageGutter,top=6.dp), label = label,overVideo=true)
     }
 }

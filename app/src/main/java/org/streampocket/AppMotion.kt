@@ -168,7 +168,6 @@ private class RoutePreviews {
 
 /** Keep only bounded, in-memory previews of ancestors. Forward navigation just draws the new screen. */
 @Composable internal fun CardRouteHost(routes: List<String>, content: @Composable () -> Unit) {
-    val expansion = remember { PosterExpansion() }
     val window=LocalActivity.current?.window
     val previews=remember(window) { RoutePreviews() }
     DisposableEffect(previews) { onDispose { previews.clear() } }
@@ -185,7 +184,6 @@ private class RoutePreviews {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
                 handoff = null
-                expansion.flight = null
                 motion.windowHidden()
             }
         }
@@ -205,7 +203,7 @@ private class RoutePreviews {
         previews.motion = motion
     }
     val surface=MaterialTheme.colorScheme.background
-    CompositionLocalProvider(LocalCardReturn provides motion, LocalPosterExpansion provides expansion) {
+    CompositionLocalProvider(LocalCardReturn provides motion) {
         Box(Modifier.fillMaxSize().clipToBounds().onGloballyPositioned {
             val rect=it.boundsInWindow()
             previews.bounds=Rect(rect.left.roundToInt(),rect.top.roundToInt(),rect.right.roundToInt(),rect.bottom.roundToInt())
@@ -229,11 +227,6 @@ private class RoutePreviews {
         }) {
             Box(Modifier.fillMaxSize().graphicsLayer { translationX=motion.direction*size.width*motion.progress }
                 .background(surface)) { content() }
-            expansion.flight?.let { flight ->
-                if (route == "preview" || route == "detail") {
-                    PosterFlightOverlay(expansion, flight, { previews.preview(parent)?.image }, Modifier.matchParentSize())
-                } else SideEffect { expansion.flight = null }
-            }
             handoff?.let { frame ->
                 Box(Modifier.matchParentSize().drawBehind {
                     val dimensions = IntSize(size.width.roundToInt(), size.height.roundToInt())

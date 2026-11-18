@@ -441,8 +441,8 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable private fun PosterGridCard(video:Video,model:AppModel,modifier:Modifier,prefix:String,probe:ProbeStatus?=null,showProbe:Boolean=false,onClick:()->Unit) {
     val anchor = rememberPosterAnchor(video, model)
     DiscoveryCard(onClick={ anchor.open(video, onClick) },modifier=modifier.fillMaxWidth()) {
-        Box {
-            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(1.1f).then(anchor.modifier).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
+        Box(anchor.modifier) {
+            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(1.1f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)
         }
         Column(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
@@ -460,8 +460,8 @@ import androidx.compose.ui.text.style.TextOverflow
     val height=if(wide) 350.dp else (windowSizeDp().width*.59f).coerceAtMost(300.dp)
     val anchor = rememberPosterAnchor(video, model, large=true)
     DiscoveryCard(modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}"),onClick={ anchor.open(video, onClick) }) {
-        Box {
-        Poster(video,model,Modifier.fillMaxWidth().height(height).then(anchor.modifier).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
+        Box(anchor.modifier) {
+        Poster(video,model,Modifier.fillMaxWidth().height(height).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.12f),Color.Black.copy(alpha=.8f)))))
         Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(20.dp),verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {

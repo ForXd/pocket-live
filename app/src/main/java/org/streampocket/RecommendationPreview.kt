@@ -32,22 +32,23 @@ internal fun recommendationMetadata(json:String):String? {
 
 @Composable internal fun RecommendationPreview(s:UiState,model:AppModel,search:(String)->Unit) {
     val video=s.recommendPreview ?: return
-    CardBackHandler(onBack=model::closeRecommendation)
+    val close=LocalPosterClose.current
+    if(close==null) CardBackHandler(onBack=model::closeRecommendation)
     val motion=LocalCardReturn.current
-    val back={ motion.commit(model::closeRecommendation) }
-    val wide=windowSizeDp().width.value>=700
+    val back=close ?: { motion.commit(model::closeRecommendation) }
+    val wide=close==null && windowSizeDp().width.value>=700
     val largeFont=androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f
     Surface(Modifier.fillMaxSize().testTag("recommendationPreview")) {
-        Column(Modifier.safeDrawingPadding()) {
+        Column(if(close==null) Modifier.safeDrawingPadding() else Modifier.fillMaxSize()) {
             if(wide) Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
                 PocketBack(back, label = "返回推荐")
                 Text("影片介绍",Modifier.padding(12.dp),style=MaterialTheme.typography.titleMedium)
             }
-            if(!wide) TitleCover(video,model,minOf(windowSizeDp().height*.32f,290.dp),back, label = "返回推荐")
+            if(!wide) TitleCover(video,model,if(close==null) minOf(windowSizeDp().height*.32f,290.dp) else minOf(windowSizeDp().height*.26f,210.dp),back, label = "返回推荐")
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal=PageGutter,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                 if(wide) FlowRow(maxItemsInEachRow=if(largeFont && !wide) 1 else 2,horizontalArrangement=Arrangement.spacedBy(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                     Box {
-                        Poster(video,model,Modifier.width(220.dp).aspectRatio(.7f).posterDestination(video),shape=MaterialTheme.shapes.large,contentScale=ContentScale.Crop,large=true)
+                        Poster(video,model,Modifier.width(220.dp).aspectRatio(.7f).posterDestination(),shape=MaterialTheme.shapes.large,contentScale=ContentScale.Crop,large=true)
                         RecommendationRating(video,Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(8.dp))
                     }
                     Column(if(largeFont && !wide) Modifier.fillMaxWidth() else Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)) {
