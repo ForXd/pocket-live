@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentDialog
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -105,6 +106,12 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
         }
         val host=android.widget.FrameLayout(dialog.context)
         host.addView(view,android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,if(placement==GlassPlacement.SIDE) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT))
+        // The dialog has its own window and platform back dispatcher. A committed
+        // back closes this layer before the Activity can start a route transition.
+        val dialogBack=object:OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() { dismiss() }
+        }
+        dialog.onBackPressedDispatcher.addCallback(dialog,dialogBack)
         dialog.setContentView(host)
         dialog.setCanceledOnTouchOutside(allowOutside)
         dialog.setOnCancelListener { dismiss() }
@@ -143,6 +150,7 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
             hide(WindowInsetsCompat.Type.systemBars())
         }
         onDispose {
+            dialogBack.remove()
             if(Build.VERSION.SDK_INT >= 31 && blurListener!=null) windowManager.removeCrossWindowBlurEnabledListener(blurListener)
             dialog.setOnCancelListener(null)
             dialog.dismiss()
