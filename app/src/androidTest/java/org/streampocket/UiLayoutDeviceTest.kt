@@ -267,11 +267,14 @@ class UiLayoutDeviceTest {
                 return
             }
             assertEquals("History artwork survives persistence",video.poster,model.state.value.saved.history.first().playback.video.poster)
-            ui.onNodeWithTag("navigationRail").assertDoesNotExist()
+            ui.onNodeWithTag("mainNavigation").assertExists()
             ui.onNodeWithTag("recommendationGrid").assertExists()
             ui.onNodeWithContentDescription("外观设置").assertDoesNotExist()
-            assertTrue(ui.onNodeWithTag("nav:2").getUnclippedBoundsInRoot().left<ui.onNodeWithTag("nav:1").getUnclippedBoundsInRoot().left)
-            assertTrue(ui.onNodeWithTag("nav:3").getUnclippedBoundsInRoot().left>ui.onNodeWithTag("nav:2").getUnclippedBoundsInRoot().left)
+            val navOrder = listOf(0,2,1,3).map { ui.onNodeWithTag("nav:$it").getUnclippedBoundsInRoot() }
+            val rail = ui.activity.resources.configuration.screenWidthDp >= 840
+            assertTrue("Destination order follows the active navigation axis",navOrder.zipWithNext().all { (a,b) ->
+                if(rail) a.bottom<=b.top else a.right<=b.left
+            })
             ui.onNodeWithTag("openSearch").performClick()
             ui.runOnIdle { ui.activity.onBackPressedDispatcher.onBackPressed() }
             ui.onNodeWithTag("openSearch").assertIsDisplayed().performClick()

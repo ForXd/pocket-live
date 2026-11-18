@@ -203,15 +203,13 @@ class PlayerLayoutDeviceTest {
             repeat(10) { iteration ->
                 val instrument=InstrumentationRegistry.getInstrumentation()
                 when(iteration) {
-                    0 -> instrument.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                    0 -> instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
                     1 -> {
-                        val now=android.os.SystemClock.uptimeMillis()
-                        val x=ui.activity.window.decorView.width/4f
-                        val y=ui.activity.window.decorView.height/2f
-                        for(action in listOf(android.view.MotionEvent.ACTION_DOWN,android.view.MotionEvent.ACTION_UP)) {
-                            val event=android.view.MotionEvent.obtain(now,now,action,x,y,0)
-                            try { instrument.uiAutomation.injectInputEvent(event,true) } finally { event.recycle() }
-                        }
+                        val decor=ui.activity.window.decorView
+                        val xy=IntArray(2)
+                        ui.runOnIdle { decor.getLocationOnScreen(xy) }
+                        val command="input tap ${xy[0]+decor.width/4} ${xy[1]+decor.height/2}"
+                        instrument.uiAutomation.executeShellCommand(command).use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
                     }
                     else -> ui.onNodeWithContentDescription("关闭").performClick()
                 }
