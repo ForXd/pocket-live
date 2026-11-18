@@ -2,5 +2,6 @@
     <!-- Keep the timeline and bottom actions aligned and preserve the native seek touch target. -->
     <dimen name="player_bottom_bar_height">48dp</dimen>
     <dimen name="player_bottom_bar_margin_top">4dp</dimen>
-    <dimen name="player_progress_margin_bottom">40dp</dimen>
+    <dimen name="player_progress_margin_bottom">52dp</dimen>
+    <dimen name="player_dragged_thumb_size">14dp</dimen>
 </resources>

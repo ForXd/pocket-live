@@ -96,6 +96,7 @@ class DiscoveryDeviceTest {
             ui.onNodeWithTag("sourceCategory:1").performClick()
             ui.onNodeWithTag("applyCatalogFilters").performClick()
             ui.waitUntil(15000) { model.state.value.catalogCategory=="1" && !model.state.value.catalogLoading }
+            ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextInput("测试")
             androidx.test.espresso.Espresso.closeSoftKeyboard()
             ui.onNodeWithContentDescription("开始搜索").performClick()

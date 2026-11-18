@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Search
@@ -41,7 +43,7 @@ import androidx.compose.ui.unit.dp
     LaunchedEffect(focusOnOpen) { if(focusOnOpen) { requester.requestFocus();onFocused() } }
     Surface(color=MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center) {
-            ContentSearchField(query,onQuery,placeholder,onSearch={if(allowEmpty || query.isNotBlank()) submit()},modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(horizontal=20.dp,vertical=4.dp)
+            ContentSearchField(query,onQuery,placeholder,onSearch={if(allowEmpty || query.isNotBlank()) submit()},modifier=Modifier.widthIn(max=1100.dp).fillMaxWidth().padding(vertical=4.dp)
                 .focusRequester(requester).testTag("searchInput").semantics { contentDescription="影片或频道名称" },trailingIcon={
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
@@ -79,23 +81,27 @@ import androidx.compose.ui.unit.dp
     val grid=rememberLazyGridState()
     val scope=rememberCoroutineScope()
     ScrollToTopOnChange(category.name,showOthers.toString(),s.searchOrder.name) { grid.scrollToItem(0) }
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("searchToolbar")) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    val failureHint = if (s.failures > 0) " · ${s.failures} 个失败" else ""
-                    Text("${groups.size} 部 · ${videos.size} 个片源 · "+(if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源")+failureHint, Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                    if (s.results.isNotEmpty()) Box {
-                        GlassIconButton(onClick={sortMenu=true},modifier=Modifier.size(48.dp).testTag("searchSort")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"排序：${s.searchOrder.label}") }
-                        GlassMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                            SearchOrder.entries.forEach { order -> DropdownMenuItem(text = { Text(order.label) },
-                                onClick = { model.sortSearch(order); sortMenu = false }, trailingIcon = { if (order == s.searchOrder) Text("已选") }) }
-                        }
+    val largeTypeLayout = windowSizeDp().width < 300.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale
+    val dockInset = LocalDockInset.current
+    val failureHint = if (s.failures > 0) " · ${s.failures} 个失败" else ""
+    val summary = "${groups.size} 部 · ${videos.size} 个片源 · " +
+        (if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源") + failureHint
+    Column(Modifier.fillMaxSize().padding(bottom=if(largeTypeLayout) dockInset else 0.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("searchToolbar")) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("搜索结果",modifier=if(largeTypeLayout) Modifier.weight(1f) else Modifier,style=MaterialTheme.typography.titleLarge)
+                if (!largeTypeLayout) Text(summary, Modifier.weight(1f),
+                    style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if (s.results.isNotEmpty()) Box {
+                    GlassIconButton(onClick={sortMenu=true},modifier=Modifier.size(48.dp).testTag("searchSort")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"排序：${s.searchOrder.label}") }
+                    GlassMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                        SearchOrder.entries.forEach { order -> DropdownMenuItem(text = { Text(order.label) },
+                            onClick = { model.sortSearch(order); sortMenu = false }, trailingIcon = { if (order == s.searchOrder) Text("已选") }) }
                     }
                 }
-        if(s.results.isNotEmpty()) Column {
-            Column {
+            }
+            if (largeTypeLayout) Text(summary,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if(s.results.isNotEmpty()) Column {
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("searchCategories")) {
                     items(Genre.entries.filter { it != Genre.UNKNOWN || it == category || (counts[it] ?: 0) > 0 }) { option ->
                         ContentFilterChip(selected=category==option,onClick={category=option;model.requestSourceProbe(null)},
@@ -108,9 +114,8 @@ import androidx.compose.ui.unit.dp
                 }
             }
         }
-        }
         Box(Modifier.weight(1f)) {
-    LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),state=grid,contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp+LocalDockInset.current),horizontalArrangement=Arrangement.spacedBy(12.dp),
+    LazyVerticalGrid(columns=GridCells.Adaptive(320.dp),state=grid,contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=8.dp,bottom=16.dp+(if(largeTypeLayout) 0.dp else dockInset)),horizontalArrangement=Arrangement.spacedBy(12.dp),
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
             awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
         }) {
@@ -147,19 +152,20 @@ import androidx.compose.ui.unit.dp
     val options=VideoGroups.searchSources(selectedWork,group).ifEmpty { listOf(group.first()) }
     val expanded=expandedWork!=null && options.any { VideoGroups.workKey(it)==expandedWork }
     val video=options.first()
-    ContentCard(modifier.fillMaxWidth().testTag("searchGroup:${VideoGroups.familyKey(video)}")) {
-        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+    ContentCard(modifier.fillMaxWidth().testTag("searchGroup:${VideoGroups.familyKey(video)}"), containerColor=MaterialTheme.colorScheme.surface) {
+        Column(Modifier.padding(vertical=8.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth().clickable { expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
                 horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
-                Poster(video,model,Modifier.size(84.dp,122.dp),shape=MaterialTheme.shapes.small)
+                Poster(video,model,Modifier.size(68.dp,88.dp),shape=MaterialTheme.shapes.small)
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
                     Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                     val metadata=SearchRules.metadata(video)
                     if(metadata.isNotEmpty()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
                     Text("${options.size} 个来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    GlassButton(onClick={expand(if(expanded) null else selectedWork)},modifier=Modifier.heightIn(min=48.dp),shape=MaterialTheme.shapes.small) { Text(if(expanded) "收起来源" else "查看来源") }
                 }
+                Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,if(expanded) "收起来源" else "查看来源",Modifier.align(Alignment.CenterVertically))
             }
+            ContentDivider()
             SeasonChips(group,video,{selectedWork=VideoGroups.workKey(it);expand(null)},search=true)
             if(expanded) {
                 val ready=options.any { state.probes[it.probeKey()]==ProbeStatus.READY }

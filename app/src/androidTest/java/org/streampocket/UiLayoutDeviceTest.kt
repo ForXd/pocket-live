@@ -20,17 +20,40 @@ class UiLayoutDeviceTest {
     @Test fun primaryActionsAndSettingsRemainReachable() {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
-        val source=Source("示例来源","$base/api")
+        val review=InstrumentationRegistry.getArguments().getString("designCapture")=="true"
+        val source=Source(if(review) "溪山源" else "示例来源","$base/api")
         val video=Video(source,"1","星河漫游", "更新至第12集",poster="$base/poster.png")
         val history=History(Playback(video,Episode("第3集","$base/video3.mp4"),72000,duration=180_000),System.currentTimeMillis())
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
-        runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(Subscription("fixture","我的订阅","$base/sub",System.currentTimeMillis(),listOf(source))),history=listOf(history,history.copy(playback=history.playback.copy(episode=Episode("第2集","$base/video2.mp4"),position=45_000),updated=history.updated-1),history.copy(playback=history.playback.copy(episode=Episode("第1集","$base/video.mp4"),position=180_000),updated=history.updated-2)),allowHttp=true)) }
+        val subscriptions=buildList {
+            add(Subscription("fixture",if(review) "山海片库" else "我的订阅","$base/sub",System.currentTimeMillis(),listOf(source)))
+            if(review) add(Subscription("tv","城市频道","$base/tv",System.currentTimeMillis(),listOf(Source("山海频道","$base/live",SourceKind.LIVE))))
+        }
+        val records=buildList {
+            add(history)
+            add(history.copy(playback=history.playback.copy(episode=Episode("第2集","$base/video2.mp4"),position=45_000),updated=history.updated-1))
+            add(history.copy(playback=history.playback.copy(episode=Episode("第1集","$base/video.mp4"),position=180_000),updated=history.updated-2))
+            if(review) add(History(Playback(Video(source,"2","山海之间",poster="$base/forest.jpg"),Episode("第1集","$base/video.mp4"),501000,duration=2607000),history.updated-86400000L))
+        }
+        runBlocking { Storage(ui.activity.application).write(Saved(
+            subscriptions=subscriptions,history=records,searchHistoryEnabled=review,
+            recentSearches=if(review) listOf("星河漫游","夜航") else emptyList(),allowHttp=true)) }
+        val referenceVideo=java.io.File(ui.activity.getExternalFilesDir(null),"design-reference.mp4")
+        val media=if(review && referenceVideo.isFile) referenceVideo.readBytes()
+            else InstrumentationRegistry.getInstrumentation().context.assets.open("test.mp4").use { it.readBytes() }
         server.dispatcher=object:Dispatcher() {
-            override fun dispatch(request:RecordedRequest):MockResponse = if(request.path=="/poster.png") MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
-            else if(request.requestUrl?.encodedPath?.endsWith(".mp4")==true) MockResponse().setHeader("Content-Type","video/mp4").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("test.mp4").use { it.readBytes() }))
+            override fun dispatch(request:RecordedRequest):MockResponse = if(review && request.path in listOf("/poster.png","/forest.jpg","/sea.jpg")) {
+                val index=listOf("/poster.png","/forest.jpg","/sea.jpg").indexOf(request.path)
+                MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("review-$index.jpg").use { it.readBytes() }))
+            } else if(request.path=="/live") MockResponse().setBody("#EXTM3U\n#EXTINF:-1 group-title=\"综合\",山海综合\n$base/video.mp4\n#EXTINF:-1 group-title=\"纪录\",人文纪实\n$base/video2.mp4\n#EXTINF:-1 group-title=\"影视\",城市影院\n$base/video3.mp4")
+            else if(request.path=="/poster.png") MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
+            else if(request.requestUrl?.encodedPath?.endsWith(".mp4")==true) MockResponse().setHeader("Content-Type","video/mp4").setBody(okio.Buffer().write(media))
             else if(request.path!!.startsWith("/synopsis")) MockResponse().setBody("<span property=\"v:summary\">一次穿越群星的旅程。每个故事，都值得被认真观看。</span>")
+            else if(review && request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","cover":"$base/forest.jpg","episodes_info":"剧情 · 电影"},{"id":"3","title":"夜航","cover":"$base/sea.jpg","episodes_info":"悬疑 · 电影"}]}""")
             else if(request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","rate":"8.2","cover":"$base/poster.png"},{"id":"3","title":"一段跨越山河与四季的漫长旅程：我们的故事还没有结束","rate":"","cover":""},{"id":"4","title":"雨","rate":"9.1","episodes_info":"更新至第十二集 · 特别篇与幕后故事持续更新","cover":"$base/poster.png"},{"id":"5","title":"风","rate":"","cover":"$base/poster.png"}]}""")
             else if(request.requestUrl!!.queryParameter("ids")!=null) MockResponse().setBody("""{"list":[{"vod_content":"一次穿越群星的旅程。每个故事，都值得被认真观看。","vod_play_from":"高清线路","vod_play_url":"第1集${'$'}$base/video.mp4#第2集${'$'}$base/video2.mp4#第3集${'$'}$base/video3.mp4#第4集${'$'}$base/video4.mp4#第5集${'$'}$base/video5.mp4#第6集${'$'}$base/video6.mp4"}]}""")
+            else if(review && request.requestUrl?.queryParameter("wd")==null) MockResponse().setBody("""{"list":[{"vod_id":"2","vod_name":"山海之间","type_name":"剧情","vod_pic":"$base/forest.jpg"},{"vod_id":"3","vod_name":"夜航","type_name":"悬疑","vod_pic":"$base/sea.jpg"}]}""")
+            else if(review) MockResponse().setBody("""{"list":[{"vod_id":"1","vod_name":"星河漫游","vod_score":"8.5","vod_pic":"$base/poster.png"},{"vod_id":"3","vod_name":"星河之夜","type_name":"电影","vod_pic":"$base/sea.jpg"}]}""")
             else MockResponse().setBody("""{"list":[{"vod_id":"1","vod_name":"星河漫游","vod_remarks":"更新至第12集","vod_pic":"$base/poster.png"},{"vod_id":"2","vod_name":"山海之间","vod_remarks":"高清","vod_pic":"$base/poster.png"}]}""")
         }
         lateinit var model:AppModel
@@ -56,6 +79,20 @@ class UiLayoutDeviceTest {
         }
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
+            if(InstrumentationRegistry.getArguments().getString("motionReview")=="true") {
+                ui.waitUntil(10000) { model.state.value.recommendations.isNotEmpty() }
+                ui.mainClock.autoAdvance=false
+                val marker=java.io.File(instrument.targetContext.getExternalFilesDir(null),"motion-ready")
+                marker.createNewFile()
+                try {
+                    val end=android.os.SystemClock.elapsedRealtime()+11000
+                    while(android.os.SystemClock.elapsedRealtime()<end) {
+                        ui.mainClock.advanceTimeByFrame()
+                        android.os.SystemClock.sleep(16)
+                    }
+                } finally { marker.delete();ui.mainClock.autoAdvance=true }
+                return
+            }
             if(InstrumentationRegistry.getArguments().getString("manualDesignReview")=="true") {
                 if (InstrumentationRegistry.getArguments().getString("startFullscreen") == "true") {
                     ui.runOnIdle { model.open(video) }
@@ -83,7 +120,56 @@ class UiLayoutDeviceTest {
 
             if(InstrumentationRegistry.getArguments().getString("designCapture")=="true") {
                 ui.waitUntil(10000) { !model.state.value.recommendLoading && model.state.value.recommendations.isNotEmpty() }
+                fun back() { instrument.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK) }
+                fun noHomeBack() {
+                    ui.onNodeWithContentDescription("返回推荐").assertDoesNotExist()
+                    ui.onNodeWithContentDescription("返回").assertDoesNotExist()
+                }
+                fun assertRightRail(tag: String) {
+                    val search=ui.onNodeWithTag("openSearch").getUnclippedBoundsInRoot()
+                    val action=ui.onNodeWithTag(tag).assertHeightIsEqualTo(48.dp).getUnclippedBoundsInRoot()
+                    assertEquals("Right hit edge of $tag",search.right.value,action.right.value,1f)
+                    assertEquals("Center of $tag",(search.left.value+search.right.value)/2,(action.left.value+action.right.value)/2,1f)
+                }
+                assertRightRail("recommendCategoryPicker")
+                noHomeBack()
                 capture("design-home")
+                ui.onNodeWithTag("recommendCategoryPicker").performClick(); capture("sheet-recommend"); back()
+                ui.onNodeWithText("分类").performClick()
+                ui.waitUntil(10000) { model.state.value.catalogVideos.size==2 }
+                noHomeBack()
+                assertRightRail("discoverySort")
+                val tabs=ui.onNodeWithTag("recommendToolbar").getUnclippedBoundsInRoot()
+                val sourceButton=ui.onNodeWithTag("catalogSourcePicker").assertHeightIsAtLeast(48.dp).getUnclippedBoundsInRoot()
+                val genreButton=ui.onNodeWithTag("catalogGenrePicker").assertHeightIsAtLeast(48.dp).getUnclippedBoundsInRoot()
+                val sortButton=ui.onNodeWithTag("discoverySort").getUnclippedBoundsInRoot()
+                assertTrue("Space below tabs",sourceButton.top >= tabs.bottom + 7.dp)
+                assertTrue("Filters can wrap without intersecting",genreButton.left >= sourceButton.right + 7.dp || genreButton.top >= sourceButton.bottom)
+                assertTrue("Sort has a separate hit area",maxOf(sourceButton.right,genreButton.right) <= sortButton.left - 7.dp)
+                capture("design-catalog")
+                if(InstrumentationRegistry.getArguments().getString("catalogOnly")=="true") return
+                for((tag,name) in listOf("catalogSourcePicker" to "catalog-source","catalogGenrePicker" to "genre","discoverySort" to "sort")) {
+                    ui.onNodeWithTag(tag).performClick();capture("sheet-$name");back()
+                }
+                ui.onNodeWithTag("liveTab").performClick()
+                ui.waitUntil(10000) { model.state.value.liveChannels.size==3 }
+                noHomeBack();assertRightRail("liveRefresh");capture("design-live")
+                ui.onNodeWithTag("liveSourcePicker").performClick();capture("sheet-live-source");back()
+                val frames=PlaybackMetrics.frames
+                ui.onNodeWithTag("liveChannel:山海综合").performClick()
+                ui.waitUntil(20000) { PlaybackMetrics.frames>frames }
+                ui.onNodeWithText("选集").assertDoesNotExist()
+                ui.onNodeWithText("上一集").assertDoesNotExist()
+                ui.onNodeWithText("下一集").assertDoesNotExist()
+                ui.onNodeWithText("重试选集").assertDoesNotExist()
+                val backTarget=ui.onNodeWithContentDescription("返回频道").assertWidthIsEqualTo(48.dp).assertHeightIsEqualTo(48.dp).getUnclippedBoundsInRoot()
+                val moreTarget=ui.onNodeWithContentDescription("更多播放选项").assertWidthIsEqualTo(48.dp).assertHeightIsEqualTo(48.dp).getUnclippedBoundsInRoot()
+                assertEquals(backTarget.top.value,moreTarget.top.value,1f)
+                capture("design-live-player")
+                ui.onNodeWithContentDescription("更多播放选项").performClick();capture("sheet-live-options")
+                ui.onNodeWithContentDescription("关闭").performClick()
+                ui.onNodeWithContentDescription("返回频道").performClick()
+                ui.onNodeWithText("推荐").performClick()
                 ui.onNodeWithTag("recommendation:1").performClick()
                 ui.waitUntil(10000) { model.state.value.recommendSynopsis!=null }
                 assertTrue(model.state.value.searchQuery.isEmpty())
@@ -99,23 +185,52 @@ class UiLayoutDeviceTest {
 
 
                 ui.onNodeWithTag("openSearch").performClick()
+                val field = ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot()
+                val arrow = ui.onNodeWithContentDescription("返回推荐").getUnclippedBoundsInRoot()
+                assertTrue(arrow.right < field.left)
+                assertEquals((arrow.top.value+arrow.bottom.value)/2, (field.top.value+field.bottom.value)/2, 1f)
+                capture("design-search-input")
                 ui.onNodeWithTag("searchInput").performTextInput("星河")
                 ui.onNodeWithTag("searchInput").performImeAction()
                 ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
                 capture("design-search")
                 ui.onNodeWithText("星河漫游").performClick()
+                capture("design-search-expanded")
                 ui.onNodeWithTag("sourceChoice:${source.key}:1").performClick()
                 ui.waitUntil(10000) { model.state.value.detail!=null }
                 capture("design-detail")
                 ui.onNodeWithTag("detailPlay").assertIsDisplayed()
-                ui.runOnIdle { model.closeDetail() }
+                ui.onNodeWithTag("detailEpisodes").performClick();capture("sheet-detail-episodes");back()
+                ui.onNodeWithContentDescription("返回").performClick()
                 ui.onNodeWithTag("nav:1").performClick()
-                ui.onNodeWithTag("subscription:fixture").performClick()
                 capture("design-subscriptions")
+                ui.onNodeWithTag("swipeSubscription:fixture").performTouchInput { swipeLeft() }
+                capture("design-subscription-swipe")
+                ui.onNodeWithContentDescription("删除订阅").performClick()
+                capture("sheet-subscription-delete")
+                ui.onNodeWithText("取消").performClick()
+                ui.onNodeWithTag("swipeSubscription:fixture").performTouchInput { swipeRight() }
+                ui.onNodeWithText("分享片源").performClick();capture("sheet-share");back()
+                ui.onNodeWithTag("subscription:fixture").performClick();capture("design-subscription-expanded")
                 ui.onNodeWithTag("nav:2").performClick()
                 capture("design-history")
+                ui.onNodeWithContentDescription("搜索历史").performClick()
+                ui.onNodeWithTag("historySearch").performTextInput("山海")
+                ui.onNodeWithTag("historySearch").performImeAction()
+                capture("design-history-search")
+                ui.onNodeWithContentDescription("返回历史").performClick()
+                val id=HistoryGroups.key(video).stableKey
+                ui.onNodeWithTag("swipeHistory:$id").performTouchInput { swipeLeft() }
+                capture("design-history-swipe")
+                ui.onNodeWithTag("deleteHistory:$id").performClick()
+                capture("sheet-history-delete")
+                ui.onNodeWithText("取消").performClick()
                 ui.onNodeWithTag("nav:3").performClick()
                 capture("design-settings")
+                for((tag,name) in listOf("settingsNetwork" to "network","settingsStorage" to "storage")) {
+                    ui.onNodeWithTag("settingsList").performScrollToNode(hasTestTag(tag))
+                    ui.onNodeWithTag(tag).performClick(); capture("design-$name"); ui.onNodeWithContentDescription("返回设置").performClick()
+                }
                 ui.onNodeWithTag("settingsAppearance").performClick()
                 capture("sheet-appearance")
                 instrument.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
@@ -125,6 +240,7 @@ class UiLayoutDeviceTest {
                 ui.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsSourceRules"))
                 ui.onNodeWithTag("settingsSourceRules").performClick()
                 ui.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsRule:${source.key}"))
+                capture("design-rules")
                 ui.onNodeWithTag("settingsRule:${source.key}").performClick()
                 capture("sheet-source-rules")
                 instrument.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
@@ -168,12 +284,14 @@ class UiLayoutDeviceTest {
                 val last = ui.onNodeWithTag("nav:3").getUnclippedBoundsInRoot()
                 val field = ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot()
                 assertEquals((first.right-first.left).value, (last.right-last.left).value, 1f)
-                assertEquals(first.left.value - field.left.value, field.right.value - last.right.value, 1f)
+                val arrow=ui.onNodeWithContentDescription("返回推荐").getUnclippedBoundsInRoot()
+                assertTrue(arrow.right < field.left)
+                assertEquals((arrow.top.value+arrow.bottom.value)/2,(field.top.value+field.bottom.value)/2,1f)
                 assertEquals(first.top.value, last.top.value, 1f)
             }
             capture("01-search")
             ui.onNodeWithText("星河漫游").performClick()
-            ui.onNodeWithTag("sourceChoice:${source.key}:1").performClick()
+            ui.onNodeWithTag("sourceChoice:${source.key}:1").performScrollTo().performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
             ui.onNodeWithTag("detailPlay").assertIsDisplayed()
             ui.onNodeWithTag("detailPlay").assertContentDescriptionContains("继续观看")
@@ -197,6 +315,7 @@ class UiLayoutDeviceTest {
             ui.waitUntil(5000) { model.state.value.saved.adFilter }
             ui.onNodeWithText("自动 HLS 广告过滤").performClick()
             ui.waitUntil(5000) { !model.state.value.saved.adFilter }
+            ui.onNodeWithContentDescription("返回设置").performClick()
             ui.onNodeWithTag("settingsList").performScrollToNode(hasText("存储与缓存"))
             ui.onNodeWithText("存储与缓存").performClick()
             ui.onNodeWithTag("settingsList").performScrollToNode(hasText("清缓存（保留配置）"))

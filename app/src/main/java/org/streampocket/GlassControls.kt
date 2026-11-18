@@ -3,6 +3,7 @@ package org.streampocket
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.selection.selectableGroup
@@ -22,6 +23,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
+
+internal val PageGutter = 20.dp
+internal val ActionGap = 8.dp
+internal val IconTarget = 48.dp
+internal val IconFace = 36.dp
+internal val IconFaceInset = (IconTarget - IconFace) / 2
 
 internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp }
 
@@ -44,16 +51,38 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 @Composable internal fun glassFill(selected:Boolean=false)=MaterialTheme.colorScheme.primary.copy(alpha=if(MaterialTheme.colorScheme.surface.luminance()<.5f) { if(selected) .20f else .10f } else { if(selected) .12f else .04f })
 @Composable internal fun GlassButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     shape:Shape=MaterialTheme.shapes.medium,border:BorderStroke?=null,
-    colors:ButtonColors=ButtonDefaults.filledTonalButtonColors(),
+    colors:ButtonColors=ButtonDefaults.filledTonalButtonColors(containerColor=MaterialTheme.colorScheme.surfaceContainerHigh,contentColor=MaterialTheme.colorScheme.onSurface),
     contentPadding:PaddingValues=PaddingValues(horizontal=16.dp,vertical=12.dp),content:@Composable RowScope.()->Unit) {
     FilledTonalButton(onClick,modifier.heightIn(min=48.dp),enabled,shape,colors,border=border,contentPadding=contentPadding,content=content)
 }
 @Composable internal fun GlassIconButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
-    shape:Shape=MaterialTheme.shapes.medium,
-    colors:IconButtonColors=IconButtonDefaults.filledTonalIconButtonColors(),
+    shape:Shape=CircleShape,
+    colors:IconButtonColors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.surfaceContainerLow,contentColor=MaterialTheme.colorScheme.onSurface),
     border:BorderStroke?=null,content:@Composable ()->Unit) {
     val target = if (border == null) modifier else modifier.border(border, shape)
-    FilledTonalIconButton(onClick, target.sizeIn(minWidth=48.dp,minHeight=48.dp), enabled, shape, colors=colors, content=content)
+    val fill = if(enabled) colors.containerColor else colors.disabledContainerColor
+    val ink = if(enabled) colors.contentColor else colors.disabledContentColor
+    IconButton(onClick=onClick,modifier=target.size(IconTarget),enabled=enabled) {
+        Box(Modifier.size(IconFace).background(fill,shape),contentAlignment=androidx.compose.ui.Alignment.Center) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides ink) {
+                Box(Modifier.size(20.dp),propagateMinConstraints=true) { content() }
+            }
+        }
+    }
+}
+
+/** The selector and neighbouring icon have the same visual height and a full touch target. */
+@Composable internal fun FilterSelector(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    TextButton(onClick=onClick,modifier=modifier.sizeIn(minHeight=IconTarget,minWidth=IconTarget),
+        shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(0.dp)) {
+        Row(Modifier.background(MaterialTheme.colorScheme.surfaceContainer,MaterialTheme.shapes.medium)
+            .heightIn(min=IconFace).padding(horizontal=12.dp,vertical=4.dp),
+            horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+            Text(text,Modifier.weight(1f,fill=false),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurface)
+            Icon(Icons.Default.ArrowDropDown,null,Modifier.size(16.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 /** Color supplements an explicit label, so availability is never conveyed by color alone. */
@@ -127,12 +156,10 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 }
 
 @Composable internal fun PocketBack(onClick: () -> Unit, modifier: Modifier = Modifier, label: String = "返回", overVideo: Boolean = false) {
-    IconButton(onClick, modifier.size(48.dp)) {
-        Box(Modifier.size(34.dp).background(if(overVideo) Color.Black.copy(alpha=.50f) else glassFill(true), CircleShape),
-            contentAlignment=androidx.compose.ui.Alignment.Center) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, label, Modifier.size(20.dp),
-                tint=if(overVideo) Color.White else MaterialTheme.colorScheme.onSurface)
-        }
+    GlassIconButton(onClick=onClick,modifier=modifier,colors=IconButtonDefaults.filledTonalIconButtonColors(
+        containerColor=if(overVideo) Color.Black.copy(alpha=.50f) else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor=if(overVideo) Color.White else MaterialTheme.colorScheme.onSurface)) {
+        Icon(Icons.AutoMirrored.Filled.ArrowBack,label)
     }
 }
 
@@ -152,5 +179,26 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
         horizontalArrangement=Arrangement.spacedBy(12.dp,androidx.compose.ui.Alignment.CenterHorizontally)) {
         PocketLoading()
         Text(text,style=MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable internal fun PageHeading(title: String, inset: androidx.compose.ui.unit.Dp = PageGutter, actions: @Composable RowScope.() -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().heightIn(min=60.dp).padding(horizontal=inset),
+        horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+        Text(title,Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
+        actions()
+    }
+}
+
+@Composable internal fun PocketSwitch(checked: Boolean) {
+    Switch(checked=checked,onCheckedChange=null,colors=SwitchDefaults.colors(
+        checkedTrackColor=MaterialTheme.colorScheme.tertiary,checkedThumbColor=MaterialTheme.colorScheme.onTertiary))
+}
+
+@Composable internal fun SearchHeader(back: () -> Unit, backLabel: String = "返回", field: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min=64.dp).padding(horizontal=PageGutter),
+        verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        PocketBack(back, label=backLabel)
+        Box(Modifier.weight(1f)) { field() }
     }
 }

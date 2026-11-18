@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
     val homeState=rememberSaveableStateHolder()
     val historyState=rememberSaveableStateHolder()
     var updatesOpen by rememberSaveable { mutableStateOf(false) }
+    var settingsPage by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
     var appearanceOpen by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -96,6 +97,7 @@ class MainActivity : ComponentActivity() {
     val liveTab=rememberSaveable { mutableStateOf(false) }
     var liveQuery by rememberSaveable { mutableStateOf("") }
     val recommendations=rememberSaveable { mutableStateOf(true) }
+    var scopeSearch by rememberSaveable(liveTab.value,recommendations.value) { mutableStateOf(false) }
     var catalogQuery by rememberSaveable { mutableStateOf("") }
     var submittedQuery by rememberSaveable { mutableStateOf("") }
     fun search(text:String) {
@@ -106,6 +108,14 @@ class MainActivity : ComponentActivity() {
     fun showRecommendations() {
         model.cancelSearch();searchMode=false;searchOpen=false;query="";submittedQuery="";recommendations.value=true;liveTab.value=false
         focusManager.clearFocus();keyboard?.hide()
+    }
+    fun closeScopeSearch() {
+        scopeSearch=false
+        liveQuery=""
+        catalogQuery=""
+        if(!liveTab.value && s.catalogQuery.isNotEmpty()) model.browseSources(s.catalogSourceKeys,s.catalogCategory,"",genres=s.catalogGenres)
+        focusManager.clearFocus()
+        keyboard?.hide()
     }
     // Do not put token-bearing input into saved-instance-state or screen titles.
     var url by remember { mutableStateOf("") }
@@ -159,12 +169,15 @@ class MainActivity : ComponentActivity() {
         playback != null -> "playback"
         s.detail != null || s.detailLoading -> "detail"
         s.recommendPreview != null -> "preview"
-        tab == 0 && (searchOpen || searchMode) -> "search"
+        tab==3 && settingsPage!=null -> "settings:${settingsPage!!.name}"
+        tab == 0 && (searchOpen || searchMode || scopeSearch) -> "search"
+        tab==0 && liveTab.value -> "live"
+        tab==0 && !recommendations.value -> "catalog"
         else -> "tab:$tab"
     }
-    val depth = when(route) { "playback" -> 3; "detail" -> 2; "preview","search" -> 1; else -> 0 }
-    val arrival = Modifier.destinationArrival(route,depth)
-    if(playback != null) { Box(Modifier.fillMaxSize().then(arrival)) { PlaybackScreen(playback, model) }; return }
+    val depth = when(route) { "playback" -> 3; "detail" -> 2; "preview","search" -> 1; else -> if(route.startsWith("settings:")) 1 else 0 }
+    CardRouteHost(route, depth) {
+    if(playback != null) { PlaybackScreen(playback, model); return@CardRouteHost }
     if(exportOpen) SourceExportSheet(model) { exportOpen=false }
     if(addingSubscription) HandleOnlySheet(onDismissRequest={model.cancelImport("new");addingSubscription=false}) {
         SheetSystemBars()
@@ -182,10 +195,12 @@ class MainActivity : ComponentActivity() {
     }
     if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
     if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
-    BackHandler(s.detail != null || s.detailLoading || searchMode || searchOpen || tab!=0) {
+    BackHandler(s.detail != null || s.detailLoading || searchMode || searchOpen || scopeSearch || tab!=0) {
         when {
             s.detail!=null || s.detailLoading -> model.closeDetail()
+            tab==3 && settingsPage!=null -> settingsPage=null
             tab!=0 -> tab=0
+            scopeSearch -> closeScopeSearch()
             else -> showRecommendations()
         }
     }
@@ -193,7 +208,7 @@ class MainActivity : ComponentActivity() {
     val homeSearchVisible=tab==0 && s.detail==null && !s.detailLoading
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
     val wide=windowSizeDp().width.value>=840
-    if(s.recommendPreview!=null) { Box(Modifier.fillMaxSize().then(arrival)) { RecommendationPreview(s,model,::search) };return }
+    if(s.recommendPreview!=null) { RecommendationPreview(s,model,::search);return@CardRouteHost }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
     val showDock = !wide && !imeVisible && s.detail==null && !s.detailLoading
@@ -207,18 +222,24 @@ class MainActivity : ComponentActivity() {
                     model.browseSources(s.catalogSourceKeys,s.catalogCategory,value.trim(),genres=s.catalogGenres)
                 }
                 CollapsingHomeSearch(searchScroll) {
-                if(!searchOpen && !searchMode && !inCatalog && !inLive) Row(Modifier.fillMaxWidth().padding(start=20.dp,end=12.dp).heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Text("口袋片源",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
-                    GlassIconButton(onClick={focusSearch=true;searchOpen=true},colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer),modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
+                if(!searchOpen && !searchMode && !scopeSearch) {
+                    PageHeading("口袋片源") {
+                        GlassIconButton(onClick={
+                            focusSearch=true
+                            if(inCatalog || inLive) scopeSearch=true else searchOpen=true
+                        },modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
+                    }
                 } else Column {
-                    if(!inCatalog && !inLive) PocketBack(::showRecommendations, Modifier.padding(start=18.dp), label = "返回推荐")
+                    SearchHeader(back={ if(scopeSearch) closeScopeSearch() else showRecommendations() },
+                        backLabel=if(scopeSearch) "返回" else "返回推荐") {
                     HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
                     {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},
                     {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else { query="";model.cancelSearch();searchMode=false;searchOpen=true;focusSearch=true }},
                     placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
                     clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清除输入",allowEmpty=inCatalog || inLive,focusOnOpen=focusSearch,onFocused={focusSearch=false})
+                    }
                     if(!inCatalog && !inLive && query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
-                        androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+                        androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=PageGutter),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                             item { Text("最近搜索",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
                             items(s.saved.recentSearches,key={it}) { term ->
                                 SuggestionChip(onClick={model.recordSearch(term);search(term)},label={Text(term,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)},modifier=Modifier.widthIn(max=200.dp).testTag("recentSearch:$term"))
@@ -230,7 +251,7 @@ class MainActivity : ComponentActivity() {
             }
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
-        bottomBar = { if(showDock) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=20.dp,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),color=androidx.compose.ui.graphics.Color.Transparent,shadowElevation=0.dp) {
+        bottomBar = { if(showDock) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=PageGutter,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),color=androidx.compose.ui.graphics.Color.Transparent,shadowElevation=0.dp) {
             SlidingTabs(listOf(0,2,1,3).indexOf(tab).coerceAtLeast(0),4,true,Modifier.fillMaxWidth().smokeGlass(RoundedCornerShape(28.dp)).padding(4.dp)) {
             listOf(0,2,1,3).forEach { i ->
                 PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
@@ -248,7 +269,7 @@ class MainActivity : ComponentActivity() {
             listOf(0,2,1,3).forEach { i -> PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                 Modifier.padding(horizontal=8.dp,vertical=4.dp).width(64.dp).testTag("nav:$i"),icon={navIcon(i)}) }
         }
-        Box(Modifier.weight(1f).fillMaxSize().then(arrival)) {
+        Box(Modifier.weight(1f).fillMaxSize()) {
             if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
             if(s.loading) { LoadingStatus("正在读取本地数据…",Modifier.align(Alignment.Center)); return@Box }
             if(s.detailLoading) {
@@ -272,18 +293,19 @@ class MainActivity : ComponentActivity() {
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
                     if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1},onTop={searchScroll.reveal()}) }
+                    else if(searchOpen) Spacer(Modifier.fillMaxSize().testTag("searchLanding"))
                     else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,liveTab,liveQuery,onTop={searchScroll.reveal()})
                 }
-                3 -> SettingsScreen(s,model,{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
+                3 -> SettingsScreen(s,model,settingsPage,{settingsPage=it},{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })
                 1 -> Row(Modifier.fillMaxSize()) {
-                    LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    item { Text("订阅",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(bottom=12.dp)) }
-                    item { Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Text("${s.saved.subscriptions.size} 个订阅 · ${s.saved.subscriptions.sumOf { it.sources.size }} 个来源",
-                            modifier=Modifier.weight(1f), style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        GlassTextButton(onClick={exportOpen=true}) { Text("分享片源") }
-                        GlassIconButton(onClick={addingSubscription=!addingSubscription},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Add,if(addingSubscription) "收起添加订阅" else "添加订阅") }
+                    LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    item { PageHeading("订阅",inset=0.dp) {
+                        GlassIconButton(onClick={addingSubscription=true}) { Icon(Icons.Default.Add,"添加订阅") }
+                    } }
+                    item { Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                        Text("我的订阅",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                        GlassButton(onClick={exportOpen=true}) { Text("分享片源") }
                     } }
                     if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在首页搜索或浏览内容。",R.drawable.ic_library) }
                     s.saved.subscriptions.forEach { sub ->
@@ -321,4 +343,5 @@ class MainActivity : ComponentActivity() {
     ruleSource?.let { source -> GlassAlertDialog(dismissOnOutside=false,onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column(Modifier.verticalScroll(rememberScrollState())) { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
         OutlinedTextField(shape=MaterialTheme.shapes.medium,value=ruleText,onValueChange={ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={GlassTextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={GlassTextButton(onClick={ruleSource=null}) { Text("取消") }}) }
     delete?.let { sub -> GlassAlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={GlassTextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={GlassTextButton(onClick={delete=null}){Text("取消")}}) }
+    } // CardRouteHost
 }

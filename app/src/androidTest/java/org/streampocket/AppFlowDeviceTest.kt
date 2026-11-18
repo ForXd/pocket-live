@@ -83,7 +83,7 @@ class AppFlowDeviceTest {
                     }
                     if(file.endsWith("mp4") && InstrumentationRegistry.getArguments().getString("quickPip") == "true") {
                         val original = ui.runOnIdle { findPlayer(ui.activity.window.decorView) }
-                        ui.onNodeWithContentDescription("进入画中画").performScrollTo().performClick()
+                        ui.onNodeWithContentDescription("进入画中画").performClick()
                         ui.waitUntil(15000) { ui.activity.isInPictureInPictureMode }
                         expandPipWithSystemControl()
                         ui.waitUntil(15000) { !ui.activity.isInPictureInPictureMode }
@@ -150,8 +150,7 @@ class AppFlowDeviceTest {
                 val supportsPip=ui.activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
                 instrument.sendStatus(0,android.os.Bundle().apply { putBoolean("pip_supported",supportsPip) })
                 if(supportsPip && includePip) {
-                    ui.onNodeWithContentDescription("更多播放选项").performClick()
-                    ui.onNodeWithText("画中画").performClick()
+                    ui.onNodeWithContentDescription("进入画中画").performClick()
                     ui.waitUntil(60000) { ui.activity.isInPictureInPictureMode }
                     assertEquals(1L,PlaybackMetrics.created-PlaybackMetrics.released)
                     if(InstrumentationRegistry.getArguments().getString("pipInspectOnly")=="true") {
@@ -406,8 +405,7 @@ class AppFlowDeviceTest {
         if(testPip) {
             // Fullscreen code6 starts hidden; explicitly reveal the normal control layer.
             ui.runOnIdle { findPlayerView(ui.activity.window.decorView)!!.performClick() }
-            ui.onNodeWithContentDescription("更多播放选项").performClick()
-            ui.onNodeWithText("画中画").performClick()
+            ui.onNodeWithContentDescription("进入画中画").performClick()
             ui.waitUntil(90000) { ui.activity.isInPictureInPictureMode }
             capture("pip")
             expandPipWithSystemControl()

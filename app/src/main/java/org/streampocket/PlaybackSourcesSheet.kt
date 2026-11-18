@@ -26,9 +26,8 @@ import androidx.compose.ui.unit.dp
     fullscreen: Boolean, keepPosition: Boolean, changeKeepPosition: (Boolean) -> Unit,
     select: (PlaybackAlternative) -> Unit, retry: () -> Unit, close: () -> Unit
 ) {
-    val ink = MaterialTheme.colorScheme.onSurface
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val accent = if (ink == NightColors.onSurface) Color(0xffa5d7d7) else Color(0xff306365)
+    val accent = MaterialTheme.colorScheme.tertiary
     FrostedDialog(close, placement = if (fullscreen) GlassPlacement.SIDE else GlassPlacement.BOTTOM,
         immersive = fullscreen, tag = "alternativePanel", sideFraction = 305f / 720f) {
         Column(Modifier.fillMaxWidth().then(if (fullscreen) Modifier.fillMaxHeight() else Modifier)
@@ -48,8 +47,7 @@ import androidx.compose.ui.unit.dp
                             Text("${android.text.format.DateUtils.formatElapsedTime(playback.position.coerceAtLeast(0) / 1000)} · 不同来源可能有偏差",
                                 style = MaterialTheme.typography.bodySmall, color = secondary)
                         }
-                        Switch(checked = keepPosition, onCheckedChange = null,
-                            colors = SwitchDefaults.colors(checkedTrackColor = accent, checkedThumbColor = MaterialTheme.colorScheme.surface))
+                        PocketSwitch(keepPosition)
                     }
                     SourceDivider()
                 }

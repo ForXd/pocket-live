@@ -103,7 +103,7 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performClick().performTextInput("星河")
         ui.waitUntil(5000) { androidx.core.view.ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())==true }
-        grid.performTouchInput { swipeUp(durationMillis=600) }
+        grid.assertDoesNotExist()
         ui.onNodeWithTag("searchInput").assertIsDisplayed().assertTextContains("星河")
         captureUi(ui,"home-keyboard-pinned")
     }
@@ -130,7 +130,7 @@ class HomeBrowseDeviceTest {
         assertEquals(first.top.value,second.top.value,1f)
         assertEquals(first.bottom.value,second.bottom.value,1f)
         val poster=ui.onNodeWithTag("catalogPoster:1",useUnmergedTree=true).getUnclippedBoundsInRoot()
-        assertEquals((poster.right-poster.left).value/0.75f,(poster.bottom-poster.top).value,1f)
+        assertEquals((poster.right-poster.left).value/1.1f,(poster.bottom-poster.top).value,1f)
         val list=ui.onNodeWithTag("catalogList")
         list.performTouchInput { swipeUp(durationMillis=600) }
         ui.onNodeWithTag("catalogSourcePicker").assertIsDisplayed()
@@ -144,7 +144,7 @@ class HomeBrowseDeviceTest {
         captureUi(ui,"catalog-sticky-paged")
         ui.onNodeWithTag("backToTop").performClick()
         ui.onNodeWithTag("catalogVideo:1").assertIsDisplayed()
-        ui.onNodeWithTag("searchInput").assertIsDisplayed()
+        ui.onNodeWithTag("openSearch").assertIsDisplayed()
     }
     @Test fun searchResultSortAndGenresAlsoRemainPinned() {
         ui.onNodeWithTag("openSearch").performClick()
@@ -255,6 +255,8 @@ class HomeBrowseDeviceTest {
     @Test fun drawerTracksScreenDistanceBeforeReleaseAndReverses() {
         ui.onNodeWithTag("recommendCategoryPicker").performClick()
         val handle=ui.onNodeWithTag("pickerDragHandle")
+        val capture=InstrumentationRegistry.getArguments().getString("reviewDrag")=="true"
+        if(capture) captureUi(ui,"drawer-rest")
         val bounds=handle.getUnclippedBoundsInRoot()
         val owner=(handle.fetchSemanticsNode().root as androidx.compose.ui.platform.ViewRootForTest).view
         val origin=IntArray(2)
@@ -270,13 +272,14 @@ class HomeBrowseDeviceTest {
         }
         pointer(android.view.MotionEvent.ACTION_DOWN,0)
         try {
-            for(delta in listOf(12,46,20)) {
+            for(delta in listOf(12,160,20)) {
                 pointer(android.view.MotionEvent.ACTION_MOVE,delta)
-                ui.waitUntil(2000) {
-                    val current=IntArray(2)
-                    ui.runOnIdle { owner.getLocationOnScreen(current) }
-                    kotlin.math.abs(current[1]-origin[1]-delta)<=2
-                }
+                ui.waitForIdle()
+                val current=IntArray(2)
+                ui.runOnIdle { owner.getLocationOnScreen(current) }
+                assertEquals("Sheet content follows finger at $delta",delta.toFloat(),(current[1]-origin[1]).toFloat(),2f)
+                assertEquals("Window glass follows finger at $delta",delta.toFloat(),owner.rootView.translationY,2f)
+                if(capture && delta!=12) captureUi(ui,if(delta==160) "drawer-down" else "drawer-reversed")
             }
         } finally { pointer(android.view.MotionEvent.ACTION_UP,20) }
         handle.assertIsDisplayed()
@@ -300,6 +303,7 @@ class HomeBrowseDeviceTest {
     @Test fun catalogPullRefreshRequestsAnotherPageAndPreservesQuery() {
         ui.onNodeWithText("分类").performClick()
         ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogVideos.size==20 }
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("片库")
         ui.onNodeWithTag("searchInput").performImeAction()
         ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogQuery=="片库" }

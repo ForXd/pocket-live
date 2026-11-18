@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.dp
 
     if(choosing) HandleOnlySheet(onDismissRequest={choosing=false}) {
         var selected by rememberSaveable { mutableIntStateOf(lines.indexOfFirst { line -> line.episodes.any { it.url==primary?.url } }.coerceAtLeast(0)) }
-        Column(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                 PocketClose({choosing=false})
@@ -56,18 +56,18 @@ import androidx.compose.ui.unit.dp
         val coverHeight = minOf(maxHeight*.42f,340.dp)
         Column(Modifier.fillMaxSize()) {
             TitleCover(detail.video,model,coverHeight,model::closeDetail)
-            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp).smokeGlass(MaterialTheme.shapes.large).padding(horizontal=10.dp,vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=6.dp).smokeGlass(MaterialTheme.shapes.large).padding(horizontal=10.dp,vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                 val fraction = recent?.takeIf { it.duration > 0 }?.let { (it.position.toFloat()/it.duration).coerceIn(0f,1f) }
                 Box(Modifier.size(56.dp),contentAlignment=Alignment.Center) {
                     if(fraction!=null) CircularProgressIndicator(progress={fraction},modifier=Modifier.fillMaxSize().testTag("detailProgress"),
-                        strokeWidth=3.dp,color=MaterialTheme.colorScheme.primary,trackColor=MaterialTheme.colorScheme.surfaceVariant)
+                        strokeWidth=3.dp,color=MaterialTheme.colorScheme.tertiary,trackColor=MaterialTheme.colorScheme.surfaceVariant)
                     FilledIconButton(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=CircleShape,
                         modifier=Modifier.size(48.dp).testTag("detailPlay")) {
                         Icon(painterResource(R.drawable.ic_play),if(recent!=null) "继续观看" else "立即播放")
                     }
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(primary?.name ?: "暂无可播放剧集",style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    Text(if(recent!=null && primary!=null) "继续${primary.name}" else primary?.name ?: "暂无可播放剧集",style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                     val quality = primary?.quality ?: VideoQuality()
                     val resolution = when {
                         quality.evidence==QualityEvidence.MEASURED -> quality.label
@@ -77,10 +77,10 @@ import androidx.compose.ui.unit.dp
                     }
                     Text("${detail.video.source.name} · $resolution",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                OutlinedButton(onClick={choosing=true},enabled=lines.isNotEmpty(),modifier=Modifier.testTag("detailEpisodes")) { Text("选集 ›") }
+                GlassButton(onClick={choosing=true},enabled=lines.isNotEmpty(),modifier=Modifier.testTag("detailEpisodes")) { Text("选集") }
             }
-            HorizontalDivider(Modifier.padding(horizontal=20.dp))
-            if(synopsis.isNotEmpty()) Column(Modifier.fillMaxWidth().weight(1f).padding(horizontal=20.dp,vertical=8.dp)) {
+
+            if(synopsis.isNotEmpty()) Column(Modifier.fillMaxWidth().weight(1f).padding(horizontal=PageGutter,vertical=8.dp)) {
                 var overflow by remember(synopsis) { mutableStateOf(false) }
                 Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {
                     Text("剧情简介",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
@@ -99,8 +99,10 @@ import androidx.compose.ui.unit.dp
     Box {
         Poster(video,model,Modifier.fillMaxWidth().height(height),contentScale=ContentScale.Crop,large=true)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.82f)))))
-        Text(video.title,Modifier.align(Alignment.BottomStart).padding(20.dp),style=MaterialTheme.typography.headlineMedium,
-            color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
-        PocketBack(back, Modifier.align(Alignment.TopStart).padding(start=18.dp,top=6.dp), label = label,overVideo=true)
+        Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
+            RecommendationRating(video)
+            Text(video.title,style=MaterialTheme.typography.headlineLarge,color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
+        }
+        PocketBack(back, Modifier.align(Alignment.TopStart).padding(start=PageGutter,top=6.dp), label = label,overVideo=true)
     }
 }

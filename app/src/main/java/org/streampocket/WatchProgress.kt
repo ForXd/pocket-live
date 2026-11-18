@@ -25,7 +25,7 @@ internal fun episodeProgress(video:Video,history:List<History>):Map<String,Playb
     val label=if(fraction==null) "已观看 · 时长未知" else if(fraction>=1f) "已看完" else "已看 ${(fraction*100).toInt()}%"
     Column(modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         LinearProgressIndicator(progress={fraction ?: 0f},modifier=Modifier.fillMaxWidth().height(3.dp).semantics { stateDescription=label },
-            color=MaterialTheme.colorScheme.primary,trackColor=MaterialTheme.colorScheme.onSurface.copy(alpha=.12f),gapSize=0.dp,drawStopIndicator={})
+            color=MaterialTheme.colorScheme.tertiary,trackColor=MaterialTheme.colorScheme.onSurface.copy(alpha=.12f),gapSize=0.dp,drawStopIndicator={})
     }
 }
 

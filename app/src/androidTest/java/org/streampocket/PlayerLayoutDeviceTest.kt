@@ -107,6 +107,26 @@ class PlayerLayoutDeviceTest {
                 assertTrue("Native timestamp must remain visible at large font size",playerView.findViewById<View>(androidx.media3.ui.R.id.exo_position).isShown)
                 assertTrue("Native playback settings must remain available",playerView.findViewById<View>(androidx.media3.ui.R.id.exo_settings).isShown)
             }
+            val hasPip=ui.activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
+            val fullTarget=ui.onNodeWithContentDescription("横屏全屏").fetchSemanticsNode().boundsInWindow
+            val quickStart=if(hasPip) {
+                val pipTarget=ui.onNodeWithContentDescription("进入画中画").assertHeightIsEqualTo(48.dp).fetchSemanticsNode().boundsInWindow
+                assertEquals(fullTarget.top,pipTarget.top,1f)
+                assertTrue("Separate PiP and fullscreen targets",pipTarget.right<fullTarget.left)
+                pipTarget.left
+            } else fullTarget.left
+            ui.runOnIdle {
+                val pv=view(ui.activity.window.decorView)!!
+                fun bounds(id:Int):android.graphics.Rect {
+                    val v=pv.findViewById<View>(id)
+                    val xy=IntArray(2);v.getLocationInWindow(xy)
+                    return android.graphics.Rect(xy[0],xy[1],xy[0]+v.width,xy[1]+v.height)
+                }
+                val settings=bounds(androidx.media3.ui.R.id.exo_settings)
+                assertTrue("Quick actions clear settings",settings.right<=quickStart || settings.bottom<=fullTarget.top+1)
+                assertTrue("Quick actions clear seek target",bounds(androidx.media3.ui.R.id.exo_progress).bottom<=fullTarget.top+1)
+                assertTrue("Timestamps clear settings",bounds(androidx.media3.ui.R.id.exo_time).right<=settings.left)
+            }
             captureUi(ui,"player-portrait")
             ui.onNodeWithText("选集").performClick()
             captureUi(ui,"player-portrait-episodes")
@@ -141,14 +161,21 @@ class PlayerLayoutDeviceTest {
                 assertTrue(ui.activity.window.attributes.screenBrightness>=.5f)
                 pv.showController()
             }
+            ui.mainClock.advanceTimeBy(1200)
             captureUi(ui,"player-landscape")
             val actions = ui.onNodeWithText("换源").fetchSemanticsNode().boundsInRoot
+            val leftControl=ui.onNodeWithContentDescription("退出全屏").fetchSemanticsNode().boundsInWindow
+            val rightControl=ui.onNodeWithContentDescription(if(hasPip) "进入画中画" else "更多播放选项").fetchSemanticsNode().boundsInWindow
             ui.runOnIdle {
                 val player = view(ui.activity.window.decorView)!!
                 val progress = player.findViewById<View>(androidx.media3.ui.R.id.exo_progress)
                 assertTrue("Native timeline remains visible", progress.isShown)
                 val xy = IntArray(2)
                 progress.getLocationInWindow(xy)
+                val thumb=(player.resources.getDimensionPixelSize(R.dimen.player_dragged_thumb_size)+1)/2
+                val inset=6f*player.resources.displayMetrics.density
+                assertEquals("Left visible button aligns with track start",xy[0]+progress.paddingLeft+thumb.toFloat(),leftControl.left+inset,2f)
+                assertEquals("Right visible button aligns with track end",xy[0]+progress.width-progress.paddingRight-thumb.toFloat(),rightControl.right-inset,2f)
                 assertTrue("Extra actions belong above the native timeline", actions.bottom < xy[1])
                 val settings = player.findViewById<View>(androidx.media3.ui.R.id.exo_settings)
                 assertTrue("Native settings must remain reachable", settings.isShown)

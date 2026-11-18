@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
-import androidx.core.graphics.drawable.toDrawable
-
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
 import kotlinx.coroutines.*
 import androidx.compose.ui.graphics.luminance
 import android.os.Build
 import android.view.MotionEvent
 import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.*
 import androidx.compose.foundation.background
 import android.view.Gravity
@@ -30,11 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import java.util.function.Consumer
 
 internal enum class GlassPlacement { SIDE, BOTTOM }
 
-/** Shared native blur with a bounded one-shot fallback; no capture loop or extra decoder. */
+/** The compositor moves the blur region and the tinted panel as one native window. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable internal fun FrostedDialog(onDismissRequest:()->Unit,placement:GlassPlacement=GlassPlacement.BOTTOM,
     immersive:Boolean=false,tag:String="glassDialog",dismissOnOutside:Boolean=true,sideFraction:Float=.5f,content:@Composable ()->Unit) {
@@ -54,6 +49,8 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
     val dialog=remember(context,composition) { ComponentDialog(context,R.style.PocketFrostedDialogTheme) }
     DisposableEffect(dialog,widthPx,radius,tint,stroke,placement,immersive) {
         val window=checkNotNull(dialog.window)
+        // DecorView owns the window background, including Android's background blur drawable.
+        val glassLayer = window.decorView
         val view=ComposeView(dialog.context).apply {
             val panel=this
             setParentCompositionContext(composition)
@@ -76,18 +73,18 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
                                     when(event.actionMasked) {
                                         MotionEvent.ACTION_DOWN -> {
                                             settle?.cancel()
-                                            dragOrigin=event.rawY-panel.translationY
+                                            dragOrigin=event.rawY-glassLayer.translationY
                                         }
-                                        MotionEvent.ACTION_MOVE -> panel.translationY=(event.rawY-dragOrigin).coerceIn(0f,panel.height.toFloat())
+                                        MotionEvent.ACTION_MOVE -> glassLayer.translationY=(event.rawY-dragOrigin).coerceIn(0f,panel.height.toFloat())
                                         MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL -> {
-                                            val start=panel.translationY
+                                            val start=glassLayer.translationY
                                             val speed = velocity.calculateVelocity().y
                                             val close = event.actionMasked == MotionEvent.ACTION_UP && speed > -flingSpeed &&
                                                 (start >= threshold || (start > touchSlop && speed >= flingSpeed))
                                             val end=if(close) panel.height.toFloat() else 0f
                                             settle=scope.launch {
                                                 androidx.compose.animation.core.animate(start,end,animationSpec=androidx.compose.animation.core.tween(
-                                                    if(close) 160 else 210,easing=androidx.compose.animation.core.FastOutSlowInEasing)) { value,_->panel.translationY=value }
+                                                    if(close) 160 else 210,easing=androidx.compose.animation.core.FastOutSlowInEasing)) { value,_->glassLayer.translationY=value }
                                                 if(close) {
                                                     window.setWindowAnimations(0)
                                                     dismiss()
@@ -101,7 +98,7 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
                             }
                             DisposableEffect(Unit) { onDispose { settle?.cancel() } }
                         }
-                    Box(Modifier.windowInsetsPadding(if(immersive) WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal) else WindowInsets(0,0,0,0))) { body() }
+                    Box(Modifier.windowInsetsPadding(if(immersive) WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal) else WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))) { body() }
                     }
                 }
             }
@@ -118,9 +115,18 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
                 else floatArrayOf(radius,radius,radius,radius,0f,0f,0f,0f)
             setStroke(with(density) { 1.dp.roundToPx() }, stroke)
         }
-        window.setBackgroundDrawable(android.graphics.Color.TRANSPARENT.toDrawable())
-        view.background = background
-        if(Build.VERSION.SDK_INT >= 31) window.setBackgroundBlurRadius(with(density) { 18.dp.roundToPx() })
+        window.setBackgroundDrawable(background)
+        val windowManager = context.getSystemService(WindowManager::class.java)
+        val blurListener = if(Build.VERSION.SDK_INT >= 31) {
+            window.setBackgroundBlurRadius(with(density) { 18.dp.roundToPx() })
+            java.util.function.Consumer<Boolean> { enabled ->
+                background.colors = when {
+                    !enabled -> colors
+                    dark -> intArrayOf(0xd134424a.toInt(),0xd9192329.toInt())
+                    else -> intArrayOf(0xd9f8fafb.toInt(),0xd9e1e8eb.toInt())
+                }
+            }.also { windowManager.addCrossWindowBlurEnabledListener(it) }
+        } else null
         window.setGravity(when(placement) { GlassPlacement.SIDE->Gravity.END or Gravity.CENTER_VERTICAL;GlassPlacement.BOTTOM->Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
         window.setWindowAnimations(if(placement==GlassPlacement.SIDE) R.style.PocketSidePanelAnimation else R.style.PocketDrawerAnimation)
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
@@ -137,6 +143,7 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
             hide(WindowInsetsCompat.Type.systemBars())
         }
         onDispose {
+            if(Build.VERSION.SDK_INT >= 31 && blurListener!=null) windowManager.removeCrossWindowBlurEnabledListener(blurListener)
             dialog.setOnCancelListener(null)
             dialog.dismiss()
             view.disposeComposition()

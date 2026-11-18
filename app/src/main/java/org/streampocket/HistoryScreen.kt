@@ -60,14 +60,13 @@ import androidx.compose.ui.unit.dp
     LaunchedEffect(imeVisible) { if(imeVisible) searchScroll.reveal() }
     val scrollConnection=rememberSearchScrollConnection(searchScroll,!imeVisible && groups.isNotEmpty())
     Column(Modifier.fillMaxSize().nestedScroll(scrollConnection)) {
-    Column(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth().heightIn(min=68.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-            if(searchOpen) PocketBack({ searchOpen=false;query="";keyboard?.hide() })
-            Text(if(searchOpen) "搜索历史" else "历史",Modifier.weight(1f),style=MaterialTheme.typography.headlineMedium)
-            if(!searchOpen) GlassIconButton(onClick={searchOpen=true}) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
+    Column(Modifier.fillMaxWidth()) {
+        if(!searchOpen) PageHeading("历史") {
+            GlassIconButton(onClick={ searchScroll.reveal();searchOpen=true }) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
             GlassIconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
         }
         if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
+        SearchHeader(back={ searchOpen=false;query="";keyboard?.hide() },backLabel="返回历史") {
         ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
@@ -75,9 +74,13 @@ import androidx.compose.ui.unit.dp
             }
         }
         }
+        }
+        if(searchOpen) Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter),horizontalArrangement=Arrangement.End) {
+            GlassTextButton(onClick={filtersOpen=true}) { Text("筛选历史") }
+        }
         if(filtersOpen) HandleOnlySheet(onDismissRequest={filtersOpen=false}) {
         SheetSystemBars()
-        Column(Modifier.padding(horizontal=20.dp,vertical=16.dp)) {
+        Column(Modifier.padding(horizontal=PageGutter,vertical=16.dp)) {
         SheetHeading("筛选历史") { filtersOpen=false }
 
         LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -85,7 +88,7 @@ import androidx.compose.ui.unit.dp
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
             Box {
-                GlassButton(shape=MaterialTheme.shapes.small,colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={sourceMenu=true},modifier=Modifier.widthIn(max=180.dp).testTag("historySource")) { Text(sources.find { it.key==source }?.name ?: "全部来源",maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false));Icon(Icons.Default.ArrowDropDown,null) }
+                FilterSelector(sources.find { it.key==source }?.name ?: "全部来源",{sourceMenu=true},Modifier.widthIn(max=180.dp).testTag("historySource"))
                 GlassMenu(expanded=sourceMenu,onDismissRequest={sourceMenu=false}) {
                     DropdownMenuItem(text={Text("全部来源")},onClick={source=null;sourceMenu=false})
                     sources.forEach { option -> DropdownMenuItem(text={Text(option.name)},onClick={source=option.key;sourceMenu=false}) }
@@ -113,17 +116,17 @@ import androidx.compose.ui.unit.dp
             }
         }
     }
-    LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).testTag("historyGroups")) {
+    LazyColumn(contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.weight(1f).testTag("historyGroups")) {
         if(groups.isEmpty()) item { EmptyPanel(if(history.isEmpty()) "还没有观看记录" else "没有匹配记录",if(history.isEmpty()) "播放影片后，可在这里继续观看。" else "试试其他关键词或重置筛选。",R.drawable.ic_history) }
         datedGroups.forEach { (day,entries) ->
-        item(key="day:$day") { Text(day,style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        item(key="day:$day") { Text(day,style=MaterialTheme.typography.titleLarge) }
         items(entries,key={it.key.stableKey}) { group ->
             val shown = group.latest
             val id = group.key.stableKey
                 SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{pendingRemoval=group}) {
-                Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { if(revealed==id) revealed=null else resume(shown) }.testTag("historyGroup:$id").padding(16.dp)) {
+                Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surface).clickable { if(revealed==id) revealed=null else resume(shown) }.testTag("historyGroup:$id").padding(vertical=8.dp)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        if(model!=null) Poster(shown.playback.video,model,Modifier.size(72.dp,104.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                        if(model!=null) Poster(shown.playback.video,model,Modifier.size(64.dp,88.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             Text(VideoGroups.familyTitle(shown.playback.video),style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             val season=VideoGroups.identity(shown.playback.video).season
@@ -132,7 +135,7 @@ import androidx.compose.ui.unit.dp
                             Text(HistoryGroups.progress(shown),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             WatchProgress(shown.playback)
                         }
-                        GlassIconButton(onClick={resume(shown)},modifier=Modifier.align(Alignment.CenterVertically).size(48.dp).testTag("continue:$id")) {
+                        IconButton(onClick={resume(shown)},modifier=Modifier.align(Alignment.CenterVertically).size(48.dp).testTag("continue:$id")) {
                             Icon(painterResource(R.drawable.ic_play),"继续观看")
                         }
                     }

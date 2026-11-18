@@ -56,7 +56,7 @@ class DetailLayoutDeviceTest {
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     @Test fun oneScreenResumeAndEpisodeSheet() {
         ui.onNodeWithTag("detailPlay").assertIsDisplayed().assertContentDescriptionContains("继续观看")
-        ui.onNodeWithText("第17集").assertIsDisplayed()
+        ui.onNodeWithText("继续第17集").assertIsDisplayed()
         ui.onNodeWithTag("detailProgress").assertRangeInfoEquals(androidx.compose.ui.semantics.ProgressBarRangeInfo(.5f,0f..1f))
         ui.onNodeWithText("展开简介").performClick()
         ui.onNodeWithText("收起简介").performClick()

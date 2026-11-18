@@ -65,12 +65,13 @@ class CatalogRegressionDeviceTest {
         assertTrue("选择悬疑必须能找到第 3 页的影片，不能只过滤首页",model.state.value.catalogVideos.any { it.id=="3" })
     }
     @Test fun keyboardContentMeetsImeWithoutNavigationGap() {
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performClick().performTextInput("星河")
         ui.waitUntil(5000) { ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(WindowInsetsCompat.Type.ime())==true }
         ui.waitForIdle(); android.os.SystemClock.sleep(500)
         val insets=ViewCompat.getRootWindowInsets(ui.activity.window.decorView)!!
         val imeTop=ui.activity.window.decorView.height-insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-        val bounds=ui.onNodeWithTag("recommendationGrid").fetchSemanticsNode().boundsInWindow
+        val bounds=ui.onNodeWithTag("searchLanding").fetchSemanticsNode().boundsInWindow
         assertEquals("内容应贴合键盘上沿，不重复扣除底栏/导航栏高度",imeTop.toFloat(),bounds.bottom,3f)
     }
     @Test fun cancelledGenreSearchCanRetryWithoutReportingAnEmptyCatalog() {
@@ -91,6 +92,7 @@ class CatalogRegressionDeviceTest {
         assertEquals(setOf(primary.key,secondary.key),model.state.value.catalogVideos.map { it.source.key }.toSet())
         assertFalse(paths.contains("/disabled"))
         ui.onNodeWithText("分类").performClick()
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextReplacement("影片")
         ui.onNodeWithTag("catalogSourcePicker").performClick()
         ui.onNodeWithTag("catalogSource:${primary.key}").performClick()

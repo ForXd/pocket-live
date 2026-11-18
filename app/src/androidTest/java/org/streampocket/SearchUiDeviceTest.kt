@@ -111,6 +111,7 @@ class SearchUiDeviceTest {
             capture("03-returned-home")
             ui.onNodeWithText("分类").performClick()
             ui.waitUntil(10000) { model.state.value.categories.isNotEmpty() }
+            ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("星河")
             ui.onNodeWithTag("catalogGenrePicker").performClick()
             ui.onNodeWithTag("catalogPicker").performScrollToNode(hasTestTag("sourceCategory:2"))

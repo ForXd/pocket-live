@@ -85,7 +85,7 @@ import androidx.compose.ui.text.style.TextOverflow
     if(picker!=null) HandleOnlySheet(onDismissRequest={picker=null}) {
         SheetSystemBars()
         Column(Modifier.fillMaxWidth()) {
-        LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("catalogPicker"),contentPadding=PaddingValues(start=20.dp,end=20.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("catalogPicker"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             item { Row(verticalAlignment=Alignment.CenterVertically) {
                 Text(if(picker=="source") "选择片库" else "筛选题材",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                 PocketClose { picker=null }
@@ -124,7 +124,7 @@ import androidx.compose.ui.text.style.TextOverflow
         }
         run {
             HorizontalDivider()
-            Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
                 GlassTextButton(onClick={if(picker=="source") draftSources=emptyList() else { draftGenres=emptyList();draftCategory=null }},modifier=Modifier.testTag("clearCatalogFilters")) { Text("重置") }
                 GlassButton(shape=MaterialTheme.shapes.medium,onClick={
                     if(picker=="source") model.browseSources(draftSources.toSet(),query=catalogQuery.trim(),genres=s.catalogGenres)
@@ -159,28 +159,27 @@ import androidx.compose.ui.text.style.TextOverflow
             Tab(modifier=Modifier.weight(1f),unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=!liveTab.value && !recommendations.value,onClick={liveTab.value=false;recommendations.value=false},text={Text("分类")})
             Tab(modifier=Modifier.weight(1f).testTag("liveTab"),unselectedContentColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContentColor=MaterialTheme.colorScheme.primary,selected=liveTab.value,onClick={liveTab.value=true},text={Text("直播")})
         }
-        Row(Modifier.fillMaxWidth().testTag("recommendToolbar"),verticalAlignment=Alignment.CenterVertically) {
-            SlidingTabs(selectedTab,3,false,Modifier.weight(1f).padding(start=20.dp),content=tabs)
-            if(recommendations.value && !liveTab.value) GlassIconButton(onClick={recommendationFilters.value=true},modifier=Modifier.padding(end=12.dp).testTag("recommendCategoryPicker")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"筛选推荐") } else Spacer(Modifier.width(60.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("recommendToolbar"),verticalAlignment=Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                SlidingTabs(selectedTab,3,false,Modifier.widthIn(max=if(LocalDensity.current.fontScale>1.3f) 236.dp else 198.dp),content=tabs)
+            }
+            Spacer(Modifier.width(ActionGap))
+            if(recommendations.value && !liveTab.value) GlassIconButton(onClick={recommendationFilters.value=true},modifier=Modifier.testTag("recommendCategoryPicker")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"筛选推荐") } else Spacer(Modifier.width(IconTarget))
         }
         if(liveTab.value) { LiveScreen(s,model,liveQuery,addSource);return@Column }
         if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort,{ recommendationSort=it },onTop,recommendationFilters); return@Column }
         if(s.catalogSource!=null) {
-            Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("catalogToolbar")) {
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    LazyRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                    item {
-                        GlassButton(shape=MaterialTheme.shapes.small,colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("source")},modifier=Modifier.testTag("catalogSourcePicker")) {
-                            Text(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=180.dp));Icon(Icons.Default.ArrowDropDown,null)
+            Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=ActionGap).testTag("catalogToolbar")) {
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(ActionGap),verticalAlignment=Alignment.Top) {
+                        FlowRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(ActionGap),
+                            verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            FilterSelector(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",
+                                {openPicker("source")},Modifier.testTag("catalogSourcePicker"))
+                            FilterSelector(s.categories.find { it.id==s.catalogCategory }?.name
+                                ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}",
+                                {openPicker("genre")},Modifier.testTag("catalogGenrePicker"))
                         }
-                    }
-                    item {
-                        GlassButton(shape=MaterialTheme.shapes.small,colors=ButtonDefaults.outlinedButtonColors(contentColor=MaterialTheme.colorScheme.onSurface),onClick={openPicker("genre")},modifier=Modifier.testTag("catalogGenrePicker")) {
-                            Text(s.categories.find { it.id==s.catalogCategory }?.name ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}");Icon(Icons.Default.ArrowDropDown,null)
-                        }
-                    }
-                    }
-                    DiscoverySortControl(catalogSort,{catalogSort=it},catalogVideos,false,compact=true)
+                        DiscoverySortControl(catalogSort,{catalogSort=it},catalogVideos,false,compact=true)
                     }
                     if(s.catalogSourceKeys.isNotEmpty() || s.catalogGenres.isNotEmpty() || s.catalogCategory!=null) {
                         LazyRow(Modifier.fillMaxWidth().testTag("activeCatalogFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -203,7 +202,7 @@ import androidx.compose.ui.text.style.TextOverflow
                 }
         }
         PullToRefreshBox(isRefreshing=s.catalogLoading,onRefresh={catalogSort=DiscoverySort.DEFAULT;model.shuffleCatalog();scope.launch { catalogState.scrollToItem(0) }},modifier=Modifier.weight(1f).testTag("catalogRefresh")) {
-        LazyVerticalGrid(columns=GridCells.Fixed(2),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=16.dp+LocalDockInset.current),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        LazyVerticalGrid(columns=GridCells.Fixed(2),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=8.dp,bottom=16.dp+LocalDockInset.current),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             if(sources.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
                 EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
                 GlassButton(shape=MaterialTheme.shapes.medium,onClick=addSource) { Text("添加订阅") }
@@ -216,6 +215,7 @@ import androidx.compose.ui.text.style.TextOverflow
                         GlassTextButton(onClick={openPicker("genre")}) { Text("更换题材") }
                     }
                 }
+                if(catalogVideos.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("全部作品",style=MaterialTheme.typography.titleLarge) }
                 items(catalogVideos,key={it.source.key+":"+it.id}) { video ->
                     PosterGridCard(video,model,Modifier.testTag("catalogVideo:${video.id}"),"catalog",probe=s.probes[video.probeKey()],showProbe=s.catalogQuery.isNotBlank()) { model.open(video) }
                 }
@@ -267,7 +267,7 @@ import androidx.compose.ui.text.style.TextOverflow
         var draftSort by rememberSaveable { mutableStateOf(sort) }
         SheetSystemBars()
         Column(Modifier.fillMaxWidth()) {
-            LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("recommendCategorySheet"),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("recommendCategorySheet"),contentPadding=PaddingValues(horizontal=PageGutter,vertical=12.dp)) {
                 item { Row(verticalAlignment=Alignment.CenterVertically) {
                     Text("推荐分类",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                     PocketClose { categoryPicker.value=false }
@@ -292,7 +292,7 @@ import androidx.compose.ui.text.style.TextOverflow
                 } }
             }
             HorizontalDivider()
-            Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
                 GlassTextButton(onClick={draftTag="热门";draftSort=DiscoverySort.DEFAULT}) { Text("重置") }
                 GlassButton(shape=MaterialTheme.shapes.medium,onClick={categoryPicker.value=false;onSort(draftSort);if(draftType!=s.recommendType || draftTag!=s.recommendTag) model.recommend(draftType,draftTag)},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("applyRecommendCategory")) { Text("应用") }
             }
@@ -301,7 +301,7 @@ import androidx.compose.ui.text.style.TextOverflow
     Column(Modifier.fillMaxSize()) {
     PullToRefreshBox(isRefreshing=refreshing,onRefresh={refresh()},modifier=Modifier.weight(1f).testTag("recommendRefresh")) {
     LazyVerticalGrid(columns=GridCells.Fixed(2),state=grid,
-        modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=12.dp,bottom=16.dp+LocalDockInset.current),
+        modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=12.dp,bottom=16.dp+LocalDockInset.current),
         horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
         videos.firstOrNull()?.let { featured ->
@@ -343,10 +343,15 @@ import androidx.compose.ui.text.style.TextOverflow
 
 /** Artwork meets the outer clip; no inset surface or independently rounded poster. */
 @Composable private fun DiscoveryCard(modifier:Modifier=Modifier,onClick:()->Unit,content:@Composable ColumnScope.()->Unit) {
-    ContentCard(modifier=modifier,onClick=onClick,containerColor=MaterialTheme.colorScheme.surfaceContainer,content=content)
+    val interaction=remember { MutableInteractionSource() }
+    Card(onClick=onClick,modifier=modifier.pressFeedback(interaction),interactionSource=interaction,
+        shape=MaterialTheme.shapes.large,
+        border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.62f)),
+        colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation=CardDefaults.cardElevation(defaultElevation=3.dp,pressedElevation=1.dp),content=content)
 }
 
-@Composable private fun RecommendationRating(video:Video,modifier:Modifier=Modifier,prefix:String="recommend") {
+@Composable internal fun RecommendationRating(video:Video,modifier:Modifier=Modifier,prefix:String="recommend") {
     val rating=video.rating?.toString()
     if(rating!=null) Surface(modifier=modifier.testTag("${prefix}Rating:${video.id}").semantics { contentDescription="${if(prefix=="recommend") "豆瓣" else "来源"}评分 $rating 分" },
         shape=RoundedCornerShape(50),color=Color(0xdd111113),contentColor=Color.White) {
@@ -408,32 +413,36 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable private fun PosterGridCard(video:Video,model:AppModel,modifier:Modifier,prefix:String,probe:ProbeStatus?=null,showProbe:Boolean=false,onClick:()->Unit) {
     DiscoveryCard(onClick=onClick,modifier=modifier.fillMaxWidth()) {
         Box {
-            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(0.75f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
+            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(1.1f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)
         }
-        if(showProbe) {
-            val status=probe
-            MediaProbeIndicator(status)
+        Column(Modifier.fillMaxWidth().padding(start=12.dp,end=12.dp,top=8.dp,bottom=4.dp)) {
+            if(showProbe) MediaProbeIndicator(probe)
+            CardTextSlot(video.title,modifier=Modifier.testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface,lines=1)
+            val metadata=listOf(video.typeName,video.subtitle).filter { it.isNotBlank() }.joinToString(" · ")
+            CardTextSlot(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,lines=1)
         }
-        CardTextSlot(video.title,modifier=Modifier.padding(horizontal=12.dp,vertical=9.dp).testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.bodyMedium.copy(fontSize=14.sp,lineHeight=20.sp),color=MaterialTheme.colorScheme.onSurface,lines=1)
     }
 }
 
 /** Artwork-backed glass information plate; text is never part of the blurred layer. */
 @Composable private fun FeaturedRecommendation(video:Video,model:AppModel,onClick:()->Unit) {
     val wide=windowSizeDp().width.value>=600
-    val height=if(wide) 350.dp else 278.dp
-    Box(Modifier.fillMaxWidth().testTag("recommendation:${video.id}").clickable(onClick=onClick).clip(MaterialTheme.shapes.large)) {
+    val height=if(wide) 350.dp else (windowSizeDp().width*.59f).coerceAtMost(300.dp)
+    DiscoveryCard(modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}"),onClick=onClick) {
+        Box {
         Poster(video,model,Modifier.fillMaxWidth().height(height).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.12f),Color.Black.copy(alpha=.8f)))))
         Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(20.dp),verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                RecommendationRating(video)
                 Text(video.title,Modifier.testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.headlineLarge,color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
-                if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodyMedium,color=Color.White.copy(alpha=.89f),maxLines=2,overflow=TextOverflow.Ellipsis)
+
             }
-            Surface(shape=androidx.compose.foundation.shape.CircleShape,color=Color.White,contentColor=Color(0xff171717)) {
+            Surface(shape=androidx.compose.foundation.shape.CircleShape,color=Color.Black.copy(alpha=.42f),contentColor=Color.White) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,"查看简介",Modifier.size(48.dp).padding(12.dp))
             }
+        }
         }
     }
 }

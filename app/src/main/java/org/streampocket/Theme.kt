@@ -48,7 +48,7 @@ val LocalPocketDark=staticCompositionLocalOf { true }
 internal val NightColors=darkColorScheme(
     primary=Color.White,onPrimary=Color(0xff1a2126),primaryContainer=Color(0xff304048),onPrimaryContainer=Color(0xffe5eeef),
     secondary=Color(0xffc3c3c3),onSecondary=Color(0xff2c2c2c),secondaryContainer=Color(0xff303b42),onSecondaryContainer=Color(0xffe6e6e6),
-    tertiary=Color(0xffb7b7b7),onTertiary=Color(0xff2c2c2c),
+    tertiary=Color(0xffa5d7d7),onTertiary=Color(0xff152729),
     background=Color(0xff101417),onBackground=Color(0xfff0f0f0),surface=Color(0xff101417),onSurface=Color(0xfff0f0f0),
     surfaceVariant=Color(0xff313131),onSurfaceVariant=Color(0xffb2c0c7),surfaceTint=Color(0xffe4e4e4),
     surfaceContainerLowest=Color(0xff0d1215),surfaceContainerLow=Color(0xff1a2126),surfaceContainer=Color(0xff232c32),
@@ -57,7 +57,7 @@ internal val NightColors=darkColorScheme(
 internal val DayColors=lightColorScheme(
     primary=Color(0xff171717),onPrimary=Color.White,primaryContainer=Color(0xffebebeb),onPrimaryContainer=Color(0xff333333),
     secondary=Color(0xff555555),onSecondary=Color.White,secondaryContainer=Color(0xfff2f2f2),onSecondaryContainer=Color.Black,
-    tertiary=Color(0xff555555),onTertiary=Color.White,
+    tertiary=Color(0xff306365),onTertiary=Color.White,
     background=Color(0xfff5f5f5),onBackground=Color(0xff252525),surface=Color.White,onSurface=Color(0xff252525),
     surfaceVariant=Color(0xfff2f2f2),onSurfaceVariant=Color(0xff5f5f5f),surfaceTint=Color.Transparent,
     surfaceContainerLowest=Color.White,surfaceContainerLow=Color.White,surfaceContainer=Color.White,
@@ -75,7 +75,7 @@ internal val DayColors=lightColorScheme(
         MaterialTheme(colorScheme=if(dark) NightColors else DayColors,
             shapes=Shapes(extraSmall=RoundedCornerShape(4.dp),small=RoundedCornerShape(8.dp),medium=RoundedCornerShape(12.dp),large=RoundedCornerShape(16.dp),extraLarge=RoundedCornerShape(20.dp)),
             typography=Typography(
-                headlineLarge=TextStyle(fontFamily=androidx.compose.ui.text.font.FontFamily.Serif,fontWeight=FontWeight.Medium,fontSize=32.sp,lineHeight=40.sp,letterSpacing=(-0.4).sp),
+                headlineLarge=TextStyle(fontFamily=androidx.compose.ui.text.font.FontFamily.SansSerif,fontWeight=FontWeight.SemiBold,fontSize=32.sp,lineHeight=40.sp,letterSpacing=(-0.4).sp),
                 headlineMedium=TextStyle(fontWeight=FontWeight.SemiBold,fontSize=26.sp,lineHeight=34.sp),
                 headlineSmall=TextStyle(fontWeight=FontWeight.Medium,fontSize=20.sp,lineHeight=28.sp),
                 titleLarge=TextStyle(fontWeight=FontWeight.Medium,fontSize=20.sp,lineHeight=28.sp),

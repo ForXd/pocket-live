@@ -62,6 +62,7 @@ class LiveDeviceTest {
             assertTrue("Live actions must clear the tabs", tabs.bottom < refresh.top)
             assertTrue("Source and refresh targets must be separate", picker.right < refresh.left)
             captureUi(ui,"live-channels")
+            ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextInput("体育")
             ui.onNodeWithTag("searchInput").performImeAction()
             ui.onNodeWithTag("liveChannel:新闻频道").assertDoesNotExist()

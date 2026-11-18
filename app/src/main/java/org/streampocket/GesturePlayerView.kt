@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import kotlin.math.roundToInt
 import androidx.core.view.updateLayoutParams
 
 import android.content.Context
@@ -16,7 +17,13 @@ import androidx.media3.ui.TimeBar
 
 /** Owns only touch recognition. All delayed work dies with its session/view/lifecycle. */
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
-class GesturePlayerView(context:Context):PlayerView(context) {
+class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android.util.AttributeSet?=null):PlayerView(context,attrs) {
+    companion object {
+        // AndroidView supplies both dimensions from Compose constraints.
+        @android.annotation.SuppressLint("InflateParams")
+        fun inflateForCompose(context: Context): GesturePlayerView =
+            android.view.LayoutInflater.from(context).inflate(R.layout.pocket_player, null) as GesturePlayerView
+    }
     var seekRelative:(Long)->String = { "当前不可跳转" }
     var feedback:(String)->Unit = {}
     var gesturesEnabled=true
@@ -96,14 +103,23 @@ class GesturePlayerView(context:Context):PlayerView(context) {
         contentDescription="视频，单击显示控制，左右双击跳转10秒，长按连续跳转，全屏左侧上下滑动调亮度、右侧调音量"
     }
     private var fullscreenLayout=false
-    fun setFullscreenControls(enabled:Boolean, horizontalInset:Int) {
+    // DefaultTimeBar insets the drawn track by half its largest thumb. The toolbar
+    // aligns to that drawn edge. Its touch region and the video still extend past it.
+    private val thumbInset = (resources.getDimensionPixelSize(R.dimen.player_dragged_thumb_size) + 1) / 2
+    fun setControlGeometry(enabled:Boolean, horizontalInset:Int, inlineActionsWidth:Int) {
         val controllerView = findViewById<View>(androidx.media3.ui.R.id.exo_controller)
         val frame = controllerView.layoutParams as ViewGroup.MarginLayoutParams
-        val gutter = if (enabled) horizontalInset else 0
+        val gutter = if (enabled) horizontalInset + (PageGutter.value * resources.displayMetrics.density).roundToInt() - thumbInset else 0
         if (frame.leftMargin != gutter || frame.rightMargin != gutter) {
             frame.leftMargin = gutter
             frame.rightMargin = gutter
             controllerView.layoutParams = frame
+        }
+        val bottom = findViewById<View>(androidx.media3.ui.R.id.exo_bottom_bar)
+        val footer = bottom.layoutParams as ViewGroup.MarginLayoutParams
+        if (footer.marginEnd != inlineActionsWidth) {
+            footer.marginEnd = inlineActionsWidth
+            bottom.layoutParams = footer
         }
         if(fullscreenLayout==enabled) return
         fullscreenLayout=enabled

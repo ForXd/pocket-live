@@ -66,7 +66,7 @@ import androidx.compose.ui.unit.sp
             Text(title,style=MaterialTheme.typography.bodyLarge)
             Text(description,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked=checked,onCheckedChange=null)
+        PocketSwitch(checked)
     }
 }
 
@@ -91,8 +91,8 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
         border=null,
         leadingIcon=if(selected) { { Icon(Icons.Default.Check,null,Modifier.size(14.dp)) } } else if(reserveSelectionSpace) { { Spacer(Modifier.size(14.dp)) } } else null,
         colors=FilterChipDefaults.filterChipColors(containerColor=androidx.compose.ui.graphics.Color.Transparent,
-            labelColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContainerColor=MaterialTheme.colorScheme.secondaryContainer,
-            selectedLabelColor=MaterialTheme.colorScheme.onSecondaryContainer,selectedLeadingIconColor=MaterialTheme.colorScheme.onSecondaryContainer))
+            labelColor=MaterialTheme.colorScheme.onSurfaceVariant,selectedContainerColor=MaterialTheme.colorScheme.onSurface,
+            selectedLabelColor=MaterialTheme.colorScheme.surface,selectedLeadingIconColor=MaterialTheme.colorScheme.surface))
 }
 
 /** Reserve geometry independently of fallback-font metrics and whether the text wraps. */
@@ -122,7 +122,7 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
         keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=androidx.compose.ui.text.input.ImeAction.Search),
         keyboardActions=androidx.compose.foundation.text.KeyboardActions(onSearch={onSearch()}),
         decorationBox={input ->
-            Surface(shape=RoundedCornerShape(50),shadowElevation=0.dp,color=MaterialTheme.colorScheme.surfaceContainerLow,
+            Surface(shape=MaterialTheme.shapes.medium,shadowElevation=0.dp,color=MaterialTheme.colorScheme.surfaceContainerLow,
                 border=androidx.compose.foundation.BorderStroke(1.dp,if(focused) MaterialTheme.colorScheme.primary.copy(alpha=.75f) else MaterialTheme.colorScheme.outlineVariant)) {
                 Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Icon(painterResource(R.drawable.ic_search),null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -130,7 +130,7 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
                         if(value.isEmpty()) Text(placeholder,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         input()
                     }
-                    VerticalDivider(Modifier.height(22.dp),color=MaterialTheme.colorScheme.outlineVariant)
+
                     trailingIcon()
                 }
             }
