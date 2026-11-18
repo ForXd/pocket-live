@@ -193,7 +193,7 @@ class HomeBrowseDeviceTest {
             ui.waitUntil(10000) { model.state.value.playback!=null && PlaybackMetrics.created-PlaybackMetrics.released==1L }
             ui.onNodeWithContentDescription("返回选集").performClick()
             ui.waitUntil(10000) { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released && PlaybackMetrics.samplers==0 && MediaCallOwner.active.get()==0 }
-            ui.onNodeWithContentDescription("关闭",useUnmergedTree=true).performClick()
+            ui.onNodeWithContentDescription("关闭详情",useUnmergedTree=true).performClick()
             anchor.assertIsDisplayed()
             assertEquals(before.value,anchor.getUnclippedBoundsInRoot().top.value,1f)
             ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
@@ -232,7 +232,7 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("detailPlay").performClick()
         ui.waitUntil(10000) { model.state.value.playback!=null && PlaybackMetrics.created-PlaybackMetrics.released==1L }
         ui.onNodeWithContentDescription("返回选集").performClick()
-        ui.onNodeWithContentDescription("关闭",useUnmergedTree=true).performClick()
+        ui.onNodeWithContentDescription("关闭详情",useUnmergedTree=true).performClick()
         anchor.assertIsDisplayed()
         assertEquals(before.value,anchor.getUnclippedBoundsInRoot().top.value,1f)
         assertEquals(calls,requests.count { it.startsWith("/catalog") && !it.contains("ids=") && !it.contains("wd=") })

@@ -135,7 +135,7 @@ class AppFlowDeviceTest {
             ui.onNodeWithText("测试源").performClick()
             ui.waitUntil(60000) { model.state.value.detail!=null }
             if(fullFlow) {
-                ui.onNodeWithContentDescription("关闭").performClick()
+                ui.onNodeWithContentDescription("关闭详情").performClick()
                 ui.waitUntil(60000) { !model.state.value.searching && model.state.value.results.size==2 }
                 ui.onNode(hasText("测试源2 · ",substring=true)).performClick()
                 ui.waitUntil(60000) { model.state.value.detail?.video?.source?.name=="测试源2" }

@@ -84,7 +84,7 @@ class CollectionDeviceTest {
             capture("01b-sources")
             ui.onNodeWithTag("sourceChoice:${b.key}:s2").performScrollTo().performClick()
             ui.waitUntil(10000) { model.state.value.detail?.video?.id=="s2" && model.state.value.detail?.video?.source?.key==b.key }
-            ui.onNodeWithContentDescription("关闭").performClick()
+            ui.onNodeWithContentDescription("关闭详情").performClick()
             ui.onNodeWithTag("season:1:").performClick()
             ui.onNodeWithTag("searchVideo:s1").performClick()
             ui.onNodeWithTag("sourceChoice:${b.key}:s1").performScrollTo().performClick()
