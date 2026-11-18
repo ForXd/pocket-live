@@ -72,7 +72,7 @@ class SearchUiDeviceTest {
             ui.onNodeWithTag("searchInput").performTextReplacement("星河")
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.onAllNodesWithTag("searchResultPlaceholder").onFirst().assertIsDisplayed()
-            ui.onNodeWithText("取消搜索").assertIsDisplayed()
+            ui.onNodeWithContentDescription("取消搜索").assertIsDisplayed()
             ui.onNodeWithText("暂未找到结果").assertDoesNotExist()
             capture("00-first-search")
             firstSearch.countDown()

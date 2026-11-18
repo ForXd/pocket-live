@@ -10,16 +10,18 @@ import org.junit.runner.RunWith
 class SmokeTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     @Test fun emptyStartAndTabs() {
-        ui.waitUntil(5000) { ui.onAllNodesWithTag("searchInput").fetchSemanticsNodes().isNotEmpty() }
-        ui.onNodeWithText("订阅").performClick()
+        ui.waitUntil(10000) { ui.onAllNodesWithTag("openSearch").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithTag("nav:1").performClick()
         ui.onNodeWithContentDescription("添加订阅").performClick()
-            ui.onNodeWithTag("subscriptionInput").assertExists().performTextInput("https://example.org/sub.json")
-        ui.onNodeWithText("添加订阅").assertIsEnabled()
-        ui.onNodeWithText("历史").performClick()
-        ui.onNodeWithText("继续观看").assertExists()
+        ui.onNodeWithTag("subscriptionInput").assertExists().performTextInput("https://example.org/sub.json")
+        ui.onNode(hasText("添加订阅") and hasClickAction()).assertIsEnabled()
+        ui.onNodeWithContentDescription("关闭").performClick()
+        ui.onNodeWithTag("nav:2").performClick()
+        ui.onNodeWithTag("historyGroups").assertExists()
     }
     @Test fun rotationRecreatesWithoutCrash() {
-        ui.waitUntil(5000) { ui.onAllNodesWithTag("searchInput").fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil(10000) { ui.onAllNodesWithTag("openSearch").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("Synthetic title")
         ui.activityRule.scenario.recreate()
         ui.onNodeWithTag("searchInput").assertTextContains("Synthetic title")

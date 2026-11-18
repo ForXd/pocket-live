@@ -2,8 +2,7 @@ package org.streampocket
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
@@ -18,22 +17,20 @@ class SearchPerformanceTest {
         val args=InstrumentationRegistry.getArguments()
         assumeTrue("NOT MEASURED: explicit perfQuery and authorized sources required",args.containsKey("perfQuery"))
         val query=args.getString("perfQuery")!!
-        ui.waitUntil(5000) { ui.onAllNodesWithTag("searchInput").fetchSemanticsNodes().isNotEmpty() }
+        val model=ui.runOnIdle { ViewModelProvider(ui.activity)[AppModel::class.java] }
+        ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextReplacement(query)
         val start=android.os.SystemClock.elapsedRealtime();var first=-1L;var done=-1L;var allCompleted=false
         ui.onNodeWithContentDescription("开始搜索").performClick()
         ui.waitUntil(120_000) {
-            val text=ui.onAllNodes(hasText("已完成",substring=true)).fetchSemanticsNodes().firstOrNull()
-                ?.config?.getOrNull(SemanticsProperties.Text)?.joinToString { it.text }.orEmpty()
-            val numbers=Regex("已完成 (\\d+)/(\\d+) 个源").find(text)
-            if(numbers!=null) {
-                val count = ui.onAllNodes(hasText("条结果", substring = true)).fetchSemanticsNodes()
-                    .firstNotNullOfOrNull { node -> node.config.getOrNull(SemanticsProperties.Text)
-                        ?.firstNotNullOfOrNull { Regex("(\\d+) 条结果").find(it.text)?.groupValues?.get(1)?.toIntOrNull() } } ?: 0
-                if(count>0 && first<0) first=android.os.SystemClock.elapsedRealtime()-start
-                allCompleted=numbers.groupValues[1]==numbers.groupValues[2] && numbers.groupValues[2]!="0"
-                val stopped=ui.onAllNodesWithText("取消搜索").fetchSemanticsNodes().isEmpty()
-                if(allCompleted || (numbers.groupValues[2]!="0" && stopped)) done=android.os.SystemClock.elapsedRealtime()-start
+            val state=model.state.value
+            if(state.searchQuery==query.trim() && state.total>0) {
+                val elapsed=android.os.SystemClock.elapsedRealtime()-start
+                if(first<0 && state.results.isNotEmpty()) first=elapsed
+                if(!state.searching) {
+                    allCompleted=state.completed==state.total
+                    done=elapsed
+                }
             }
             done>=0
         }

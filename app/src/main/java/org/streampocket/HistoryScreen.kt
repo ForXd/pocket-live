@@ -125,10 +125,10 @@ import androidx.compose.ui.unit.dp
             val shown = group.latest
             val id = group.key.stableKey
                 SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{pendingRemoval=group}) {
-                Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surface).clickable { if(revealed==id) revealed=null else resume(shown) }.testTag("historyGroup:$id").padding(vertical=8.dp)) {
+                Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { if(revealed==id) revealed=null else resume(shown) }.testTag("historyGroup:$id").padding(MediaCardInset)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        if(model!=null) Poster(shown.playback.video,model,Modifier.size(64.dp,88.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        if(model!=null) Poster(shown.playback.video,model,Modifier.size(68.dp,88.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
                             Text(VideoGroups.familyTitle(shown.playback.video),style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             val season=VideoGroups.identity(shown.playback.video).season
                             Text(listOfNotNull(season?.let { "第 $it 季" },shown.playback.episode.name,shown.playback.video.source.name).joinToString(" · "),
@@ -136,7 +136,7 @@ import androidx.compose.ui.unit.dp
                             Text(HistoryGroups.progress(shown),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             WatchProgress(shown.playback)
                         }
-                        IconButton(onClick={resume(shown)},modifier=Modifier.align(Alignment.CenterVertically).size(48.dp).testTag("continue:$id")) {
+                        GlassIconButton(onClick={resume(shown)},modifier=Modifier.align(Alignment.CenterVertically).testTag("continue:$id")) {
                             Icon(painterResource(R.drawable.ic_play),"继续观看")
                         }
                     }

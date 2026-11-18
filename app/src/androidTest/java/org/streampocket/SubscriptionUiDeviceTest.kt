@@ -46,7 +46,7 @@ class SubscriptionUiDeviceTest {
         fun scroll(tag:String)=ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasTestTag(tag))
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
-            ui.onNodeWithText("订阅",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:1").performClick()
             ui.onNodeWithText("精选来源 1").assertDoesNotExist()
             captureUi(ui,"subscriptions-collapsed")
             scroll("subscription:group-a")

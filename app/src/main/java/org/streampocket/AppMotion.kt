@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-internal class CardReturn(private val scope: CoroutineScope) {
+internal class CardReturn(private val scope: CoroutineScope, private val canPreview: () -> Boolean) {
     var progress by mutableFloatStateOf(0f)
         private set
     var direction = 1f
@@ -45,7 +45,8 @@ internal class CardReturn(private val scope: CoroutineScope) {
     var width = 0
     private var startX = 0f
     private var settling: Job? = null
-    private var committed = false
+    var committed = false
+        private set
 
     fun start(event: BackEventCompat) {
         if (committed) return
@@ -56,7 +57,7 @@ internal class CardReturn(private val scope: CoroutineScope) {
     }
 
     fun drag(event: BackEventCompat) {
-        if (committed) return
+        if (committed || !canPreview()) return
         progress = if (width > 0 && event.touchX.isFinite() && event.touchX != startX)
             (abs(event.touchX-startX)/width).coerceIn(0f,1f) else event.progress.coerceIn(0f,1f)
     }
@@ -74,14 +75,14 @@ internal class CardReturn(private val scope: CoroutineScope) {
         if (committed) return
         committed = true
         settling?.cancel()
+        if (!canPreview()) {
+            action()
+            return
+        }
         settling = scope.launch {
             animate(progress,1f,animationSpec=tween((170*(1f-progress)).toInt(),easing=FastOutSlowInEasing)) { value,_ -> progress=value }
+            // Keep the last frame until the destination replaces this route and its scope.
             action()
-            withFrameNanos { }
-            // An action may just dismiss the keyboard or leave the same route selected.
-            committed=false
-            progress=0f
-            direction=1f
         }
     }
 }
@@ -118,6 +119,7 @@ private class ReturnPreview(val bounds: Rect) {
 private class RoutePreviews {
     private val entries = mutableMapOf<String,ReturnPreview>()
     private val handler = Handler(Looper.getMainLooper())
+    var motion: CardReturn? = null
     var current: String? = null
     var bounds = Rect()
 
@@ -144,7 +146,9 @@ private class RoutePreviews {
         }
     }
 
-    fun parent(routes:List<String>)=entries[routes.getOrNull(routes.lastIndex-1)]
+    fun preview(route: String?): ReturnPreview? = entries[route]?.takeIf {
+        it.image != null && it.bounds == bounds
+    }
     fun clear()=entries.clear()
 }
 
@@ -153,9 +157,26 @@ private class RoutePreviews {
     val window=LocalActivity.current?.window
     val previews=remember(window) { RoutePreviews() }
     DisposableEffect(previews) { onDispose { previews.clear() } }
-    val scope=key(routes.last()) { rememberCoroutineScope() }
-    val motion=remember(scope) { CardReturn(scope) }
-    SideEffect { previews.enter(routes,window) }
+    val route = routes.last()
+    val parent = routes.getOrNull(routes.lastIndex - 1)
+    val latestParent by rememberUpdatedState(parent)
+    val scope = key(route) { rememberCoroutineScope() }
+    val motion = remember(scope, previews) { CardReturn(scope) { previews.preview(latestParent) != null } }
+    var handoff by remember(previews, route) {
+        mutableStateOf(if (previews.motion?.committed == true) previews.preview(route) else null)
+    }
+    val opacity = remember(route) { Animatable(1f) }
+    LaunchedEffect(route, handoff) {
+        if (handoff != null) {
+            withFrameNanos { }
+            opacity.animateTo(0f, tween(90))
+            handoff = null
+        }
+    }
+    SideEffect {
+        previews.enter(routes,window)
+        previews.motion = motion
+    }
     val surface=MaterialTheme.colorScheme.background
     CompositionLocalProvider(LocalCardReturn provides motion) {
         Box(Modifier.fillMaxSize().clipToBounds().onGloballyPositioned {
@@ -166,7 +187,7 @@ private class RoutePreviews {
             drawRect(surface)
             val t=motion.progress
             if(t>0f) {
-                val preview=previews.parent(routes)
+                val preview=previews.preview(parent)
                 val image=preview?.image
                 if(image!=null && preview.bounds.width()==size.width.roundToInt() && preview.bounds.height()==size.height.roundToInt()) {
                     withTransform({
@@ -181,6 +202,14 @@ private class RoutePreviews {
         }) {
             Box(Modifier.fillMaxSize().graphicsLayer { translationX=motion.direction*size.width*motion.progress }
                 .background(surface)) { content() }
+            handoff?.let { frame ->
+                Box(Modifier.matchParentSize().drawBehind {
+                    val dimensions = IntSize(size.width.roundToInt(), size.height.roundToInt())
+                    if (frame.bounds.width() == dimensions.width && frame.bounds.height() == dimensions.height && motion.progress == 0f) {
+                        frame.image?.let { drawImage(it, dstSize = dimensions, alpha = opacity.value) }
+                    }
+                })
+            }
         }
     }
 }

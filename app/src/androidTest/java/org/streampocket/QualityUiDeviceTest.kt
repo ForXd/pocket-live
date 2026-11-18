@@ -52,7 +52,7 @@ class QualityUiDeviceTest {
             capture("search-empty")
             ui.runOnIdle { model.allowHttp(true) }
             ui.waitUntil(60000) { model.state.value.saved.allowHttp }
-            ui.onNodeWithText("订阅").performClick()
+            ui.onNodeWithTag("nav:1").performClick()
             capture("subscriptions-empty")
             ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithTag("subscriptionInput").performTextReplacement("$base/sub")
@@ -71,7 +71,7 @@ class QualityUiDeviceTest {
             ui.onNodeWithTag("searchResults").performScrollToNode(hasText("清晰度未知"))
             ui.onNodeWithText("清晰度未知").assertIsDisplayed()
             capture("quality-unknown")
-            ui.onNodeWithText("历史").performClick()
+            ui.onNodeWithTag("nav:2").performClick()
             capture("history-empty")
         } finally { server.shutdown() }
     }

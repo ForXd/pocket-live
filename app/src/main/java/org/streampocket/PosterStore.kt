@@ -74,7 +74,10 @@ class PosterStore(private val directory: File) {
         try { temp.writeBytes(bytes);if(!temp.renameTo(target)) throw IOException("Cache commit failed") }
         finally { temp.delete() }
     }
-    internal fun thumbnail(url: String?): Bitmap? = validUrl(url)?.let { memory.get(hash(it)) }
+    internal fun cached(url:String?,large:Boolean=false):Bitmap? = validUrl(url)?.let {
+        val key=hash(it)
+        memory.get(if(large) "$key:hero" else key)
+    }
 
     suspend fun load(url:String?,network:Network,large:Boolean=false):Bitmap? {
         val valid=validUrl(url) ?: return null
@@ -130,7 +133,7 @@ class PosterStore(private val directory: File) {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val refresh by model.posterRefresh.collectAsStateWithLifecycle()
     key(video.poster, large, frosted, model) {
-        var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+        var bitmap by remember { mutableStateOf(if(frosted) null else model.posters.cached(video.poster,large)) }
         var preview by remember { mutableStateOf<Bitmap?>(null) }
         var finished by remember { mutableStateOf(false) }
         LaunchedEffect(lifecycle,refresh) {
@@ -139,7 +142,7 @@ class PosterStore(private val directory: File) {
                     finished=false
                     if(large && !frosted) {
                         preview=withContext(Dispatchers.Default) {
-                            model.posters.thumbnail(video.poster)?.let { blurGlassBitmap(it,48) }
+                            model.posters.cached(video.poster)?.let { blurGlassBitmap(it,48) }
                         }
                     }
                     val loaded=model.posters.load(video.poster,model.network,large)

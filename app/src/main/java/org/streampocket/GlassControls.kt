@@ -6,13 +6,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -97,20 +98,29 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
     }
 }
 
+/** Compact phone destinations use a single named, selectable touch target. */
+@Composable internal fun DockDestination(selected:Boolean,label:String,onClick:()->Unit,modifier:Modifier=Modifier,icon:@Composable ()->Unit) {
+    Box(modifier.heightIn(min=48.dp).clip(androidx.compose.foundation.shape.CircleShape)
+        .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick)
+        .semantics { contentDescription=label },contentAlignment=androidx.compose.ui.Alignment.Center) {
+        val tint=if(selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        Box(Modifier.size(36.dp).background(if(selected) tint.copy(alpha=.08f) else Color.Transparent,
+            androidx.compose.foundation.shape.CircleShape),contentAlignment=androidx.compose.ui.Alignment.Center) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint,content=icon)
+        }
+    }
+}
+
 /** One selected surface includes both icon and label, with a single accessible tab target. */
 @Composable internal fun PocketNavigationItem(selected:Boolean,label:String,onClick:()->Unit,
-    modifier:Modifier=Modifier,indicator:Boolean=true,icon:@Composable ()->Unit) {
+    modifier:Modifier=Modifier,icon:@Composable ()->Unit) {
     val tint=if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    val fill = if (indicator) androidx.compose.animation.animateColorAsState(if(selected) glassFill(true) else Color.Transparent,
-        animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection").value else Color.Transparent
-    val shape=androidx.compose.foundation.shape.RoundedCornerShape(if(indicator) 22.dp else 24.dp)
-    val surface=when {
-        indicator -> fill
-        else -> Color.Transparent
-    }
+    val fill = androidx.compose.animation.animateColorAsState(if(selected) glassFill(true) else Color.Transparent,
+        animationSpec=androidx.compose.animation.core.tween(160),label="navigationSelection").value
+    val shape=androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
     androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint) {
-        Column(modifier.heightIn(min=if(indicator) 64.dp else 56.dp)
-            .clip(shape).background(surface)
+        Column(modifier.heightIn(min=64.dp)
+            .clip(shape).background(fill)
             .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick,
                 interactionSource=androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication=androidx.compose.foundation.LocalIndication.current)
@@ -122,25 +132,22 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
     }
 }
 
-/** One traveling indicator. The shadow belongs to the moving surface. */
-@Composable internal fun SlidingTabs(index:Int,count:Int,dock:Boolean,modifier:Modifier=Modifier,
+/** A single underline follows the active home tab. */
+@Composable internal fun SlidingTabs(index:Int,count:Int,modifier:Modifier=Modifier,
     content:@Composable RowScope.()->Unit) {
     BoxWithConstraints(modifier) {
-        val gap = if (dock) 4.dp else 0.dp
-        val cell = (maxWidth-gap*(count-1))/count
+        val cell = maxWidth/count
         val position by androidx.compose.animation.core.animateDpAsState(
-            targetValue=(cell+gap)*index,
+            targetValue=cell*index,
             animationSpec=androidx.compose.animation.core.spring(dampingRatio=.88f,stiffness=420f),
             label="tabPosition")
         Box(Modifier.matchParentSize()) {
             val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
-            if (dock) Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(position.roundToPx(),0) }
-                .width(cell).fillMaxHeight().shadow(3.dp,shape).background(MaterialTheme.colorScheme.surfaceContainerHigh,shape))
-            else Box(Modifier.align(androidx.compose.ui.Alignment.BottomStart)
+            Box(Modifier.align(androidx.compose.ui.Alignment.BottomStart)
                 .offset { androidx.compose.ui.unit.IntOffset((position+cell*.25f).roundToPx(),0) }
                 .width(cell*.5f).height(3.dp).background(MaterialTheme.colorScheme.primary,shape))
         }
-        Row(Modifier.fillMaxWidth().selectableGroup(),horizontalArrangement=Arrangement.spacedBy(gap),
+        Row(Modifier.fillMaxWidth().selectableGroup(),
             verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,content=content)
     }
 }

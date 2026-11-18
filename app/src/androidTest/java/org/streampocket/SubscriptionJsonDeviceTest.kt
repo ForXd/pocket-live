@@ -59,7 +59,7 @@ class SubscriptionJsonDeviceTest {
             assertEquals(updated,runBlocking { Storage(context).read() }.subscriptions.first { it.id==sub.id })
             file.delete()
             assertEquals(1,updated.sources.size)
-            ui.onNodeWithText("订阅",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:1").performClick()
             ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithText("粘贴 JSON").performScrollTo().performClick()
             ui.onNodeWithTag("subscriptionJsonInput").performTextInput("{bad}")
@@ -99,7 +99,7 @@ class SubscriptionJsonDeviceTest {
         fun nodes(root:android.view.accessibility.AccessibilityNodeInfo?):List<android.view.accessibility.AccessibilityNodeInfo> =
             if(root==null) emptyList() else listOf(root)+(0 until root.childCount).flatMap { nodes(root.getChild(it)) }
         try {
-            ui.onNodeWithText("订阅",useUnmergedTree=true).performClick()
+            ui.onNodeWithTag("nav:1").performClick()
             ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithText("选择 JSON 文件").performScrollTo().performClick()
             val deadline=android.os.SystemClock.elapsedRealtime()+15000

@@ -28,17 +28,17 @@ import androidx.compose.ui.unit.dp
 }
 
 /** Shared source rows for search/detail and player; availability never inferred from metadata. */
-@Composable fun SourceChoices(videos:List<Video>,selected:Video?,state:UiState,choose:(Video)->Unit,limit:Int=Int.MAX_VALUE) {
+@Composable fun SourceChoices(videos:List<Video>,selected:Video?,state:UiState,choose:(Video)->Unit,limit:Int=Int.MAX_VALUE,rowInset:androidx.compose.ui.unit.Dp=12.dp) {
     if(videos.size>3 && limit>3) {
         androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max=280.dp)) {
-            items(videos.take(limit),key={it.probeKey()}) { video -> SourceChoices(listOf(video),selected,state,choose,1) }
+            items(videos.take(limit),key={it.probeKey()}) { video -> SourceChoices(listOf(video),selected,state,choose,1,rowInset) }
         }
         return
     }
     videos.take(limit).forEach { video ->
         Surface(onClick={choose(video)},color=if(selected?.probeKey()==video.probeKey()) glassFill(true) else androidx.compose.ui.graphics.Color.Transparent,
             shape=MaterialTheme.shapes.small,modifier=Modifier.fillMaxWidth().testTag("sourceChoice:${video.source.key}:${video.id}")) {
-            Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=rowInset,vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
                     Text(video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
                     val label=if(selected?.probeKey()==video.probeKey()) "当前来源" else video.subtitle

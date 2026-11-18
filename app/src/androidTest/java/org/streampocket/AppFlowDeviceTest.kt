@@ -111,7 +111,7 @@ class AppFlowDeviceTest {
                 assertEquals(0,PlaybackMetrics.samplers)
                 return
             }
-            ui.onNodeWithText("订阅").performClick()
+            ui.onNodeWithTag("nav:1").performClick()
             if(ui.onAllNodesWithTag("subscriptionInput").fetchSemanticsNodes().isEmpty()) ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithTag("subscriptionInput").performTextReplacement("$base/sub")
             ui.onNode(hasText("添加订阅") and hasClickAction()).performScrollTo().performClick()

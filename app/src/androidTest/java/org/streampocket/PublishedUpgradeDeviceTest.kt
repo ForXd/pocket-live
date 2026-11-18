@@ -9,11 +9,12 @@ import org.junit.Test
 class PublishedUpgradeDeviceTest {
     private val instrument get()=InstrumentationRegistry.getInstrumentation()
     private fun nodes(root:AccessibilityNodeInfo?):List<AccessibilityNodeInfo> = if(root==null) emptyList() else listOf(root)+(0 until root.childCount).flatMap { nodes(root.getChild(it)) }
+    private fun AccessibilityNodeInfo.named(label:String) = text?.toString()==label || contentDescription?.toString()==label
     private fun texts()=nodes(instrument.uiAutomation.rootInActiveWindow).mapNotNull { it.text?.toString() }.distinct().joinToString(" | ")
     private fun waitText(text:String,timeout:Long=15000):AccessibilityNodeInfo {
         val deadline=android.os.SystemClock.elapsedRealtime()+timeout
         while(android.os.SystemClock.elapsedRealtime()<deadline) {
-            nodes(instrument.uiAutomation.rootInActiveWindow).firstOrNull { it.text?.toString()==text }?.let { return it }
+            nodes(instrument.uiAutomation.rootInActiveWindow).firstOrNull { it.named(text) }?.let { return it }
             android.os.SystemClock.sleep(200)
         }
         throw AssertionError("Missing $text; UI: ${texts()}")
@@ -44,7 +45,7 @@ class PublishedUpgradeDeviceTest {
                 context.startActivity(launch)
                 val deadline = android.os.SystemClock.elapsedRealtime() + 5000
                 while(android.os.SystemClock.elapsedRealtime() < deadline) {
-                    if(nodes(instrument.uiAutomation.rootInActiveWindow).any { it.text?.toString()=="设置" }) {
+                    if(nodes(instrument.uiAutomation.rootInActiveWindow).any { it.named("设置") }) {
                         click("设置");return
                     }
                     android.os.SystemClock.sleep(200)

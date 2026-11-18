@@ -27,6 +27,7 @@ class SearchRulesTest {
     @Test fun metadataKeepsEpisodeInformationWithoutDuplicatingQuality() {
         val item=video("星河", "科幻片").copy(subtitle="2026 · 1080p", quality=QualityRules.sourceLabel("1080p"))
         assertEquals("科幻片 · 2026", SearchRules.metadata(item))
+        assertEquals("科幻片 · 冒险、悬疑 · 2026", SearchRules.metadata(item.copy(genreText="冒险,科幻片，悬疑、冒险")))
         assertEquals("科幻片 · 更新至12集 1080p", SearchRules.metadata(item.copy(subtitle="更新至12集 1080p")))
     }
 

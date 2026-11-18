@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.sp
     }
 }
 
+internal val MediaCardInset = 12.dp
 internal val ContentCardShape = RoundedCornerShape(22.dp)
 
 /** Shared quiet surface for discovery, search and viewing history. */

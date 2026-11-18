@@ -26,10 +26,11 @@ class MotionDeviceTest {
 
     @Test fun forwardIsImmediateAndBackRevealsTheParentFromEitherEdge() {
         var detail by mutableStateOf(false)
+        var backRequested = false
         ui.runOnUiThread {
             ui.activity.setContent {
                 CardRouteHost(if(detail) listOf("home","detail") else listOf("home")) {
-                    CardBackHandler(enabled=detail) { detail=false }
+                    CardBackHandler(enabled=detail) { backRequested=true }
                     Box(Modifier.fillMaxSize().testTag("route").background(if(detail) Color.Blue else Color.Red)
                         .clickable { detail=true })
                 }
@@ -57,7 +58,12 @@ class MotionDeviceTest {
         drag(BackEventCompat.EDGE_RIGHT)
         assertTrue("Right swipe reveals opposite edge",colorAt(.8f).red>.7f && colorAt(.2f).blue>.8f)
         ui.runOnIdle { dispatcher.onBackPressed() }
-        ui.waitUntil(5000) { !detail }
+        ui.waitForIdle()
+        ui.runOnIdle { assertTrue(backRequested) }
+        ui.mainClock.advanceTimeBy(120)
+        assertTrue("The outgoing screen must stay offscreen while the route change is pending", colorAt(.5f).red>.8f)
+        ui.runOnIdle { detail=false }
+        ui.waitForIdle()
         assertTrue(colorAt(.5f).red>.8f)
     }
 

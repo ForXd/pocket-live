@@ -278,6 +278,9 @@ class UiLayoutDeviceTest {
             assertTrue("Destination order follows the active navigation axis",navOrder.zipWithNext().all { (a,b) ->
                 if(rail) a.bottom<=b.top else a.right<=b.left
             })
+            if (!rail) listOf("首页","历史","订阅","设置").forEach {
+                ui.onNodeWithContentDescription(it).assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
+            }
             ui.onNodeWithTag("openSearch").performClick()
             ui.runOnIdle { ui.activity.onBackPressedDispatcher.onBackPressed() }
             ui.onNodeWithTag("openSearch").assertIsDisplayed().performClick()
@@ -289,6 +292,10 @@ class UiLayoutDeviceTest {
             ui.waitUntil(10000) { ui.onAllNodesWithContentDescription("星河漫游 封面").fetchSemanticsNodes().isNotEmpty() }
             val result = ui.onNodeWithTag("searchVideo:1", useUnmergedTree=true).getUnclippedBoundsInRoot()
             val cover = ui.onNodeWithContentDescription("星河漫游 封面", useUnmergedTree=true).getUnclippedBoundsInRoot()
+            ui.onNodeWithText("搜索结果").assertDoesNotExist()
+            val card = ui.onNodeWithTag("searchGroup:${VideoGroups.familyKey(video)}").getUnclippedBoundsInRoot()
+            assertEquals(MediaCardInset.value, (cover.left-card.left).value, 1f)
+            assertEquals(MediaCardInset.value, (cover.top-card.top).value, 1f)
             assertEquals(result.left.value, cover.left.value, 1f)
             assertEquals(result.top.value, cover.top.value, 1f)
             if (ui.activity.resources.configuration.screenWidthDp < 600) {

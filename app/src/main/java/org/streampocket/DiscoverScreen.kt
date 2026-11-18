@@ -161,7 +161,7 @@ import androidx.compose.ui.text.style.TextOverflow
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("recommendToolbar"),verticalAlignment=Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
-                SlidingTabs(selectedTab,3,false,Modifier.widthIn(max=if(LocalDensity.current.fontScale>1.3f) 236.dp else 198.dp),content=tabs)
+                SlidingTabs(selectedTab,3,Modifier.widthIn(max=if(LocalDensity.current.fontScale>1.3f) 236.dp else 198.dp),content=tabs)
             }
             Spacer(Modifier.width(ActionGap))
             if(recommendations.value && !liveTab.value) GlassIconButton(onClick={recommendationFilters.value=true},modifier=Modifier.testTag("recommendCategoryPicker")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"筛选推荐") } else Spacer(Modifier.width(IconTarget))

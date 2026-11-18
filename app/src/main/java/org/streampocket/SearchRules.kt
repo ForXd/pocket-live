@@ -44,7 +44,11 @@ internal object SearchRules {
     fun metadata(video: Video): String {
         // Drop only a standalone quality declaration; retain episode/update wording.
         val parts = video.subtitle.split(" · ").filterNot { video.quality.evidence != QualityEvidence.UNKNOWN && qualityOnly.matches(it.trim()) }
-        return (listOf(video.typeName, video.genreText).distinct() + parts).filter { it.isNotBlank() }.joinToString(" · ")
+        val type = video.typeName.trim()
+        val genres = video.genreText.split(',', '，', '、').map { it.trim() }
+            .filter { it.isNotEmpty() && it != type }.distinct()
+        return (listOf(type, genres.joinToString("、")) + parts)
+            .map { it.trim() }.filter { it.isNotEmpty() }.distinct().joinToString(" · ")
     }
 
     fun category(video: Video): MediaCategory {

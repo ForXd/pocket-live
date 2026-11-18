@@ -240,7 +240,7 @@ class HomeBrowseDeviceTest {
 
     @Test fun holdingDestinationDoesNotPaintASecondTabIndicator() {
         val destination=ui.onNodeWithTag("nav:3")
-        fun background()=destination.captureToImage().toPixelMap().let { it[it.width/2,it.height/8] }
+        fun background()=destination.captureToImage().toPixelMap().let { it[it.width/2,it.height/4] }
         val before=background()
         destination.performTouchInput { down(center) }
         try {

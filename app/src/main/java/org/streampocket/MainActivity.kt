@@ -238,7 +238,8 @@ class MainActivity : ComponentActivity() {
                     {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},
                     {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else { query="";model.cancelSearch();searchMode=false;searchOpen=true;focusSearch=true }},
                     placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
-                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清除输入",allowEmpty=inCatalog || inLive,focusOnOpen=focusSearch,onFocused={focusSearch=false})
+                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清除输入",allowEmpty=inCatalog || inLive,focusOnOpen=focusSearch,onFocused={focusSearch=false},
+                    cancelSearch=if(searchMode && s.searching) model::cancelSearch else null)
                     }
                     if(!inCatalog && !inLive && query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
                         androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=PageGutter),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -253,12 +254,16 @@ class MainActivity : ComponentActivity() {
             }
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
-        bottomBar = { if(showDock) Surface(modifier=Modifier.navigationBarsPadding().padding(horizontal=PageGutter,vertical=8.dp).testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),color=androidx.compose.ui.graphics.Color.Transparent,shadowElevation=0.dp) {
-            SlidingTabs(listOf(0,2,1,3).indexOf(tab).coerceAtLeast(0),4,true,Modifier.fillMaxWidth().smokeGlass(RoundedCornerShape(28.dp)).padding(4.dp)) {
-            listOf(0,2,1,3).forEach { i ->
-                PocketNavigationItem(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
-                    Modifier.weight(1f).testTag("nav:$i"),indicator=false,icon={navIcon(i)})
-            }
+        bottomBar = { if(showDock) Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=PageGutter,vertical=6.dp),
+            contentAlignment=Alignment.Center) {
+            Surface(modifier=Modifier.widthIn(max=280.dp).fillMaxWidth().testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),
+                color=MaterialTheme.colorScheme.surfaceContainerLow,shadowElevation=1.dp) {
+                Row(Modifier.selectableGroup().padding(horizontal=4.dp,vertical=2.dp)) {
+                    listOf(0,2,1,3).forEach { i ->
+                        DockDestination(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
+                            Modifier.weight(1f).testTag("nav:$i"),icon={navIcon(i)})
+                    }
+                }
             }
         } },snackbarHost={SnackbarHost(snack)}
     ) { padding ->
