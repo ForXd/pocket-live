@@ -8,10 +8,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.lerp
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
@@ -21,7 +23,6 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -47,8 +48,8 @@ internal class PosterAnchor(private val host: PosterExpansion?, private val vide
         if (host != null && layout != null && layout.isAttached) {
             val visible = layout.boundsInRoot()
             if (!visible.isEmpty) {
-                val position = layout.positionInRoot()
-                val origin = Rect(position.x, position.y, position.x + layout.size.width, position.y + layout.size.height)
+                val origin = Rect(layout.localToRoot(Offset.Zero),
+                    layout.localToRoot(Offset(layout.size.width.toFloat(),layout.size.height.toFloat())))
                 val image = model.posters.cached(video.poster, large) ?: model.posters.cached(video.poster)
                 host.flight = PosterFlight(destination, image?.asImageBitmap(), origin, visible)
             }
@@ -87,12 +88,14 @@ internal class PosterAnchor(private val host: PosterExpansion?, private val vide
         val end = flight.target ?: return@Canvas
         val t = progress.value
         val viewport = IntSize(size.width.roundToInt(), size.height.roundToInt())
-        val parent = parentImage()
-        if (parent == null) drawRect(surface, alpha=1f-t)
-        else {
-            drawImage(parent, dstSize=viewport, alpha=1f-t)
-            clipRect(flight.visible.left,flight.visible.top,flight.visible.right,flight.visible.bottom) {
-                drawRoundRect(tint, flight.origin.topLeft, flight.origin.size, CornerRadius(16.dp.toPx()), alpha=1f-t)
+        // The controls on the two screens occupy the same space. Fade them in sequence
+        // while the artwork remains opaque and follows one continuous path.
+        drawRect(surface, alpha=((1f-t)/.4f).coerceIn(0f,1f))
+        val parentAlpha = (1f-t/.65f).coerceAtLeast(0f)
+        if (parentAlpha > 0f) parentImage()?.let { parent ->
+            val hole = flight.visible
+            clipRect(hole.left,hole.top,hole.right,hole.bottom,clipOp=ClipOp.Difference) {
+                drawImage(parent, dstSize=viewport, alpha=parentAlpha)
             }
         }
         val frame = lerp(flight.origin, end, t)
