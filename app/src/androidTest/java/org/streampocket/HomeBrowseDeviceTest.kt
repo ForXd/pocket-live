@@ -75,7 +75,10 @@ class HomeBrowseDeviceTest {
         val third=ui.onNodeWithTag("recommendation:3").getUnclippedBoundsInRoot()
         assertTrue("Featured poster spans both columns",(first.right-first.left)>(second.right-second.left))
         assertEquals(second.top.value,third.top.value,1f)
-        assertEquals(second.bottom.value,third.bottom.value,1f)
+        for ((id,card) in listOf(2 to second,3 to third)) {
+            val title=ui.onNodeWithTag("recommendTitle:$id",useUnmergedTree=true).getUnclippedBoundsInRoot()
+            assertEquals("Card wraps the actual title height",8f,(card.bottom-title.bottom).value,1f)
+        }
         grid.performScrollToIndex(0)
         captureUi(ui,"home-expanded")
         grid.performTouchInput { swipeUp(durationMillis=600) }
