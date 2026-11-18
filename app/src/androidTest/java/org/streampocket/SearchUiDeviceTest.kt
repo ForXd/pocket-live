@@ -23,10 +23,12 @@ class SearchUiDeviceTest {
         runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true, subscriptions=listOf(
             Subscription("search", "我的片库", "$base/sub", 1, listOf(source))))) }
         val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
+        val firstSearch=java.util.concurrent.CountDownLatch(1)
         server.dispatcher = object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
                 requests.add(request)
                 val url=request.requestUrl!!
+                if(url.queryParameter("wd")!=null) firstSearch.await(10,java.util.concurrent.TimeUnit.SECONDS)
                 if(url.encodedPath=="/poster") return MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(
                     InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
                 if(url.encodedPath=="/recommend") return MockResponse().setBody("""{"subjects":[]}""")
@@ -69,7 +71,13 @@ class SearchUiDeviceTest {
             ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("星河")
             ui.onNodeWithContentDescription("开始搜索").performClick()
+            ui.onAllNodesWithTag("searchResultPlaceholder").onFirst().assertIsDisplayed()
+            ui.onNodeWithText("取消搜索").assertIsDisplayed()
+            ui.onNodeWithText("暂未找到结果").assertDoesNotExist()
+            capture("00-first-search")
+            firstSearch.countDown()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
+            ui.onAllNodesWithTag("searchResultPlaceholder").assertCountEquals(0)
             ui.waitUntil(10000) { model.state.value.saved.recentSearches == listOf("星河") }
             assertEquals(listOf("星河"), kotlinx.coroutines.runBlocking { Storage(ui.activity.application).read() }.recentSearches)
             ui.onNodeWithTag("searchInput").performTextReplacement("")
@@ -190,6 +198,6 @@ class SearchUiDeviceTest {
                     android.os.SystemClock.sleep(100)
                 }
             }
-        } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() }; server.shutdown() }
+        } finally { firstSearch.countDown();ui.runOnUiThread { ui.activity.viewModelStore.clear() }; server.shutdown() }
     }
 }

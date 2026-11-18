@@ -8,8 +8,8 @@ class RecommendationsTest {
         assertTrue(url.contains("type=movie"));assertTrue(url.contains("page_start=20"));assertFalse(url.contains("豆瓣"))
     }
     @Test fun parsesRatingsCoversWithoutInventingData() {
-        val page=Recommendations.parse("""{"subjects":[{"id":"1","title":"剧集","cover":"https://img2.doubanio.com/test.jpg","rate":"8.5"},{"id":"2","title":"新剧","rate":"0","cover":"javascript:bad"},{"id":"1","title":"重复"}]}""",1)
-        assertEquals(2,page.videos.size);assertEquals("豆瓣 8.5",page.videos[0].subtitle)
+        val page=Recommendations.parse("""{"subjects":[{"id":"1","title":"剧集","cover":"https://img2.doubanio.com/test.jpg","rate":"8.5","episodes_info":"更新至第 6 集"},{"id":"2","title":"新剧","rate":"0","cover":"javascript:bad"},{"id":"1","title":"重复"}]}""",1)
+        assertEquals(2,page.videos.size);assertEquals("更新至第 6 集",page.videos[0].subtitle);assertEquals(8.5,page.videos[0].rating!!,0.0)
         assertEquals("",page.videos[1].subtitle);assertNull(page.videos[1].poster);assertFalse(page.more)
     }
     @Test(expected=UserError::class) fun rejectsErrorResponses() { Recommendations.parse("""{"error":"denied"}""",1) }

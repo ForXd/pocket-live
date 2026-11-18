@@ -29,7 +29,8 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
     LazyColumn(Modifier.fillMaxSize().padding(bottom=LocalDockInset.current).testTag("settingsList"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(page!=null) {
             item { Row(Modifier.fillMaxWidth().heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                PocketBack({navigate(null)},label="返回设置")
+                val motion=LocalCardReturn.current
+                PocketBack({motion.commit { navigate(null) }},label="返回设置")
                 Text(page.title,style=MaterialTheme.typography.headlineMedium)
             } }
             when(page) {

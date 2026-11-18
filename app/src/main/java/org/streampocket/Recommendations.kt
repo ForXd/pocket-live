@@ -26,7 +26,7 @@ object Recommendations {
             val title = item.scalar("title").trim().take(100)
             if(id.isBlank() || title.isBlank()) return@mapNotNull null
             val rating = sourceRating(item.scalar("rate"))
-            val subtitle = listOfNotNull(rating?.let { "豆瓣 $it" }, item.scalar("episodes_info").take(80).takeIf { it.isNotBlank() }).joinToString(" · ")
+            val subtitle = item.scalar("episodes_info").take(80)
             Video(source, id, title, subtitle, poster=validUrl(item.scalar("cover")), rating=rating)
         }.distinctBy { it.id }
         return RecommendationPage(videos, raw.size() >= PAGE_SIZE && page < MAX_PAGES && videos.isNotEmpty())

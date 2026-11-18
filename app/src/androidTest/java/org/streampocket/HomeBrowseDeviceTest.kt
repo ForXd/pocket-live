@@ -175,7 +175,7 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithText("高清优先").performClick()
         val results=ui.onNodeWithTag("searchResults")
         results.performTouchInput { swipeUp(durationMillis=600) }
-        results.performScrollToIndex(12)
+        results.performScrollToNode(hasTestTag("searchVideo:12"))
         val anchor=ui.onNodeWithTag("searchVideo:12")
         anchor.assertIsDisplayed()
         val before=anchor.getUnclippedBoundsInRoot().top

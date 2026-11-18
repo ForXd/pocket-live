@@ -55,7 +55,8 @@ import androidx.compose.ui.unit.dp
     BoxWithConstraints(Modifier.fillMaxSize().testTag("detailGrid")) {
         val coverHeight = minOf(maxHeight*.42f,340.dp)
         Column(Modifier.fillMaxSize()) {
-            TitleCover(detail.video,model,coverHeight,model::closeDetail)
+            val motion=LocalCardReturn.current
+            TitleCover(detail.video,model,coverHeight,{motion.commit(model::closeDetail)})
             Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=6.dp).smokeGlass(MaterialTheme.shapes.large).padding(horizontal=10.dp,vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                 val fraction = recent?.takeIf { it.duration > 0 }?.let { (it.position.toFloat()/it.duration).coerceIn(0f,1f) }
                 Box(Modifier.size(56.dp),contentAlignment=Alignment.Center) {

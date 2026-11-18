@@ -35,15 +35,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalLayoutApi::class,ExperimentalMaterial3Api::class)
-@Composable fun HistoryScreen(history:List<History>,resume:(History)->Unit,remove:(HistoryGroupKey)->Unit,clear:()->Unit,model:AppModel?=null) {
+@Composable fun HistoryScreen(history:List<History>,resume:(History)->Unit,remove:(HistoryGroupKey)->Unit,clear:()->Unit,model:AppModel?=null,searchState:MutableState<Boolean> = rememberSaveable { mutableStateOf(false) }) {
     // This screen is not composed during playback. At most 100 records are grouped
     // once per changed snapshot, never on the player's position sampling tick.
     val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val imeVisible=WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
-    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var searchOpen by searchState
+    val motion=LocalCardReturn.current
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    androidx.activity.compose.BackHandler(enabled=searchOpen && !filtersOpen && !imeVisible) { searchOpen=false;query="" }
+    CardBackHandler(enabled=searchOpen && !filtersOpen && !imeVisible) { searchOpen=false;query="" }
     var period by rememberSaveable { mutableStateOf(HistoryPeriod.ALL) }
     var kind by rememberSaveable { mutableStateOf(HistoryKind.ALL) }
     var source by rememberSaveable { mutableStateOf<String?>(null) }
@@ -66,7 +67,7 @@ import androidx.compose.ui.unit.dp
             GlassIconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
         }
         if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
-        SearchHeader(back={ searchOpen=false;query="";keyboard?.hide() },backLabel="返回历史") {
+        SearchHeader(back={ motion.commit { searchOpen=false;query="";keyboard?.hide() } },backLabel="返回历史") {
         ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }

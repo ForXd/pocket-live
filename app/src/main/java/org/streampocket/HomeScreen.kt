@@ -3,7 +3,7 @@ package org.streampocket
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
@@ -77,21 +77,22 @@ import androidx.compose.ui.unit.dp
     val counts = remember(candidateGroups) { candidateGroups.flatMap { group -> group.flatMap { Genres.of(it) }.distinct() }.groupingBy { it }.eachCount() }
     val videos = remember(candidates, category) { candidates.filter { category == Genre.ALL || Genres.matches(it, category) } }
     val groups=remember(videos) { VideoGroups.searchGroups(videos) }
-    val progress by animateFloatAsState(if(s.total==0) 0f else s.completed.toFloat()/s.total,tween(180),label="searchProgress")
     val grid=rememberLazyGridState()
     val scope=rememberCoroutineScope()
     ScrollToTopOnChange(category.name,showOthers.toString(),s.searchOrder.name) { grid.scrollToItem(0) }
     val largeTypeLayout = windowSizeDp().width < 300.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale
     val dockInset = LocalDockInset.current
     val failureHint = if (s.failures > 0) " · ${s.failures} 个失败" else ""
-    val summary = "${groups.size} 部 · ${videos.size} 个片源 · " +
+    val countsOnOwnLine = largeTypeLayout || (s.searching && s.results.isNotEmpty())
+    val summary = if(s.searching && s.results.isEmpty()) "已搜索 ${s.completed}/${s.total} 个来源" else "${groups.size} 部 · ${videos.size} 个片源 · " +
         (if(s.searching) "已搜索 ${s.completed}/${s.total}" else "${s.completed-s.failures} 个来源") + failureHint
     Column(Modifier.fillMaxSize().padding(bottom=if(largeTypeLayout) dockInset else 0.dp)) {
         Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("searchToolbar")) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text("搜索结果",modifier=if(largeTypeLayout) Modifier.weight(1f) else Modifier,style=MaterialTheme.typography.titleLarge)
-                if (!largeTypeLayout) Text(summary, Modifier.weight(1f),
+                Text("搜索结果",modifier=if(countsOnOwnLine) Modifier.weight(1f) else Modifier,style=MaterialTheme.typography.titleLarge)
+                if (!countsOnOwnLine) Text(summary, Modifier.weight(1f),
                     style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(s.searching) GlassTextButton(onClick=model::cancelSearch) { Text("取消搜索") }
                 if (s.results.isNotEmpty()) Box {
                     GlassIconButton(onClick={sortMenu=true},modifier=Modifier.size(48.dp).testTag("searchSort")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"排序：${s.searchOrder.label}") }
                     GlassMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
@@ -100,7 +101,7 @@ import androidx.compose.ui.unit.dp
                     }
                 }
             }
-            if (largeTypeLayout) Text(summary,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if (countsOnOwnLine) Text(summary,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(s.results.isNotEmpty()) Column {
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("searchCategories")) {
                     items(Genre.entries.filter { it != Genre.UNKNOWN || it == category || (counts[it] ?: 0) > 0 }) { option ->
@@ -119,21 +120,18 @@ import androidx.compose.ui.unit.dp
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
             awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
         }) {
-        item(span={GridItemSpan(maxLineSpan)}) {
-            Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                if(s.searching) {
-                    PocketLoading(progress={progress},modifier=Modifier.fillMaxWidth())
-                    GlassTextButton(onClick=model::cancelSearch) { Text("取消搜索") }
-                }
-                if (s.results.size == QualityRules.RESULT_LIMIT) Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)
-            }
+        if(s.searching && groups.isEmpty()) items(3,contentType={"searchPlaceholder"}) {
+            SearchResultPlaceholder()
         }
-        if(videos.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
+        if (s.results.size == QualityRules.RESULT_LIMIT) item(span={GridItemSpan(maxLineSpan)}) {
+            Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)
+        }
+        if(videos.isEmpty() && !s.searching) item(span={GridItemSpan(maxLineSpan)}) {
             Column {
-                if(!compact) EmptyPanel(if(s.searching) "正在寻找内容" else if(s.total == 0) "还没有可搜索的来源" else if(s.results.isNotEmpty()) "没有匹配的影片" else "暂未找到结果",
-                    if(s.searching) "结果会陆续显示，你可以随时取消。" else if(s.total == 0) "添加订阅或启用来源后，再搜索这部影片。" else if(s.results.isNotEmpty()) "当前已加载结果没有该题材，可切换题材或查看其他源站结果。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
-                if (compact && !s.searching) Text(if (s.total == 0) "请先添加或启用订阅来源" else "暂无结果，试试其他关键词")
-                if(!s.searching) GlassButton(shape=MaterialTheme.shapes.medium,onClick=subscriptions) { Text("管理订阅") }
+                if(!compact) EmptyPanel(if(s.total == 0) "还没有可搜索的来源" else if(s.results.isNotEmpty()) "没有匹配的影片" else "暂未找到结果",
+                    if(s.total == 0) "添加订阅或启用来源后，再搜索这部影片。" else if(s.results.isNotEmpty()) "当前已加载结果没有该题材，可切换题材或查看其他源站结果。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
+                if (compact) Text(if (s.total == 0) "请先添加或启用订阅来源" else "暂无结果，试试其他关键词")
+                GlassButton(shape=MaterialTheme.shapes.medium,onClick=subscriptions) { Text("管理订阅") }
             }
         }
         items(groups,key={VideoGroups.familyKey(it.first())}) { group ->
@@ -142,6 +140,20 @@ import androidx.compose.ui.unit.dp
     }
     val showTop by remember { derivedStateOf { grid.firstVisibleItemIndex>3 } }
     BackToTop(showTop,Modifier.align(Alignment.BottomEnd)) { scope.launch { grid.animateScrollToItem(0);onTop() } }
+        }
+    }
+}
+
+/** Match a result's cover and text column without exposing decorative nodes or running a shimmer. */
+@Composable private fun SearchResultPlaceholder() {
+    val tones=MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth().padding(vertical=8.dp).testTag("searchResultPlaceholder"),
+        horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+        Spacer(Modifier.size(68.dp,88.dp).background(tones.surfaceContainerHigh,MaterialTheme.shapes.small))
+        Column(Modifier.weight(1f).padding(top=4.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            Spacer(Modifier.fillMaxWidth(.68f).height(15.dp).background(tones.surfaceContainerHigh,MaterialTheme.shapes.small))
+            Spacer(Modifier.fillMaxWidth(.45f).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
+            Spacer(Modifier.width(46.dp).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
         }
     }
 }

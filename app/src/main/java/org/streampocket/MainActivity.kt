@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
     var settingsPage by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
     var appearanceOpen by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    val historySearch=rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var focusSearch by remember { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
@@ -165,18 +166,19 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(tab,searchMode,recommendations.value,liveTab.value,imeVisible) { searchScroll.reveal() }
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val playback = s.playback
-    val route = when {
-        playback != null -> "playback"
-        s.detail != null || s.detailLoading -> "detail"
-        s.recommendPreview != null -> "preview"
-        tab==3 && settingsPage!=null -> "settings:${settingsPage!!.name}"
-        tab == 0 && (searchOpen || searchMode || scopeSearch) -> "search"
-        tab==0 && liveTab.value -> "live"
-        tab==0 && !recommendations.value -> "catalog"
-        else -> "tab:$tab"
+    // The same hierarchy supplies the destination preview for buttons and system gestures.
+    val routes = buildList {
+        add(when { liveTab.value -> "live"; !recommendations.value -> "catalog"; else -> "tab:0" })
+        if(searchOpen || searchMode || scopeSearch) add("search")
+        if(tab!=0) add("tab:$tab")
+        if(tab==2 && historySearch.value) add("history-search")
+        if(tab==3 && settingsPage!=null) add("settings:${settingsPage!!.name}")
+        if(s.recommendPreview!=null) add("preview")
+        if(s.detail!=null || s.detailLoading) add("detail")
+        if(playback!=null) add("playback")
     }
-    val depth = when(route) { "playback" -> 3; "detail" -> 2; "preview","search" -> 1; else -> if(route.startsWith("settings:")) 1 else 0 }
-    CardRouteHost(route, depth) {
+    CardRouteHost(routes) {
+    val motion=LocalCardReturn.current
     if(playback != null) { PlaybackScreen(playback, model); return@CardRouteHost }
     if(exportOpen) SourceExportSheet(model) { exportOpen=false }
     if(addingSubscription) HandleOnlySheet(onDismissRequest={model.cancelImport("new");addingSubscription=false}) {
@@ -195,7 +197,7 @@ class MainActivity : ComponentActivity() {
     }
     if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
     if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
-    BackHandler(s.detail != null || s.detailLoading || searchMode || searchOpen || scopeSearch || tab!=0) {
+    CardBackHandler(s.detail != null || s.detailLoading || searchMode || searchOpen || scopeSearch || tab!=0) {
         when {
             s.detail!=null || s.detailLoading -> model.closeDetail()
             tab==3 && settingsPage!=null -> settingsPage=null
@@ -230,7 +232,7 @@ class MainActivity : ComponentActivity() {
                         },modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
                     }
                 } else Column {
-                    SearchHeader(back={ if(scopeSearch) closeScopeSearch() else showRecommendations() },
+                    SearchHeader(back={ motion.commit { if(scopeSearch) closeScopeSearch() else showRecommendations() } },
                         backLabel=if(scopeSearch) "返回" else "返回推荐") {
                     HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
                     {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},
@@ -277,7 +279,7 @@ class MainActivity : ComponentActivity() {
                     Column(Modifier.padding(24.dp).widthIn(max=320.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
                         PocketLoading()
                         Text("正在加载剧集…",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        GlassTextButton(onClick=model::closeDetail) { Text("取消详情请求") }
+                        GlassTextButton(onClick={motion.commit(model::closeDetail)}) { Text("取消详情请求") }
                     }
                 }
                 return@Box
@@ -334,7 +336,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 }
-                2 -> historyState.SaveableStateProvider("history") { HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory,model) }
+                2 -> historyState.SaveableStateProvider("history") { HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory,model,historySearch) }
             }
         }
     }

@@ -139,7 +139,10 @@ import kotlinx.coroutines.delay
         playerView?.adjustVertical=levels::adjust
         if(full || pip) playerView?.hideController()
     }
-    BackHandler { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) exitFullscreen() else model.stopPlayback() }
+    val returningFromPlayer = !full && !pip && state.alternativeSession==null && !episodesOpen && !optionsOpen
+    val motion=LocalCardReturn.current
+    CardBackHandler(enabled=returningFromPlayer) { playerView?.cancelGestures();model.stopPlayback() }
+    BackHandler(enabled=!returningFromPlayer) { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) exitFullscreen() else model.stopPlayback() }
     val darkTheme=LocalPocketDark.current
     LaunchedEffect(full, pip,darkTheme) {
         val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
@@ -175,7 +178,7 @@ import kotlinx.coroutines.delay
     val slowBuffering by remember(playback.sessionId) { derivedStateOf { health.slow } }
     val openEpisodes={ controller.checkpointNow();playerView?.cancelGestures();playerView?.hideController();episodesOpen=true }
     val openOptions={ playerView?.cancelGestures();playerView?.hideController();optionsOpen=true }
-    val leavePlayback={ playerView?.cancelGestures();model.stopPlayback() }
+    val leavePlayback={ playerView?.cancelGestures();motion.commit(model::stopPlayback) }
     val stepPrevious={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) };Unit }
     val stepNext={ playerView?.cancelGestures();next?.let { model.play(playback.video,it) };Unit }
     val supportsPip = activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)

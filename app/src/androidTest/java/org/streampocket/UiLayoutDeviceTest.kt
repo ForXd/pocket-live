@@ -49,7 +49,7 @@ class UiLayoutDeviceTest {
             else if(request.path=="/poster.png") MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
             else if(request.requestUrl?.encodedPath?.endsWith(".mp4")==true) MockResponse().setHeader("Content-Type","video/mp4").setBody(okio.Buffer().write(media))
             else if(request.path!!.startsWith("/synopsis")) MockResponse().setBody("<span property=\"v:summary\">一次穿越群星的旅程。每个故事，都值得被认真观看。</span>")
-            else if(review && request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","cover":"$base/forest.jpg","episodes_info":"剧情 · 电影"},{"id":"3","title":"夜航","cover":"$base/sea.jpg","episodes_info":"悬疑 · 电影"}]}""")
+            else if(review && request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","rate":"8.2","cover":"$base/forest.jpg","episodes_info":"更新至第 6 集"},{"id":"3","title":"夜航","cover":"$base/sea.jpg","episodes_info":"悬疑 · 电影"}]}""")
             else if(request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","rate":"8.2","cover":"$base/poster.png"},{"id":"3","title":"一段跨越山河与四季的漫长旅程：我们的故事还没有结束","rate":"","cover":""},{"id":"4","title":"雨","rate":"9.1","episodes_info":"更新至第十二集 · 特别篇与幕后故事持续更新","cover":"$base/poster.png"},{"id":"5","title":"风","rate":"","cover":"$base/poster.png"}]}""")
             else if(request.requestUrl!!.queryParameter("ids")!=null) MockResponse().setBody("""{"list":[{"vod_content":"一次穿越群星的旅程。每个故事，都值得被认真观看。","vod_play_from":"高清线路","vod_play_url":"第1集${'$'}$base/video.mp4#第2集${'$'}$base/video2.mp4#第3集${'$'}$base/video3.mp4#第4集${'$'}$base/video4.mp4#第5集${'$'}$base/video5.mp4#第6集${'$'}$base/video6.mp4"}]}""")
             else if(review && request.requestUrl?.queryParameter("wd")==null) MockResponse().setBody("""{"list":[{"vod_id":"2","vod_name":"山海之间","type_name":"剧情","vod_pic":"$base/forest.jpg"},{"vod_id":"3","vod_name":"夜航","type_name":"悬疑","vod_pic":"$base/sea.jpg"}]}""")
@@ -131,6 +131,9 @@ class UiLayoutDeviceTest {
                     assertEquals("Right hit edge of $tag",search.right.value,action.right.value,1f)
                     assertEquals("Center of $tag",(search.left.value+search.right.value)/2,(action.left.value+action.right.value)/2,1f)
                 }
+                ui.onNodeWithContentDescription("豆瓣评分 8.2 分").assertExists()
+                ui.onNodeWithText("更新至第 6 集").assertExists()
+                ui.onNodeWithText("豆瓣 8.2",substring=true).assertDoesNotExist()
                 capture("design-home")
                 for(label in listOf("推荐","分类","直播")) {
                     val results=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
