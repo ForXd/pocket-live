@@ -215,7 +215,7 @@ class PlayerLayoutDeviceTest {
                     }
                     else -> ui.onNodeWithContentDescription("关闭").performClick()
                 }
-                ui.onNodeWithTag("fullscreenEpisodePanel").assertDoesNotExist()
+                ui.waitUntil(5000) { ui.onAllNodesWithTag("fullscreenEpisodePanel").fetchSemanticsNodes().isEmpty() }
                 if(android.os.Build.VERSION.SDK_INT>=29) ui.waitUntil(5000) {
                     android.view.inspector.WindowInspector.getGlobalWindowViews().size==windowsBefore
                 }

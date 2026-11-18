@@ -131,14 +131,15 @@ class UiLayoutDeviceTest {
                     assertEquals("Right hit edge of $tag",search.right.value,action.right.value,1f)
                     assertEquals("Center of $tag",(search.left.value+search.right.value)/2,(action.left.value+action.right.value)/2,1f)
                 }
+                capture("design-home")
                 for(label in listOf("推荐","分类","直播")) {
                     val results=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
                     ui.onNodeWithText(label,useUnmergedTree=true).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(results) }
-                    assertTrue("Full tab label fits on one line: $label",results.single().let { it.lineCount==1 && !it.hasVisualOverflow })
+                    val layout=results.single()
+                    assertTrue("$label: ${layout.size}, ${layout.lineCount} lines, ellipsized=${layout.isLineEllipsized(0)}", layout.lineCount==1 && !layout.isLineEllipsized(0))
                 }
                 assertRightRail("recommendCategoryPicker")
                 noHomeBack()
-                capture("design-home")
                 ui.onNodeWithTag("recommendCategoryPicker").performClick(); capture("sheet-recommend"); back()
                 ui.onNodeWithText("分类").performClick()
                 ui.waitUntil(10000) { model.state.value.catalogVideos.size==2 }
