@@ -73,11 +73,13 @@ class SearchUiDeviceTest {
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.onAllNodesWithTag("searchResultPlaceholder").onFirst().assertIsDisplayed()
             ui.onNodeWithContentDescription("取消搜索").assertIsDisplayed()
+            ui.onNodeWithTag("searchProgress").assertIsDisplayed()
             ui.onNodeWithText("暂未找到结果").assertDoesNotExist()
             capture("00-first-search")
             firstSearch.countDown()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
             ui.onAllNodesWithTag("searchResultPlaceholder").assertCountEquals(0)
+            ui.onNodeWithTag("searchProgress").assertDoesNotExist()
             ui.waitUntil(10000) { model.state.value.saved.recentSearches == listOf("星河") }
             assertEquals(listOf("星河"), kotlinx.coroutines.runBlocking { Storage(ui.activity.application).read() }.recentSearches)
             ui.onNodeWithTag("searchInput").performTextReplacement("")

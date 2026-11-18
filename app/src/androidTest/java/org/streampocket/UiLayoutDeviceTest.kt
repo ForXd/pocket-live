@@ -315,6 +315,12 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("detailPlay").assertIsDisplayed()
             ui.onNodeWithTag("detailPlay").assertContentDescriptionContains("继续观看")
             capture("06-detail")
+            val warmCover = requireNotNull(model.posters.cached(video.poster))
+            ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            ui.runOnUiThread { ui.activity.application.onTrimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) }
+            ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+            ui.waitForIdle()
+            assertSame("Previous page artwork stays warm through ordinary backgrounding",warmCover,model.posters.cached(video.poster))
             ui.onNodeWithContentDescription("返回",useUnmergedTree=true).performClick()
             ui.waitUntil(5000) { model.state.value.detail==null }
             ui.onNodeWithTag("nav:1").performClick()
@@ -374,7 +380,6 @@ class UiLayoutDeviceTest {
             ui.onNodeWithTag("nav:0").performClick()
             ui.onNodeWithText("推荐",useUnmergedTree=true).performClick()
             val grid=ui.onNodeWithTag("recommendationGrid")
-            var expectedHeight:Float?=null
             var expectedTitleOffset:Float?=null
 
             for(id in listOf("2","3","4","5")) {
@@ -387,12 +392,11 @@ class UiLayoutDeviceTest {
                 assertEquals("Poster touches top edge",card.top.value,poster.top.value,1f)
                 if(id in listOf("3","5")) ui.onNodeWithTag("recommendRating:$id",useUnmergedTree=true).assertDoesNotExist()
                 else ui.onNodeWithTag("recommendRating:$id",useUnmergedTree=true).assertExists()
-                if(expectedHeight==null) {
-                    expectedHeight=(card.bottom-card.top).value;expectedTitleOffset=title.top.value-card.top.value
-                } else {
-                    assertEquals("Mixed title/rating card height",expectedHeight!!,(card.bottom-card.top).value,1f)
-                    assertEquals("Title anchor",expectedTitleOffset!!,title.top.value-card.top.value,1f)
-                }
+                if(expectedTitleOffset==null) expectedTitleOffset=title.top.value-card.top.value
+                assertEquals("Title anchor",expectedTitleOffset!!,(title.top-card.top).value,1f)
+                val bottomInset=(card.bottom-title.bottom).value
+                if(id=="4") assertTrue("Episode metadata has a line below the title",bottomInset>10f)
+                else assertEquals("Title-only card has no reserved metadata slot",8f,bottomInset,1f)
             }
             grid.performTouchInput { swipeUp(durationMillis=600) }
             ui.onNodeWithTag("searchInput").assertIsNotDisplayed()

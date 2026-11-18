@@ -66,11 +66,14 @@ class MainActivity : ComponentActivity() {
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    DisposableEffect(app) {
+    DisposableEffect(app,model) {
         val callbacks = object : android.content.ComponentCallbacks2 {
             override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
             override fun onLowMemory() { model.trimMemory() }
-            override fun onTrimMemory(level: Int) { model.trimMemory() }
+            override fun onTrimMemory(level: Int) {
+                // Hiding the window is routine. Keep the bounded poster cache warm for Back.
+                if (level != android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) model.trimMemory()
+            }
         }
         app.registerComponentCallbacks(callbacks)
         onDispose { app.unregisterComponentCallbacks(callbacks) }

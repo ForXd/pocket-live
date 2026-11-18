@@ -109,6 +109,7 @@ class CatalogRegressionDeviceTest {
     }
     @Test fun failingSourceDoesNotDiscardOtherSourcesAndCanRecover() {
         ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogSource!=null }
+        ui.onNodeWithText("分类").performClick()
         failSecondary.set(true)
         ui.runOnIdle { model.browseSources(emptySet(),query="失败恢复") }
         ui.waitUntil(15000) { !model.state.value.catalogLoading }
@@ -116,8 +117,14 @@ class CatalogRegressionDeviceTest {
         assertTrue(model.state.value.catalogVideos.all { it.source==primary })
         assertNotNull(model.state.value.catalogError)
         assertTrue(model.state.value.catalogMore)
+        ui.onNodeWithTag("catalogMore").performScrollTo().assertTextContains("继续查找")
+        ui.onNodeWithText("重新加载").assertDoesNotExist()
+        ui.onNodeWithText("加载更多").assertDoesNotExist()
+        val message=ui.onNodeWithText(model.state.value.catalogError!!).getUnclippedBoundsInRoot()
+        assertTrue("Status is above the action",message.bottom<=ui.onNodeWithTag("catalogMore").getUnclippedBoundsInRoot().top)
+        captureUi(ui,"partial-catalog")
         failSecondary.set(false)
-        ui.runOnIdle { model.browseSources(emptySet(),query="失败恢复",more=true) }
+        ui.onNodeWithTag("catalogMore").performClick()
         ui.waitUntil(15000) { !model.state.value.catalogLoading }
         assertNull(model.state.value.catalogError)
         assertTrue(model.state.value.catalogVideos.any { it.source==secondary })

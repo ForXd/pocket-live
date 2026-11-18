@@ -45,6 +45,7 @@ internal class CardReturn(private val scope: CoroutineScope, private val canPrev
     var width = 0
     private var startX = 0f
     private var settling: Job? = null
+    private var pendingNavigation: (() -> Unit)? = null
     var committed = false
         private set
 
@@ -79,11 +80,24 @@ internal class CardReturn(private val scope: CoroutineScope, private val canPrev
             action()
             return
         }
+        pendingNavigation = action
         settling = scope.launch {
             animate(progress,1f,animationSpec=tween((170*(1f-progress)).toInt(),easing=FastOutSlowInEasing)) { value,_ -> progress=value }
-            // Keep the last frame until the destination replaces this route and its scope.
-            action()
+            completeNavigation()
         }
+    }
+
+    private fun completeNavigation() {
+        val navigate = pendingNavigation
+        pendingNavigation = null
+        navigate?.invoke()
+    }
+
+    fun windowHidden() {
+        settling?.cancel()
+        progress = if (committed) 1f else 0f
+        direction = 1f
+        completeNavigation()
     }
 }
 
@@ -164,6 +178,17 @@ private class RoutePreviews {
     val motion = remember(scope, previews) { CardReturn(scope) { previews.preview(latestParent) != null } }
     var handoff by remember(previews, route) {
         mutableStateOf(if (previews.motion?.committed == true) previews.preview(route) else null)
+    }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, motion) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                handoff = null
+                motion.windowHidden()
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
     val opacity = remember(route) { Animatable(1f) }
     LaunchedEffect(route, handoff) {

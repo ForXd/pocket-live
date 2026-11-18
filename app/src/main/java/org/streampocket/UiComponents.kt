@@ -96,14 +96,6 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
             selectedLabelColor=MaterialTheme.colorScheme.surface,selectedLeadingIconColor=MaterialTheme.colorScheme.surface))
 }
 
-/** Reserve geometry independently of fallback-font metrics and whether the text wraps. */
-@Composable fun CardTextSlot(text:String,style:androidx.compose.ui.text.TextStyle,modifier:Modifier=Modifier,color:androidx.compose.ui.graphics.Color=LocalContentColor.current,lines:Int=2) {
-    val height=with(androidx.compose.ui.platform.LocalDensity.current) { style.lineHeight.toDp()*lines+8.sp.toDp() }
-    Box(modifier.fillMaxWidth().height(height)) {
-        Text(text,style=style,color=color,maxLines=lines,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-    }
-}
-
 /** Shared filled search surface used by home and history, without a decorative outline. */
 @Composable internal fun contentSearchColors()=TextFieldDefaults.colors(
     focusedContainerColor=MaterialTheme.colorScheme.surfaceContainer,

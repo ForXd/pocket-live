@@ -201,13 +201,20 @@ import androidx.compose.ui.text.style.TextOverflow
                     }
                 }
         }
-        PullToRefreshBox(isRefreshing=s.catalogLoading,onRefresh={catalogSort=DiscoverySort.DEFAULT;model.shuffleCatalog();scope.launch { catalogState.scrollToItem(0) }},modifier=Modifier.weight(1f).testTag("catalogRefresh")) {
+        val showTop by remember { derivedStateOf { catalogState.firstVisibleItemIndex>2 } }
+        var refreshing by remember { mutableStateOf(false) }
+        LaunchedEffect(s.catalogLoading) { if(!s.catalogLoading) refreshing=false }
+        PullToRefreshBox(isRefreshing=refreshing && s.catalogLoading,onRefresh={if(!s.catalogLoading && sources.isNotEmpty()) {
+            refreshing=true;catalogSort=DiscoverySort.DEFAULT;model.shuffleCatalog();scope.launch { catalogState.scrollToItem(0) }
+        }},modifier=Modifier.weight(1f).testTag("catalogRefresh")) {
         LazyVerticalGrid(columns=GridCells.Fixed(2),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=8.dp,bottom=16.dp+LocalDockInset.current),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             if(sources.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
-                EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
-                GlassButton(shape=MaterialTheme.shapes.medium,onClick=addSource) { Text("添加订阅") }
+                Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
+                    GlassButton(shape=MaterialTheme.shapes.medium,onClick=addSource) { Text("添加订阅") }
+                }
             }
-            s.catalogSource?.let { source ->
+            if(s.catalogSource!=null) {
                 if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item(span={GridItemSpan(maxLineSpan)}) {
                     Column(Modifier.padding(vertical=16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text(if(s.catalogMore) "还没有找到匹配影片" else "当前片库未找到匹配影片",style=MaterialTheme.typography.titleMedium)
@@ -220,21 +227,34 @@ import androidx.compose.ui.text.style.TextOverflow
                     PosterGridCard(video,model,Modifier.testTag("catalogVideo:${video.id}"),"catalog",probe=s.probes[video.probeKey()],showProbe=s.catalogQuery.isNotBlank()) { model.open(video) }
                 }
 
-                if(s.catalogLoading) item(span={GridItemSpan(maxLineSpan)}) { Row(verticalAlignment=Alignment.CenterVertically) {
-                    PocketLoading(progress={ if(s.catalogTotal==0) 0f else s.catalogCompleted.toFloat()/s.catalogTotal },modifier=Modifier.weight(1f));GlassTextButton(onClick=model::cancelCatalog) { Text("取消") }
-                } }
-                s.catalogError?.let { message -> item(span={GridItemSpan(maxLineSpan)}) {
-                    Text(message)
-                    GlassTextButton(onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,more=s.catalogMore,genres=s.catalogGenres)}) { Text("重新加载") }
-                } }
-                if(s.catalogMore && !s.catalogLoading) item(span={GridItemSpan(maxLineSpan)}) {
-                    GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,true,s.catalogGenres)},modifier=Modifier.fillMaxWidth().testTag("catalogMore")) {
-                        Text(if(s.catalogGenres.isEmpty()) "加载更多" else "继续查找")
+                if(s.catalogLoading || s.catalogError!=null || s.catalogMore) item(key="catalogFooter",span={GridItemSpan(maxLineSpan)}) {
+                    Column(Modifier.fillMaxWidth().padding(end=if(showTop) IconTarget+ActionGap else 0.dp),
+                        verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                        if(s.catalogLoading) {
+                            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                if(!refreshing) LinearProgressIndicator(
+                                    progress={ s.catalogCompleted.toFloat()/s.catalogTotal.coerceAtLeast(1) },
+                                    modifier=Modifier.weight(1f))
+                                GlassTextButton(onClick=model::cancelCatalog) { Text("取消") }
+                            }
+                        } else {
+                            s.catalogError?.let { Text(it,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                            val refreshOnly=!s.catalogMore && catalogVideos.isNotEmpty()
+                            val label=when {
+                                refreshOnly -> "刷新分类"
+                                s.catalogError!=null && catalogVideos.isEmpty() -> "重试"
+                                s.catalogGenres.isNotEmpty() || s.catalogError!=null -> "继续查找"
+                                else -> "加载更多"
+                            }
+                            GlassButton(onClick={
+                                if(refreshOnly) model.shuffleCatalog()
+                                else model.browseSources(s.catalogSourceKeys,s.catalogCategory,s.catalogQuery,more=s.catalogMore,genres=s.catalogGenres)
+                            },modifier=Modifier.fillMaxWidth().testTag("catalogMore")) { Text(label) }
+                        }
                     }
                 }
             }
         }
-        val showTop by remember { derivedStateOf { catalogState.firstVisibleItemIndex>2 } }
         BackToTop(showTop,Modifier.align(Alignment.BottomEnd)) { scope.launch { catalogState.animateScrollToItem(0);onTop() } }
         }
     }
@@ -353,7 +373,6 @@ import androidx.compose.ui.text.style.TextOverflow
     val interaction=remember { MutableInteractionSource() }
     Card(onClick=onClick,modifier=modifier.pressFeedback(interaction),interactionSource=interaction,
         shape=MaterialTheme.shapes.large,
-        border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.62f)),
         colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainerLow),
         elevation=CardDefaults.cardElevation(defaultElevation=3.dp,pressedElevation=1.dp),content=content)
 }
@@ -423,11 +442,11 @@ import androidx.compose.ui.text.style.TextOverflow
             Poster(video,model,Modifier.fillMaxWidth().aspectRatio(1.1f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)
         }
-        Column(Modifier.fillMaxWidth().padding(start=12.dp,end=12.dp,top=8.dp,bottom=4.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
             if(showProbe) MediaProbeIndicator(probe)
-            CardTextSlot(video.title,modifier=Modifier.testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface,lines=1)
+            Text(video.title,modifier=Modifier.testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface,maxLines=1,overflow=TextOverflow.Ellipsis)
             val metadata=listOf(video.typeName,video.subtitle).filter { it.isNotBlank() }.joinToString(" · ")
-            CardTextSlot(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,lines=1)
+            if(metadata.isNotBlank()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
         }
     }
 }

@@ -115,8 +115,14 @@ import androidx.compose.ui.unit.dp
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
             awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
         }) {
-        if(s.searching && groups.isEmpty()) items(3,contentType={"searchPlaceholder"}) {
-            SearchResultPlaceholder()
+        if(s.searching && groups.isEmpty()) {
+            item(key="searchProgress",span={GridItemSpan(maxLineSpan)}) {
+                val bar=Modifier.fillMaxWidth().height(3.dp).testTag("searchProgress")
+                    .semantics { contentDescription="正在搜索片源" }
+                if(s.completed==0) LinearProgressIndicator(modifier=bar)
+                else LinearProgressIndicator(progress={s.completed.toFloat()/s.total.coerceAtLeast(1)},modifier=bar)
+            }
+            items(3,contentType={"searchPlaceholder"}) { SearchResultPlaceholder() }
         }
         if (s.results.size == QualityRules.RESULT_LIMIT) item(span={GridItemSpan(maxLineSpan)}) {
             Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)

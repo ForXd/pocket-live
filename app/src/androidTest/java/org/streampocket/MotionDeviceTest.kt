@@ -55,6 +55,10 @@ class MotionDeviceTest {
         assertTrue("Parent visible behind left swipe",colorAt(.2f).red>.7f && colorAt(.8f).blue>.8f)
         ui.runOnIdle { dispatcher.dispatchOnBackCancelled() }
         assertTrue("Cancel restores detail",colorAt(.05f).blue>.8f && detail)
+        drag(BackEventCompat.EDGE_LEFT)
+        ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        assertTrue("Resuming an interrupted gesture restores the entire detail screen",colorAt(.05f).blue>.8f)
         drag(BackEventCompat.EDGE_RIGHT)
         assertTrue("Right swipe reveals opposite edge",colorAt(.8f).red>.7f && colorAt(.2f).blue>.8f)
         ui.runOnIdle { dispatcher.onBackPressed() }
