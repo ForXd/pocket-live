@@ -101,8 +101,10 @@ class ProbePlaybackHandoffDeviceTest {
                 val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"handoff").apply { mkdirs() }
                 instrument.uiAutomation.takeScreenshot()?.let { bitmap -> try { java.io.File(dir,"loading.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { bitmap.recycle() } }
                 ui.waitUntil(10000) { model.state.value.detail!=null }
-                ui.onNodeWithContentDescription("播放线路：可用线路").assertExists()
-                ui.onNodeWithText("立即播放").performScrollTo().performClick()
+                ui.onNodeWithTag("detailEpisodes").performClick()
+                ui.onNodeWithTag("detailLine:1").assertIsSelected().assertTextContains("可用线路")
+                ui.onNodeWithContentDescription("关闭").performClick()
+                ui.onNodeWithTag("detailPlay").performClick()
                 assertEquals(if(rotateToken) "$base/play?token=fresh" else checked.url,model.state.value.playback!!.episode.url)
                 if(rotateToken) {
                     assertEquals(ProbeStatus.UNKNOWN,model.state.value.probes.values.single())

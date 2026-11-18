@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
     val verified = state.probeEpisodes[detail.video.probeKey()]
     val lines = remember(detail) { detail.lines.filter { it.episodes.isNotEmpty() } }
     val primary = recent?.episode ?: verified?.let { match -> lines.firstNotNullOfOrNull { l -> l.episodes.find { it.url==match.url } } }
+        ?: lines.firstOrNull { it.name == state.probeLines[detail.video.probeKey()] }?.episodes?.firstOrNull()
         ?: lines.firstOrNull()?.episodes?.firstOrNull()
     var choosing by rememberSaveable(detail.video.id,detail.video.source.key) { mutableStateOf(false) }
     var expanded by rememberSaveable(detail.video.id,detail.video.source.key) { mutableStateOf(false) }
