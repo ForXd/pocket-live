@@ -20,16 +20,22 @@ class SearchUiDeviceTest {
         val server = MockWebServer().apply { start() }
         val base = "http://search.test:${server.port}"
         val source = Source("光影片库", "$base/api")
+        val slow = Source("慢速直播", "http://slow.test:${server.port}/playlist", SourceKind.LIVE)
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
         runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true, subscriptions=listOf(
-            Subscription("search", "我的片库", "$base/sub", 1, listOf(source))))) }
+            Subscription("search", "我的片库", "$base/sub", 1, listOf(source,slow))))) }
         val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
+        val slowSearch=java.util.concurrent.CountDownLatch(1)
         val firstSearch=java.util.concurrent.CountDownLatch(1)
         server.dispatcher = object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
                 requests.add(request)
                 val url=request.requestUrl!!
-                if(url.queryParameter("wd")!=null) firstSearch.await(10,java.util.concurrent.TimeUnit.SECONDS)
+                if(url.encodedPath=="/playlist") {
+                    slowSearch.await(20,java.util.concurrent.TimeUnit.SECONDS)
+                    return MockResponse().setBody("#EXTM3U")
+                }
+                if(url.queryParameter("wd")!=null) firstSearch.await(20,java.util.concurrent.TimeUnit.SECONDS)
                 if(url.encodedPath=="/poster") return MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(
                     InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
                 if(url.encodedPath=="/recommend") return MockResponse().setBody("""{"subjects":[]}""")
@@ -80,12 +86,21 @@ class SearchUiDeviceTest {
             ui.onNodeWithText("正在查找片源…").assertIsDisplayed()
             ui.onNodeWithText("暂未找到结果").assertDoesNotExist()
             val bar=ui.onNodeWithTag("searchProgress")
+            assertTrue("Progress has its own row above the first skeleton",
+                bar.getUnclippedBoundsInRoot().bottom < ui.onAllNodesWithTag("searchResultPlaceholder").onFirst().getUnclippedBoundsInRoot().top)
             val firstFrame=bar.captureToImage().asAndroidBitmap()
             ui.mainClock.advanceTimeBy(420)
             assertFalse("Waiting indicator advances before the first response",firstFrame.sameAs(bar.captureToImage().asAndroidBitmap()))
             capture("00-first-search")
             ui.mainClock.autoAdvance=true
             firstSearch.countDown()
+            ui.waitUntil(10000) { model.state.value.searching && model.state.value.completed==1 && model.state.value.results.size==4 }
+            ui.onAllNodesWithTag("searchResultPlaceholder").assertCountEquals(0)
+            ui.onNodeWithText("已查找 1/2 个片源").assertIsDisplayed()
+            ui.onNodeWithTag("searchVideo:exact").performClick()
+            ui.onNodeWithTag("sourceChoice:${source.key}:exact").assertExists()
+            capture("00-partial-search")
+            slowSearch.countDown()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
             ui.onAllNodesWithTag("searchResultPlaceholder").assertCountEquals(0)
             ui.onNodeWithTag("searchProgress").assertDoesNotExist()
@@ -209,6 +224,6 @@ class SearchUiDeviceTest {
                     android.os.SystemClock.sleep(100)
                 }
             }
-        } finally { ui.mainClock.autoAdvance=true;firstSearch.countDown();ui.runOnUiThread { ui.activity.viewModelStore.clear() }; server.shutdown() }
+        } finally { ui.mainClock.autoAdvance=true;firstSearch.countDown();slowSearch.countDown();ui.runOnUiThread { ui.activity.viewModelStore.clear() }; server.shutdown() }
     }
 }

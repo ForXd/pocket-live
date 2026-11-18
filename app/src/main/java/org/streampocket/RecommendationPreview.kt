@@ -47,7 +47,7 @@ internal fun recommendationMetadata(json:String):String? {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal=PageGutter,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                 if(wide) FlowRow(maxItemsInEachRow=if(largeFont && !wide) 1 else 2,horizontalArrangement=Arrangement.spacedBy(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                     Box {
-                        Poster(video,model,Modifier.width(220.dp).aspectRatio(.7f),shape=MaterialTheme.shapes.large,contentScale=ContentScale.Crop,large=true)
+                        Poster(video,model,Modifier.width(220.dp).aspectRatio(.7f).posterDestination(video),shape=MaterialTheme.shapes.large,contentScale=ContentScale.Crop,large=true)
                         RecommendationRating(video,Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(8.dp))
                     }
                     Column(if(largeFont && !wide) Modifier.fillMaxWidth() else Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)) {

@@ -53,7 +53,7 @@ import androidx.compose.ui.unit.dp
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize().testTag("detailGrid")) {
-        val coverHeight = minOf(maxHeight*.42f,340.dp)
+        val coverHeight = detailCoverHeight(maxHeight)
         Column(Modifier.fillMaxSize()) {
             val motion=LocalCardReturn.current
             TitleCover(detail.video,model,coverHeight,{motion.commit(model::closeDetail)})
@@ -96,8 +96,27 @@ import androidx.compose.ui.unit.dp
     }
 }
 
+private fun detailCoverHeight(height: androidx.compose.ui.unit.Dp) = minOf(height*.42f,340.dp)
+
+@Composable internal fun PendingDetail(video: Video, model: AppModel, back: () -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val height = detailCoverHeight(maxHeight)
+        Column {
+            TitleCover(video,model,height,back)
+            Box(Modifier.fillMaxSize().testTag("detailLoading"),contentAlignment=Alignment.Center) {
+                Column(Modifier.padding(24.dp).widthIn(max=320.dp),horizontalAlignment=Alignment.CenterHorizontally,
+                    verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                    PocketLoading()
+                    Text("正在加载剧集…",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    GlassTextButton(onClick=back) { Text("取消详情请求") }
+                }
+            }
+        }
+    }
+}
+
 @Composable internal fun TitleCover(video:Video,model:AppModel,height:androidx.compose.ui.unit.Dp,back:()->Unit,label:String="返回") {
-    Box {
+    Box(Modifier.posterDestination(video)) {
         Poster(video,model,Modifier.fillMaxWidth().height(height),contentScale=ContentScale.Crop,large=true)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.82f)))))
         Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {

@@ -18,7 +18,7 @@ data class UiState(val recommendPreview:Video?=null,val recommendSynopsis:String
     val searchQuery: String = "", val searchOrder: SearchOrder = SearchOrder.RELEVANCE,
     val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
     val relatedVideos:List<Video> = emptyList(), val relatedLoading:Boolean=false, val relatedError:String?=null,
-    val detail: Detail? = null, val detailLoading: Boolean = false, val detailError:String? = null, val playback: Playback? = null,
+    val detail: Detail? = null, val detailLoadingVideo: Video? = null, val detailError:String? = null, val playback: Playback? = null,
     val catalogSource: Source? = null, val categories: List<Category> = emptyList(), val catalogVideos: List<Video> = emptyList(),
     val catalogSourceKeys: Set<String> = emptySet(), val catalogCompleted:Int=0, val catalogTotal:Int=0, val catalogGenres: Set<Genre> = emptySet(), val catalogScanned: Int = 0, val catalogCategory: String? = null, val catalogQuery: String = "", val catalogMore: Boolean = false, val catalogLoading: Boolean = false, val catalogError: String? = null,
     val recommendations: List<Video> = emptyList(), val recommendType: String = "tv", val recommendTag: String = "热门",
@@ -26,7 +26,9 @@ data class UiState(val recommendPreview:Video?=null,val recommendSynopsis:String
     val appRelease:AppRelease? = null, val updateChecking:Boolean = false, val updateChecked:Boolean = false, val updateError:String? = null,
     val posterRefresh:Long = 0, val alternativeSession: String? = null, val alternatives: List<PlaybackAlternative> = emptyList(),
     val alternativesLoading: Boolean = false, val alternativesError: String? = null, val smoothPlayback: Boolean = false,
-    val importing: Set<String> = emptySet(), val storageUsage: StorageUsage? = null, val message: String? = null)
+    val importing: Set<String> = emptySet(), val storageUsage: StorageUsage? = null, val message: String? = null) {
+    val detailLoading: Boolean get() = detailLoadingVideo != null
+}
 class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.Dns = PublicNetwork.dns,
     private val recommendationUrl: (String,String,Int)->String = Recommendations::url,
     private val updateDocument:(suspend (Network)->String)? = null,
@@ -607,7 +609,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     }
     fun playDetail(detail:Detail,episode:Episode) {
         cancelDetailRequest()
-        _state.update { it.copy(detail=detail,detailLoading=false,detailError=null) }
+        _state.update { it.copy(detail=detail,detailLoadingVideo=null,detailError=null) }
         play(detail.video,episode)
     }
     fun open(video: Video) { related(video);loadDetail(video) }
@@ -617,7 +619,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     private fun loadDetail(video:Video,sessionId:String?=null) {
         cancelDetailRequest()
         val owner=UUID.randomUUID().toString();detailOwner=owner;detailSession=sessionId
-        _state.update { it.copy(detail=null,detailLoading=true,detailError=null) }
+        _state.update { it.copy(detail=null,detailLoadingVideo=video,detailError=null) }
         fun isCurrent()=detailOwner==owner && (sessionId==null || state.value.playback?.sessionId==sessionId)
         detailJob=viewModelScope.launch {
             try {
@@ -629,13 +631,13 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                     val checked=state.value.probeEpisodes[key]
                     val changed=checked!=null && detail.lines.none { line -> line.episodes.any { it.url==checked.url } }
                     if(changed) probeCache.remove(key)
-                    _state.update { it.copy(detail=detail,detailLoading=false,detailError=null,
+                    _state.update { it.copy(detail=detail,detailLoadingVideo=null,detailError=null,
                         probes=if(changed) it.probes+(key to ProbeStatus.UNKNOWN) else it.probes,
                         probeResolutions=if(changed) it.probeResolutions-key else it.probeResolutions) }
                 }
             } catch(e:CancellationException) { throw e }
             catch(e:Exception) {
-                if(isCurrent()) _state.update { it.copy(detailLoading=false,detailError=safeError(e),message=if(sessionId==null) safeError(e) else it.message) }
+                if(isCurrent()) _state.update { it.copy(detailLoadingVideo=null,detailError=safeError(e),message=if(sessionId==null) safeError(e) else it.message) }
             }
         }
     }
@@ -738,15 +740,15 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         closeAlternatives();cancelDetailRequest()
         val next=Playback(option.video,option.episode,if(keepPosition) current.position else 0)
         own(next)
-        _state.update { it.copy(playback=next,detail=matching,detailLoading=false,detailError=null) }
+        _state.update { it.copy(playback=next,detail=matching,detailLoadingVideo=null,detailError=null) }
         if(matching==null) loadDetail(next.video,next.sessionId)
     }
     fun retryPlaybackDetail() { state.value.playback?.let { loadDetail(it.video,it.sessionId) } }
-    fun closeDetail() { cancelRelated();cancelDetailRequest();_state.update { it.copy(detail=null,detailLoading=false,detailError=null) } }
+    fun closeDetail() { cancelRelated();cancelDetailRequest();_state.update { it.copy(detail=null,detailLoadingVideo=null,detailError=null) } }
     fun play(video: Video, episode: Episode) {
         pauseRelatedDiscovery()
         closeAlternatives()
-        if(detailSession!=null) { cancelDetailRequest();_state.update { it.copy(detailLoading=false) } }
+        if(detailSession!=null) { cancelDetailRequest();_state.update { it.copy(detailLoadingVideo=null) } }
         val verified=state.value.probeEpisodes[video.probeKey()]?.takeIf { it.url==episode.url }
         val p = Playback(video,if(verified?.mimeType!=null) episode.copy(mimeType=verified.mimeType) else episode)
         own(p)
@@ -813,7 +815,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         closeAlternatives()
         refreshMeasuredCatalog(state.value.playback);qualityFlushJob?.cancel()
         if(detailSession!=null) cancelDetailRequest()
-        _state.update { it.copy(playback=null,detailLoading=false) }
+        _state.update { it.copy(playback=null,detailLoadingVideo=null) }
     }
     fun refreshStorage() {
         if(storageRefreshJob?.isActive == true) return

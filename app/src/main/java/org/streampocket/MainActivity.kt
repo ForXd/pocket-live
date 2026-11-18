@@ -219,7 +219,7 @@ class MainActivity : ComponentActivity() {
     val showDock = !wide && !imeVisible && s.detail==null && !s.detailLoading
     Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
         topBar = {
-            if(tab==0 && (s.detail==null || (wide && searchMode)) && !s.detailLoading) {
+            if(homeSearchVisible || (tab==0 && wide && searchMode)) {
                 val inLive=!searchMode && liveTab.value
                 val inCatalog=!searchMode && !liveTab.value && !recommendations.value
                 fun browseQuery(value:String) {
@@ -282,24 +282,17 @@ class MainActivity : ComponentActivity() {
         Box(Modifier.weight(1f).fillMaxSize()) {
             if(s.loadFailed) { Text("本地数据损坏，已停止读写以保留原文件。可在系统应用设置清除数据后重新导入。",Modifier.padding(24.dp)); return@Box }
             if(s.loading) { LoadingStatus("正在读取本地数据…",Modifier.align(Alignment.Center)); return@Box }
-            if(s.detailLoading) {
-                Box(Modifier.fillMaxSize().testTag("detailLoading"),contentAlignment=Alignment.Center) {
-                    Column(Modifier.padding(24.dp).widthIn(max=320.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                        PocketLoading()
-                        Text("正在加载剧集…",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        GlassTextButton(onClick={motion.commit(model::closeDetail)}) { Text("取消详情请求") }
-                    }
-                }
-                return@Box
-            }
             val detail = s.detail
-            if(detail != null) {
-                Box(Modifier.fillMaxSize()) {
-                    if(wide && searchMode) Row(Modifier.fillMaxSize()) {
-                        Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1}) }
-                        Box(Modifier.weight(.62f)) { DetailScreen(detail,model) }
-                    } else DetailScreen(detail,model)
+            val loadingVideo = s.detailLoadingVideo
+            if(detail != null || loadingVideo != null) {
+                val detailPane: @Composable () -> Unit = {
+                    if(detail != null) DetailScreen(detail,model)
+                    else if(loadingVideo != null) PendingDetail(loadingVideo,model) { motion.commit(model::closeDetail) }
                 }
+                if(wide && searchMode) Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1}) }
+                    Box(Modifier.weight(.62f)) { detailPane() }
+                } else detailPane()
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
                     if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1},onTop={searchScroll.reveal()}) }

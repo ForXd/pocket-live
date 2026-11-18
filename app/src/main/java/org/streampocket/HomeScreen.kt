@@ -115,8 +115,11 @@ import androidx.compose.ui.unit.dp
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
             awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
         }) {
-        if(s.searching && groups.isEmpty()) items(3,contentType={"searchPlaceholder"}) { index ->
-            SearchResultPlaceholder(completed=s.completed,total=s.total,showProgress=index==0)
+        if(s.searching) item(key="search-progress",span={GridItemSpan(maxLineSpan)}) {
+            SearchProgress(s.completed,s.total)
+        }
+        if(s.searching && s.results.isEmpty()) items(3,contentType={"searchPlaceholder"}) {
+            SearchResultPlaceholder()
         }
         if (s.results.size == QualityRules.RESULT_LIMIT) item(span={GridItemSpan(maxLineSpan)}) {
             Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)
@@ -139,25 +142,28 @@ import androidx.compose.ui.unit.dp
     }
 }
 
+@Composable private fun SearchProgress(completed:Int,total:Int) {
+    val tones = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+        Text(if(completed==0) "正在查找片源…" else "已查找 $completed/$total 个片源",
+            style=MaterialTheme.typography.labelMedium,color=tones.onSurfaceVariant)
+        val bar=Modifier.fillMaxWidth().height(3.dp).testTag("searchProgress")
+        if(completed==0) LinearProgressIndicator(modifier=bar,color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
+        else LinearProgressIndicator(progress={completed.toFloat()/total.coerceAtLeast(1)},modifier=bar,
+            color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
+    }
+}
+
 /** Match a result's cover and text column without exposing decorative nodes or running a shimmer. */
-@Composable private fun SearchResultPlaceholder(completed:Int,total:Int,showProgress:Boolean) {
+@Composable private fun SearchResultPlaceholder() {
     val tones=MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().background(tones.surfaceContainerLow,ContentCardShape).padding(MediaCardInset).testTag("searchResultPlaceholder"),
         horizontalArrangement=Arrangement.spacedBy(14.dp)) {
         Spacer(Modifier.size(68.dp,88.dp).background(tones.surfaceContainerHigh,MaterialTheme.shapes.small))
         Column(Modifier.weight(1f).padding(top=4.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Spacer(Modifier.fillMaxWidth(.68f).height(15.dp).background(tones.surfaceContainerHigh,MaterialTheme.shapes.small))
-            if(showProgress) {
-                Text(if(completed==0) "正在查找片源…" else "已查找 $completed/$total 个片源",
-                    style=MaterialTheme.typography.labelMedium,color=tones.onSurfaceVariant)
-                val bar=Modifier.fillMaxWidth(.8f).height(3.dp).testTag("searchProgress")
-                if(completed==0) LinearProgressIndicator(modifier=bar,color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
-                else LinearProgressIndicator(progress={completed.toFloat()/total.coerceAtLeast(1)},modifier=bar,
-                    color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
-            } else {
-                Spacer(Modifier.fillMaxWidth(.45f).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
-                Spacer(Modifier.width(46.dp).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
-            }
+            Spacer(Modifier.fillMaxWidth(.45f).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
+            Spacer(Modifier.width(46.dp).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
         }
     }
 }
@@ -168,11 +174,12 @@ import androidx.compose.ui.unit.dp
     val options=VideoGroups.searchSources(selectedWork,group).ifEmpty { listOf(group.first()) }
     val expanded=expandedWork!=null && options.any { VideoGroups.workKey(it)==expandedWork }
     val video=options.first()
+    val anchor = rememberPosterAnchor(video,model)
     ContentCard(modifier.fillMaxWidth().testTag("searchGroup:${VideoGroups.familyKey(video)}"), containerColor=MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(MediaCardInset),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
                 horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
-                Poster(video,model,Modifier.size(68.dp,88.dp),shape=MaterialTheme.shapes.small)
+                Poster(video,model,Modifier.size(68.dp,88.dp).then(anchor.modifier),shape=MaterialTheme.shapes.small)
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
                     Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                     val metadata=SearchRules.metadata(video)
@@ -190,7 +197,7 @@ import androidx.compose.ui.unit.dp
                         Modifier.weight(1f).testTag("probeSummary"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     if(!state.probeRunning && !ready) GlassTextButton(onClick={model.requestSourceProbe(selectedWork,retry=true)}) { Text("重试") }
                 }
-                SourceChoices(options.sortedBy { if(state.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 },state.detail?.video,state,{model.open(it)},Int.MAX_VALUE,rowInset=0.dp)
+                SourceChoices(options.sortedBy { if(state.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 },state.detail?.video,state,{ choice -> anchor.open(choice) { model.open(choice) } },Int.MAX_VALUE,rowInset=0.dp)
             }
         }
     }

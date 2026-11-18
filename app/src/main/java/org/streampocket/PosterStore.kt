@@ -134,17 +134,12 @@ class PosterStore(private val directory: File) {
     val refresh by model.posterRefresh.collectAsStateWithLifecycle()
     key(video.poster, large, frosted, model) {
         var bitmap by remember { mutableStateOf(if(frosted) null else model.posters.cached(video.poster,large)) }
-        var preview by remember { mutableStateOf<Bitmap?>(null) }
+        val thumbnail = remember { if (large && !frosted) model.posters.cached(video.poster) else null }
         var finished by remember { mutableStateOf(false) }
         LaunchedEffect(lifecycle,refresh) {
             lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 if(bitmap==null) {
                     finished=false
-                    if(large && !frosted) {
-                        preview=withContext(Dispatchers.Default) {
-                            model.posters.cached(video.poster)?.let { blurGlassBitmap(it,48) }
-                        }
-                    }
                     val loaded=model.posters.load(video.poster,model.network,large)
                     bitmap=if(frosted && loaded!=null) withContext(Dispatchers.Default) { blurGlassBitmap(loaded) } else loaded
                     finished=true
@@ -158,7 +153,7 @@ class PosterStore(private val directory: File) {
             Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) {
                 if(!frosted && opacity<1f) {
                     Box(Modifier.matchParentSize().background(glass))
-                    preview?.let { Image(it.asImageBitmap(),null,Modifier.matchParentSize(),contentScale=contentScale) }
+                    thumbnail?.let { Image(it.asImageBitmap(),null,Modifier.matchParentSize(),contentScale=contentScale) }
                     if(finished && bitmap==null) Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",Modifier.fillMaxSize(),contentScale=contentScale,alpha=opacity) }

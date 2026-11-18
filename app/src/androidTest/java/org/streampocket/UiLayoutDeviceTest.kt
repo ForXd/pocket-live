@@ -42,7 +42,7 @@ class UiLayoutDeviceTest {
         val media=if(review && referenceVideo.isFile) referenceVideo.readBytes()
             else InstrumentationRegistry.getInstrumentation().context.assets.open("test.mp4").use { it.readBytes() }
         server.dispatcher=object:Dispatcher() {
-            override fun dispatch(request:RecordedRequest):MockResponse = if(review && request.path in listOf("/poster.png","/forest.jpg","/sea.jpg")) {
+            override fun dispatch(request:RecordedRequest):MockResponse = if(request.path in listOf("/forest.jpg","/sea.jpg") || (review && request.path=="/poster.png")) {
                 val index=listOf("/poster.png","/forest.jpg","/sea.jpg").indexOf(request.path)
                 MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("review-$index.jpg").use { it.readBytes() }))
             } else if(request.path=="/live") MockResponse().setBody("#EXTM3U\n#EXTINF:-1 group-title=\"综合\",山海综合\n$base/video.mp4\n#EXTINF:-1 group-title=\"纪录\",人文纪实\n$base/video2.mp4\n#EXTINF:-1 group-title=\"影视\",城市影院\n$base/video3.mp4")
@@ -50,7 +50,7 @@ class UiLayoutDeviceTest {
             else if(request.requestUrl?.encodedPath?.endsWith(".mp4")==true) MockResponse().setHeader("Content-Type","video/mp4").setBody(okio.Buffer().write(media))
             else if(request.path!!.startsWith("/synopsis")) MockResponse().setBody("<span property=\"v:summary\">一次穿越群星的旅程。每个故事，都值得被认真观看。</span>")
             else if(review && request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","rate":"8.2","cover":"$base/forest.jpg","episodes_info":"更新至第 6 集"},{"id":"3","title":"夜航","cover":"$base/sea.jpg","episodes_info":"悬疑 · 电影"}]}""")
-            else if(request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","rate":"8.2","cover":"$base/poster.png"},{"id":"3","title":"一段跨越山河与四季的漫长旅程：我们的故事还没有结束","rate":"","cover":""},{"id":"4","title":"雨","rate":"9.1","episodes_info":"更新至第十二集 · 特别篇与幕后故事持续更新","cover":"$base/poster.png"},{"id":"5","title":"风","rate":"","cover":"$base/poster.png"}]}""")
+            else if(request.path!!.startsWith("/recommend")) MockResponse().setBody("""{"subjects":[{"id":"1","title":"星河漫游","rate":"8.5","cover":"$base/poster.png"},{"id":"2","title":"山海之间","rate":"8.2","cover":"$base/forest.jpg"},{"id":"3","title":"一段跨越山河与四季的漫长旅程：我们的故事还没有结束","rate":"","cover":"$base/sea.jpg"},{"id":"4","title":"雨","rate":"9.1","episodes_info":"更新至第十二集 · 特别篇与幕后故事持续更新","cover":"$base/poster.png"},{"id":"5","title":"风","rate":"","cover":"$base/sea.jpg"}]}""")
             else if(request.requestUrl!!.queryParameter("ids")!=null) MockResponse().setBody("""{"list":[{"vod_content":"一次穿越群星的旅程。每个故事，都值得被认真观看。","vod_play_from":"高清线路","vod_play_url":"第1集${'$'}$base/video.mp4#第2集${'$'}$base/video2.mp4#第3集${'$'}$base/video3.mp4#第4集${'$'}$base/video4.mp4#第5集${'$'}$base/video5.mp4#第6集${'$'}$base/video6.mp4"}]}""")
             else if(review && request.requestUrl?.queryParameter("wd")==null) MockResponse().setBody("""{"list":[{"vod_id":"2","vod_name":"山海之间","type_name":"剧情","vod_pic":"$base/forest.jpg"},{"vod_id":"3","vod_name":"夜航","type_name":"悬疑","vod_pic":"$base/sea.jpg"}]}""")
             else if(review) MockResponse().setBody("""{"list":[{"vod_id":"1","vod_name":"星河漫游","vod_score":"8.5","vod_pic":"$base/poster.png"},{"vod_id":"3","vod_name":"星河之夜","type_name":"电影","vod_pic":"$base/sea.jpg"}]}""")
@@ -398,6 +398,29 @@ class UiLayoutDeviceTest {
                 if(id=="4") assertTrue("Episode metadata has a line below the title",bottomInset>10f)
                 else assertEquals("Title-only card has no reserved metadata slot",8f,bottomInset,1f)
             }
+            grid.performScrollToIndex(2)
+            fun bounds(id:String)=ui.onNodeWithTag("recommendation:$id").getUnclippedBoundsInRoot()
+            val short=bounds("2")
+            val long=bounds("3")
+            val nextLeft=bounds("4")
+            val nextRight=bounds("5")
+            assertEquals(short.left.value,nextLeft.left.value,1f)
+            assertEquals(long.left.value,nextRight.left.value,1f)
+            assertEquals(short.bottom.value+12f,nextLeft.top.value,1f)
+            assertEquals(long.bottom.value+12f,nextRight.top.value,1f)
+            assertTrue("The next two covers begin at different heights",nextLeft.top < nextRight.top)
+            capture("waterfall")
+            ui.mainClock.autoAdvance=false
+            try {
+                ui.onNodeWithTag("recommendation:4").performClick()
+                ui.mainClock.advanceTimeBy(144)
+                capture("poster-expanding")
+                ui.mainClock.advanceTimeBy(480)
+                ui.onNodeWithTag("recommendationPreview").assertIsDisplayed()
+                capture("poster-expanded")
+            } finally { ui.mainClock.autoAdvance=true }
+            ui.onNodeWithContentDescription("返回推荐").performClick()
+            ui.waitForIdle()
             grid.performTouchInput { swipeUp(durationMillis=600) }
             ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
             capture("08-aligned-grid")

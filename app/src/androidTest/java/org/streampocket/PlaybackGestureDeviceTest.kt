@@ -167,7 +167,7 @@ class PlaybackGestureDeviceTest {
                     val field=AppModel::class.java.getDeclaredField("_state").apply { isAccessible=true }
                     @Suppress("UNCHECKED_CAST")
                     val mutable=field.get(model) as kotlinx.coroutines.flow.MutableStateFlow<UiState>
-                    mutable.value=mutable.value.copy(detail=Detail(video,"仅手势专项的本地夹具",listOf(Line("本地测试",episodes))),detailLoading=false)
+                    mutable.value=mutable.value.copy(detail=Detail(video,"仅手势专项的本地夹具",listOf(Line("本地测试",episodes))),detailLoadingVideo=null)
                 }
                 stage("direct-fixture-no-metadata-network")
             } else instrument.runOnMainSync { model.open(Video(Source("本地测试","$base/api"),"gesture","手势测试")) }

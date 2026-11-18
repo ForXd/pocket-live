@@ -17,7 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.staggeredgrid.*
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -135,7 +135,7 @@ import androidx.compose.ui.text.style.TextOverflow
         }
         }
     }
-    val catalogState=rememberLazyGridState()
+    val catalogState=rememberLazyStaggeredGridState()
     val scope=rememberCoroutineScope()
     val latest by rememberUpdatedState(s)
     ScrollToTopOnChange(s.catalogSourceKeys.sorted().toString(),s.catalogCategory.orEmpty(),s.catalogGenres.sortedBy { it.ordinal }.toString(),s.catalogQuery,catalogSort.name) { catalogState.scrollToItem(0) }
@@ -145,7 +145,7 @@ import androidx.compose.ui.text.style.TextOverflow
         if(!recommendations.value && s.catalogVideos.isNotEmpty()) snapshotFlow {
             val layout=catalogState.layoutInfo
             catalogState.firstVisibleItemIndex>0 && layout.totalItemsCount>s.catalogVideos.size &&
-                (layout.visibleItemsInfo.lastOrNull()?.index ?: 0)>=layout.totalItemsCount-3
+                (layout.visibleItemsInfo.maxOfOrNull { it.index } ?: 0)>=layout.totalItemsCount-3
         }.distinctUntilChanged().collect { nearEnd ->
             val current=latest
             if(nearEnd && current.catalogMore && !current.catalogLoading && current.catalogError==null && catalogDemand!=current.catalogVideos.size) {
@@ -209,27 +209,27 @@ import androidx.compose.ui.text.style.TextOverflow
         PullToRefreshBox(isRefreshing=refreshing && s.catalogLoading,onRefresh={if(!s.catalogLoading && sources.isNotEmpty()) {
             refreshing=true;catalogSort=DiscoverySort.DEFAULT;model.shuffleCatalog();scope.launch { catalogState.scrollToItem(0) }
         }},modifier=Modifier.weight(1f).testTag("catalogRefresh")) {
-        LazyVerticalGrid(columns=GridCells.Fixed(2),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=8.dp,bottom=16.dp+LocalDockInset.current),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(sources.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) {
+        LazyVerticalStaggeredGrid(columns=StaggeredGridCells.Fixed(2),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=8.dp,bottom=16.dp+LocalDockInset.current),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalItemSpacing=12.dp) {
+            if(sources.isEmpty()) item(span=StaggeredGridItemSpan.FullLine) {
                 Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     EmptyPanel("从你的订阅开始","添加点播来源即可浏览分类。",R.drawable.ic_library)
                     GlassButton(shape=MaterialTheme.shapes.medium,onClick=addSource) { Text("添加订阅") }
                 }
             }
             if(s.catalogSource!=null) {
-                if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item(span={GridItemSpan(maxLineSpan)}) {
+                if(!s.catalogLoading && catalogVideos.isEmpty() && s.catalogError==null) item(span=StaggeredGridItemSpan.FullLine) {
                     Column(Modifier.padding(vertical=16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text(if(s.catalogMore) "还没有找到匹配影片" else "当前片库未找到匹配影片",style=MaterialTheme.typography.titleMedium)
                         Text(if(s.catalogMore) "已查找 ${s.catalogScanned} 页，可继续查找。" else if(sources.size>1) "可切换题材或片库；部分来源不提供题材信息。" else "可更换题材；部分来源不提供题材信息。",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         GlassTextButton(onClick={openPicker("genre")}) { Text("更换题材") }
                     }
                 }
-                if(catalogVideos.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("全部作品",style=MaterialTheme.typography.titleLarge) }
+                if(catalogVideos.isNotEmpty()) item(span=StaggeredGridItemSpan.FullLine) { Text("全部作品",style=MaterialTheme.typography.titleLarge) }
                 items(catalogVideos,key={it.source.key+":"+it.id}) { video ->
                     PosterGridCard(video,model,Modifier.testTag("catalogVideo:${video.id}"),"catalog",probe=s.probes[video.probeKey()],showProbe=s.catalogQuery.isNotBlank()) { model.open(video) }
                 }
 
-                if(s.catalogLoading || s.catalogError!=null || s.catalogMore) item(span={GridItemSpan(maxLineSpan)}) {
+                if(s.catalogLoading || s.catalogError!=null || s.catalogMore) item(span=StaggeredGridItemSpan.FullLine) {
                     Column(Modifier.fillMaxWidth().padding(end=if(showTop) IconTarget+ActionGap else 0.dp),
                         verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         if(s.catalogLoading) {
@@ -265,7 +265,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable private fun RecommendationList(s:UiState,model:AppModel,searchTitle:(String)->Unit,sort:DiscoverySort,onSort:(DiscoverySort)->Unit,onTop:()->Unit,categoryPicker:MutableState<Boolean>) {
     val videos=remember(s.recommendations,sort) { sort.apply(s.recommendations) }
-    val grid=rememberLazyGridState()
+    val grid=rememberLazyStaggeredGridState()
     val scope=rememberCoroutineScope()
     val latest by rememberUpdatedState(s)
     var refreshing by remember { mutableStateOf(false) }
@@ -274,7 +274,7 @@ import androidx.compose.ui.text.style.TextOverflow
     var recommendationDemand by remember(s.recommendType,s.recommendTag) { mutableIntStateOf(-1) }
     LaunchedEffect(s.recommendations.size,s.recommendLoading,s.recommendType,s.recommendTag) {
         if(s.recommendations.isNotEmpty()) snapshotFlow {
-            grid.firstVisibleItemIndex>0 && (grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)>=grid.layoutInfo.totalItemsCount-5
+            grid.firstVisibleItemIndex>0 && (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: 0)>=grid.layoutInfo.totalItemsCount-5
         }.distinctUntilChanged().collect { nearEnd ->
             val current=latest
             if(nearEnd && current.recommendMore && !current.recommendLoading && current.recommendError==null && recommendationDemand!=current.recommendations.size) {
@@ -322,15 +322,15 @@ import androidx.compose.ui.text.style.TextOverflow
     }
     Column(Modifier.fillMaxSize()) {
     PullToRefreshBox(isRefreshing=refreshing,onRefresh={refresh()},modifier=Modifier.weight(1f).testTag("recommendRefresh")) {
-    LazyVerticalGrid(columns=GridCells.Fixed(2),state=grid,
+    LazyVerticalStaggeredGrid(columns=StaggeredGridCells.Fixed(2),state=grid,
         modifier=Modifier.fillMaxSize().testTag("recommendationGrid"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=12.dp,bottom=16.dp+LocalDockInset.current),
-        horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("当前分类暂无推荐，请切换分类。") }
+        horizontalArrangement=Arrangement.spacedBy(12.dp),verticalItemSpacing=12.dp) {
+        if(!s.recommendLoading && s.recommendError==null && s.recommendations.isEmpty()) item(span=StaggeredGridItemSpan.FullLine) { Text("当前分类暂无推荐，请切换分类。") }
         videos.firstOrNull()?.let { featured ->
-            item(key=featured.id,span={GridItemSpan(maxLineSpan)},contentType="featured") {
+            item(key=featured.id,span=StaggeredGridItemSpan.FullLine,contentType="featured") {
                 FeaturedRecommendation(featured,model) { model.openRecommendation(featured) }
             }
-            if(videos.size>1) item(key="recommend-heading",span={GridItemSpan(maxLineSpan)}) {
+            if(videos.size>1) item(key="recommend-heading",span=StaggeredGridItemSpan.FullLine) {
                 Row(Modifier.fillMaxWidth().padding(top=12.dp,bottom=4.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("为你推荐",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                     Text(s.recommendTag,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -341,13 +341,13 @@ import androidx.compose.ui.text.style.TextOverflow
             PosterGridCard(video,model,Modifier.testTag("recommendation:${video.id}"),"recommend") { model.openRecommendation(video) }
         }
 
-        if(s.recommendLoading && !refreshing) item(span={GridItemSpan(maxLineSpan)}) { LoadingStatus(if(s.recommendAppending) "正在加载更多…" else "正在加载推荐…",Modifier.fillMaxWidth()) }
-        s.recommendError?.let { error -> item(span={GridItemSpan(maxLineSpan)}) {
+        if(s.recommendLoading && !refreshing) item(span=StaggeredGridItemSpan.FullLine) { LoadingStatus(if(s.recommendAppending) "正在加载更多…" else "正在加载推荐…",Modifier.fillMaxWidth()) }
+        s.recommendError?.let { error -> item(span=StaggeredGridItemSpan.FullLine) {
             Column { Text("推荐加载失败：$error")
                 GlassTextButton(onClick={model.recommend(more=s.recommendAppending)}) { Text("重试推荐") } }
         } }
-        if(!s.recommendMore && !s.recommendLoading && videos.isNotEmpty()) item(span={GridItemSpan(maxLineSpan)}) { Text("已显示本次推荐",Modifier.fillMaxWidth().padding(12.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-        if(s.recommendMore && !s.recommendLoading && s.recommendError==null) item(span={GridItemSpan(maxLineSpan)}) { GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.recommend(more=true)}) { Text("更多推荐") } }
+        if(!s.recommendMore && !s.recommendLoading && videos.isNotEmpty()) item(span=StaggeredGridItemSpan.FullLine) { Text("已显示本次推荐",Modifier.fillMaxWidth().padding(12.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        if(s.recommendMore && !s.recommendLoading && s.recommendError==null) item(span=StaggeredGridItemSpan.FullLine) { GlassButton(shape=MaterialTheme.shapes.medium,onClick={model.recommend(more=true)}) { Text("更多推荐") } }
     }
     val showTop by remember { derivedStateOf { grid.firstVisibleItemIndex>3 } }
     BackToTop(showTop,Modifier.align(Alignment.BottomEnd)) { scope.launch { grid.animateScrollToItem(0);onTop() } }
@@ -439,14 +439,15 @@ import androidx.compose.ui.text.style.TextOverflow
 }
 
 @Composable private fun PosterGridCard(video:Video,model:AppModel,modifier:Modifier,prefix:String,probe:ProbeStatus?=null,showProbe:Boolean=false,onClick:()->Unit) {
-    DiscoveryCard(onClick=onClick,modifier=modifier.fillMaxWidth()) {
+    val anchor = rememberPosterAnchor(video, model)
+    DiscoveryCard(onClick={ anchor.open(video, onClick) },modifier=modifier.fillMaxWidth()) {
         Box {
-            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(1.1f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
+            Poster(video,model,Modifier.fillMaxWidth().aspectRatio(1.1f).then(anchor.modifier).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)
         }
         Column(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
             if(showProbe) MediaProbeIndicator(probe)
-            Text(video.title,modifier=Modifier.testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface,maxLines=1,overflow=TextOverflow.Ellipsis)
+            Text(video.title,modifier=Modifier.testTag("${prefix}Title:${video.id}"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface,maxLines=2,overflow=TextOverflow.Ellipsis)
             val metadata=listOf(video.typeName,video.subtitle).filter { it.isNotBlank() }.joinToString(" · ")
             if(metadata.isNotBlank()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
         }
@@ -457,9 +458,10 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable private fun FeaturedRecommendation(video:Video,model:AppModel,onClick:()->Unit) {
     val wide=windowSizeDp().width.value>=600
     val height=if(wide) 350.dp else (windowSizeDp().width*.59f).coerceAtMost(300.dp)
-    DiscoveryCard(modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}"),onClick=onClick) {
+    val anchor = rememberPosterAnchor(video, model, large=true)
+    DiscoveryCard(modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}"),onClick={ anchor.open(video, onClick) }) {
         Box {
-        Poster(video,model,Modifier.fillMaxWidth().height(height).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
+        Poster(video,model,Modifier.fillMaxWidth().height(height).then(anchor.modifier).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.12f),Color.Black.copy(alpha=.8f)))))
         Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(20.dp),verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
