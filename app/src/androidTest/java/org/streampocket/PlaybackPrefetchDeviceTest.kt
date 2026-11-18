@@ -73,7 +73,9 @@ class PlaybackPrefetchDeviceTest {
         withFixture { base,server,lookAhead,_ ->
             observeThree(base,lookAhead)
             server.dispatcher=object:Dispatcher() {
-                override fun dispatch(request:RecordedRequest)=MockResponse().setBody(if(request.path=="/s1.ts") "x".repeat(8*1024*1024) else "current")
+                override fun dispatch(request:RecordedRequest)=if(request.path=="/s1.ts")
+                    MockResponse().setChunkedBody("x".repeat(8*1024*1024), 64*1024)
+                else MockResponse().setBody("current")
             }
             val data=lookAhead.factory.createDataSource();data.open(DataSpec(Uri.parse("$base/s0.ts")));data.close()
             repeat(2) { assertNotNull(server.takeRequest(2,TimeUnit.SECONDS)) }
