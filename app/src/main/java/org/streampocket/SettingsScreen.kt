@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
     val transfer by model.updater.state.collectAsStateWithLifecycle()
     var rulesExpanded by rememberSaveable { mutableStateOf(false) }
     val sources=remember(s.saved.subscriptions) { s.saved.subscriptions.flatMap { it.sources }.filter { it.kind==SourceKind.VOD }.distinctBy { it.key } }
-    LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=20.dp,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(bottom=LocalDockInset.current).testTag("settingsList"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Text("设置",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(bottom=20.dp)) }
         item { ContentCard(Modifier.fillMaxWidth()) {
             SettingsEntry("外观设置","跟随系统、日间或夜间模式",appearance,"settingsAppearance",grouped=true)
