@@ -143,7 +143,9 @@ import androidx.compose.ui.text.style.TextOverflow
     // Request each result boundary once; sparse pages remain manually resumable.
     LaunchedEffect(recommendations.value,s.catalogVideos.size,s.catalogLoading,s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery) {
         if(!recommendations.value && s.catalogVideos.isNotEmpty()) snapshotFlow {
-            catalogState.firstVisibleItemIndex>0 && (catalogState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)>=catalogState.layoutInfo.totalItemsCount-3
+            val layout=catalogState.layoutInfo
+            catalogState.firstVisibleItemIndex>0 && layout.totalItemsCount>s.catalogVideos.size &&
+                (layout.visibleItemsInfo.lastOrNull()?.index ?: 0)>=layout.totalItemsCount-3
         }.distinctUntilChanged().collect { nearEnd ->
             val current=latest
             if(nearEnd && current.catalogMore && !current.catalogLoading && current.catalogError==null && catalogDemand!=current.catalogVideos.size) {
@@ -227,7 +229,7 @@ import androidx.compose.ui.text.style.TextOverflow
                     PosterGridCard(video,model,Modifier.testTag("catalogVideo:${video.id}"),"catalog",probe=s.probes[video.probeKey()],showProbe=s.catalogQuery.isNotBlank()) { model.open(video) }
                 }
 
-                if(s.catalogLoading || s.catalogError!=null || s.catalogMore) item(key="catalogFooter",span={GridItemSpan(maxLineSpan)}) {
+                if(s.catalogLoading || s.catalogError!=null || s.catalogMore) item(span={GridItemSpan(maxLineSpan)}) {
                     Column(Modifier.fillMaxWidth().padding(end=if(showTop) IconTarget+ActionGap else 0.dp),
                         verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         if(s.catalogLoading) {
