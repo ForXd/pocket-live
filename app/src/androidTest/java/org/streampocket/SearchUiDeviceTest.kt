@@ -1,5 +1,6 @@
 package org.streampocket
 
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -70,12 +71,20 @@ class SearchUiDeviceTest {
             ui.onNodeWithTag("nav:0").performClick()
             ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("星河")
+            ui.mainClock.autoAdvance=false
             ui.onNodeWithContentDescription("开始搜索").performClick()
+            ui.mainClock.advanceTimeBy(300)
             ui.onAllNodesWithTag("searchResultPlaceholder").onFirst().assertIsDisplayed()
             ui.onNodeWithContentDescription("取消搜索").assertIsDisplayed()
             ui.onNodeWithTag("searchProgress").assertIsDisplayed()
+            ui.onNodeWithText("正在查找片源…").assertIsDisplayed()
             ui.onNodeWithText("暂未找到结果").assertDoesNotExist()
+            val bar=ui.onNodeWithTag("searchProgress")
+            val firstFrame=bar.captureToImage().asAndroidBitmap()
+            ui.mainClock.advanceTimeBy(420)
+            assertFalse("Waiting indicator advances before the first response",firstFrame.sameAs(bar.captureToImage().asAndroidBitmap()))
             capture("00-first-search")
+            ui.mainClock.autoAdvance=true
             firstSearch.countDown()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
             ui.onAllNodesWithTag("searchResultPlaceholder").assertCountEquals(0)
@@ -200,6 +209,6 @@ class SearchUiDeviceTest {
                     android.os.SystemClock.sleep(100)
                 }
             }
-        } finally { firstSearch.countDown();ui.runOnUiThread { ui.activity.viewModelStore.clear() }; server.shutdown() }
+        } finally { ui.mainClock.autoAdvance=true;firstSearch.countDown();ui.runOnUiThread { ui.activity.viewModelStore.clear() }; server.shutdown() }
     }
 }

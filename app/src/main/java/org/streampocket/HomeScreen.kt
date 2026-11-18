@@ -115,14 +115,8 @@ import androidx.compose.ui.unit.dp
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
             awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
         }) {
-        if(s.searching && groups.isEmpty()) {
-            item(key="searchProgress",span={GridItemSpan(maxLineSpan)}) {
-                val bar=Modifier.fillMaxWidth().height(3.dp).testTag("searchProgress")
-                    .semantics { contentDescription="正在搜索片源" }
-                if(s.completed==0) LinearProgressIndicator(modifier=bar)
-                else LinearProgressIndicator(progress={s.completed.toFloat()/s.total.coerceAtLeast(1)},modifier=bar)
-            }
-            items(3,contentType={"searchPlaceholder"}) { SearchResultPlaceholder() }
+        if(s.searching && groups.isEmpty()) items(3,contentType={"searchPlaceholder"}) { index ->
+            SearchResultPlaceholder(completed=s.completed,total=s.total,showProgress=index==0)
         }
         if (s.results.size == QualityRules.RESULT_LIMIT) item(span={GridItemSpan(maxLineSpan)}) {
             Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)
@@ -146,15 +140,24 @@ import androidx.compose.ui.unit.dp
 }
 
 /** Match a result's cover and text column without exposing decorative nodes or running a shimmer. */
-@Composable private fun SearchResultPlaceholder() {
+@Composable private fun SearchResultPlaceholder(completed:Int,total:Int,showProgress:Boolean) {
     val tones=MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().background(tones.surfaceContainerLow,ContentCardShape).padding(MediaCardInset).testTag("searchResultPlaceholder"),
         horizontalArrangement=Arrangement.spacedBy(14.dp)) {
         Spacer(Modifier.size(68.dp,88.dp).background(tones.surfaceContainerHigh,MaterialTheme.shapes.small))
         Column(Modifier.weight(1f).padding(top=4.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Spacer(Modifier.fillMaxWidth(.68f).height(15.dp).background(tones.surfaceContainerHigh,MaterialTheme.shapes.small))
-            Spacer(Modifier.fillMaxWidth(.45f).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
-            Spacer(Modifier.width(46.dp).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
+            if(showProgress) {
+                Text(if(completed==0) "正在查找片源…" else "已查找 $completed/$total 个片源",
+                    style=MaterialTheme.typography.labelMedium,color=tones.onSurfaceVariant)
+                val bar=Modifier.fillMaxWidth(.8f).height(3.dp).testTag("searchProgress")
+                if(completed==0) LinearProgressIndicator(modifier=bar,color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
+                else LinearProgressIndicator(progress={completed.toFloat()/total.coerceAtLeast(1)},modifier=bar,
+                    color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
+            } else {
+                Spacer(Modifier.fillMaxWidth(.45f).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
+                Spacer(Modifier.width(46.dp).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
+            }
         }
     }
 }
