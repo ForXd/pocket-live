@@ -475,6 +475,7 @@ class UiLayoutDeviceTest {
             fun smallFrame()=android.graphics.Bitmap.createScaledBitmap(
                 ui.onRoot().captureToImage().asAndroidBitmap(),32,64,true)
             val homeFrame=smallFrame()
+            val featuredBounds=bounds("1")
             ui.onNodeWithTag("recommendation:1").performClick()
             ui.onNodeWithTag("searchRecommendationSources").performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
@@ -500,6 +501,7 @@ class UiLayoutDeviceTest {
                 ui.mainClock.advanceTimeBy(240)
                 ui.onNodeWithTag("recommendationGrid").assertIsDisplayed()
                 ui.onNodeWithTag("expandedPoster").assertDoesNotExist()
+                assertEquals("Returning home preserves the toolbar and scroll offset",featuredBounds,bounds("1"))
                 capture("recommendation-search-return")
             } finally { ui.mainClock.autoAdvance=true }
             ui.onNodeWithTag("recommendation:1").performClick()

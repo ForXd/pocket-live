@@ -105,9 +105,14 @@ class MainActivity : ComponentActivity() {
     var scopeSearch by rememberSaveable(liveTab.value,recommendations.value) { mutableStateOf(false) }
     var catalogQuery by rememberSaveable { mutableStateOf("") }
     var submittedQuery by rememberSaveable { mutableStateOf("") }
+    // Keep the browse toolbar at its original offset while search owns a different toolbar.
+    val browseScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
+    val resultScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
+    val searchScroll=if(searchMode || searchOpen) resultScroll else browseScroll
     val expansion = rememberSaveable(saver=PosterExpansion.Saver) { PosterExpansion() }
     fun search(text:String) {
         if(text.isBlank()) return
+        resultScroll.reveal()
         query=text.take(100);submittedQuery=query;searchMode=true;searchOpen=true;tab=0
         focusManager.clearFocus();keyboard?.hide();model.search(query)
     }
@@ -118,6 +123,7 @@ class MainActivity : ComponentActivity() {
         search(title)
     }
     fun showRecommendations() {
+        resultScroll.reveal()
         model.cancelSearch();searchMode=false;searchOpen=false;query="";submittedQuery="";recommendations.value=true;liveTab.value=false
         focusManager.clearFocus();keyboard?.hide()
     }
@@ -172,9 +178,8 @@ class MainActivity : ComponentActivity() {
     }
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(s.message) { s.message?.let { snack.showSnackbar(it); model.message(null) } }
-    // Keep only collapse scalars alive while playback replaces the screen.
-    val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
-    LaunchedEffect(tab,searchMode,recommendations.value,liveTab.value,imeVisible) { searchScroll.reveal() }
+    LaunchedEffect(tab,recommendations.value,liveTab.value) { searchScroll.reveal() }
+    LaunchedEffect(imeVisible) { if(imeVisible) searchScroll.reveal() }
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val selected = expansion.selected
     val recommendation = s.recommendPreview.takeUnless { searchMode }
