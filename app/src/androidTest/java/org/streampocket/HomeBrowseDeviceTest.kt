@@ -67,6 +67,7 @@ class HomeBrowseDeviceTest {
         val grid=ui.onNodeWithTag("recommendationGrid")
         val poster=ui.onNodeWithTag("recommendPoster:1",useUnmergedTree=true).getUnclippedBoundsInRoot()
         val first=ui.onNodeWithTag("recommendation:1").getUnclippedBoundsInRoot()
+        assertEquals((poster.right-poster.left).value*9f/16f,(poster.bottom-poster.top).value,1f)
         assertEquals(first.left.value,poster.left.value,1f)
         assertEquals(first.right.value,poster.right.value,1f)
         ui.onNodeWithContentDescription("查看简介",useUnmergedTree=true).assertIsDisplayed()
@@ -133,7 +134,7 @@ class HomeBrowseDeviceTest {
         assertEquals(first.top.value,second.top.value,1f)
         assertEquals(first.bottom.value,second.bottom.value,1f)
         val poster=ui.onNodeWithTag("catalogPoster:1",useUnmergedTree=true).getUnclippedBoundsInRoot()
-        assertEquals((poster.right-poster.left).value/1.1f,(poster.bottom-poster.top).value,1f)
+        assertEquals((poster.right-poster.left).value*3f/2f,(poster.bottom-poster.top).value,1f)
         val list=ui.onNodeWithTag("catalogList")
         list.performTouchInput { swipeUp(durationMillis=600) }
         ui.onNodeWithTag("catalogSourcePicker").assertIsDisplayed()
