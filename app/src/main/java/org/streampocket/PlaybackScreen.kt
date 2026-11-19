@@ -198,7 +198,6 @@ import kotlinx.coroutines.delay
         } catch(_:IllegalStateException) { error="设备当前不允许画中画" }
     }
     val density = LocalDensity.current
-    val quickWidth = if(supportsPip) IconTarget * 2 + ActionGap else IconTarget
     val cutout = WindowInsets.displayCutout
     val horizontalInset = maxOf(cutout.getLeft(density, androidx.compose.ui.unit.LayoutDirection.Ltr),
         cutout.getRight(density, androidx.compose.ui.unit.LayoutDirection.Ltr))
@@ -316,19 +315,22 @@ import kotlinx.coroutines.delay
     Box(Modifier.fillMaxSize().background(if(full || pip) Color.Black else MaterialTheme.colorScheme.surface).testTag("playbackSurface")) {
         BoxWithConstraints(Modifier.fillMaxSize().then(if(full || pip) Modifier else Modifier.safeDrawingPadding())) {
         val wide=maxWidth>=840.dp && maxHeight>=480.dp && !full && !pip
-        // Reserve space for two hour-long timestamps at the user's text scale.
-        val separateActions = !wide && !full && !pip &&
-            maxWidth < PageGutter + quickWidth + ActionGap + IconTarget + 120.dp * density.fontScale
         Row(Modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             if(!full && !pip) {
                 Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=PageGutter),verticalAlignment=Alignment.CenterVertically) {
                     PocketBack(leavePlayback, label = if(playback.video.source.kind==SourceKind.LIVE) "返回频道" else "返回选集")
                     Text("播放",Modifier.weight(1f).padding(horizontal=8.dp),style=MaterialTheme.typography.headlineSmall,maxLines=1,overflow=TextOverflow.Ellipsis)
+                    if(supportsPip) GlassIconButton(onClick=::enterPip) { Icon(painterResource(R.drawable.ic_pip),"进入画中画") }
+                    Spacer(Modifier.width(4.dp))
+                    GlassIconButton(modifier=Modifier.testTag("fullscreenToggle"),onClick={
+                        playerView?.cancelGestures();entryOrientation=orientation;rotatingBack=false;requestFull=true
+                    }) { Icon(painterResource(R.drawable.ic_fullscreen_enter),"横屏全屏") }
+                    Spacer(Modifier.width(4.dp))
                     GlassIconButton(onClick=openOptions,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"更多播放选项") }
                 }
             }
-            Box((if(full || pip || wide) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().height(inlineVideoHeight + if(separateActions) IconTarget else 0.dp)).background(Color.Black).testTag("videoViewport")) {
+            Box((if(full || pip || wide) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().height(inlineVideoHeight)).background(Color.Black).testTag("videoViewport")) {
             AndroidView(
                 factory={ GesturePlayerView.inflateForCompose(it).apply {
                     useController=true
@@ -351,26 +353,13 @@ import kotlinx.coroutines.delay
                     it.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility -> controlsVisible=visibility==android.view.View.VISIBLE })
                     controlsVisible=it.isControllerFullyVisible
                     it.setControlGeometry(full && !pip, horizontalInset,
-                        with(density) { if(full || pip || separateActions) 0 else (PageGutter + quickWidth + ActionGap).roundToPx() })
+                        0)
                     it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener { openOptions() }
                     playerView=it;it.useController=!pip
                 },
                 onReset=null,onRelease={it.cancelGestures();controller.detach(it);if(playerView===it) playerView=null},
-                modifier=Modifier.fillMaxSize().padding(bottom=if(separateActions) IconTarget else 0.dp)
+                modifier=Modifier.fillMaxSize()
             )
-            if(!full && !pip) {
-                Row(Modifier.align(Alignment.BottomEnd).padding(end=PageGutter),
-                    horizontalArrangement=Arrangement.spacedBy(ActionGap),verticalAlignment=Alignment.CenterVertically) {
-                    val colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=Color.Black.copy(alpha=.5f),contentColor=Color.White)
-                    if(supportsPip) GlassIconButton(onClick=::enterPip,colors=colors) {
-                        Icon(painterResource(R.drawable.ic_pip),"进入画中画")
-                    }
-                    GlassIconButton(modifier=Modifier.testTag("fullscreenToggle"),colors=colors,
-                        onClick={playerView?.cancelGestures();entryOrientation=orientation;rotatingBack=false;requestFull=true}) {
-                        Icon(painterResource(R.drawable.ic_fullscreen_enter),"横屏全屏")
-                    }
-                }
-            }
             if(full && !pip) ScrubIndicator(scrub,Modifier.align(Alignment.Center))
             if(gestureFeedback.isNotEmpty() && !pip && scrub.value==null) {
                 Text(gestureFeedback,color=Color.White,modifier=Modifier.align(Alignment.Center).offset(y=(-64).dp).background(Color.Black.copy(alpha=0.7f),androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal=24.dp,vertical=16.dp))

@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -100,11 +101,13 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 
 /** Compact phone destinations use a single named, selectable touch target. */
 @Composable internal fun DockDestination(selected:Boolean,label:String,onClick:()->Unit,modifier:Modifier=Modifier,icon:@Composable ()->Unit) {
+    val interactions=androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
     Box(modifier.heightIn(min=48.dp).clip(androidx.compose.foundation.shape.CircleShape)
-        .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick)
+        .selectable(selected=selected,role=androidx.compose.ui.semantics.Role.Tab,onClick=onClick,interactionSource=interactions,indication=null)
         .semantics { contentDescription=label },contentAlignment=androidx.compose.ui.Alignment.Center) {
         val tint=if(selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-        Box(Modifier.size(36.dp).background(if(selected) tint.copy(alpha=.08f) else Color.Transparent,
+        Box(Modifier.size(36.dp).background(if(pressed) tint.copy(alpha=.14f) else if(selected) tint.copy(alpha=.08f) else Color.Transparent,
             androidx.compose.foundation.shape.CircleShape),contentAlignment=androidx.compose.ui.Alignment.Center) {
             androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides tint,content=icon)
         }
@@ -202,10 +205,10 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
         checkedTrackColor=MaterialTheme.colorScheme.tertiary,checkedThumbColor=MaterialTheme.colorScheme.onTertiary))
 }
 
-@Composable internal fun SearchHeader(back: () -> Unit, backLabel: String = "返回", field: @Composable () -> Unit) {
+@Composable internal fun SearchHeader(back: (() -> Unit)? = null, backLabel: String = "返回", field: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min=64.dp).padding(horizontal=PageGutter),
         verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        PocketBack(back, label=backLabel)
+        if(back!=null) PocketBack(back, label=backLabel)
         Box(Modifier.weight(1f)) { field() }
     }
 }

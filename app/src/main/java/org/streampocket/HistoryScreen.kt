@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
     val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val imeVisible=WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
     var searchOpen by searchState
-    val motion=LocalCardReturn.current
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     CardBackHandler(enabled=searchOpen && !filtersOpen && !imeVisible) { searchOpen=false;query="" }
@@ -67,7 +66,7 @@ import androidx.compose.ui.unit.dp
             GlassIconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
         }
         if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
-        SearchHeader(back={ motion.commit { searchOpen=false;query="";keyboard?.hide() } },backLabel="返回历史") {
+        SearchHeader {
         ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }

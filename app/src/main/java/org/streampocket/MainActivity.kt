@@ -236,7 +236,7 @@ class MainActivity : ComponentActivity() {
     val wide=windowSizeDp().width.value>=840
     if(!inline && recommendation!=null) { RecommendationPreview(s,model,::searchRecommendation);return@CardRouteHost }
     val destinations=listOf("首页","订阅","历史","设置")
-    val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
+    val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(if(i==tab) listOf(R.drawable.ic_home_solid,R.drawable.ic_library_solid,R.drawable.ic_history_solid,R.drawable.ic_settings_solid)[i] else listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
     val showDock = !wide && !imeVisible && (inline || (s.detail==null && !s.detailLoading))
     CompositionLocalProvider(LocalPosterExpansion provides expansion) {
     Box(if(inline) Modifier.fillMaxSize().clearAndSetSemantics {} else Modifier.fillMaxSize()) {
@@ -258,7 +258,7 @@ class MainActivity : ComponentActivity() {
                         },modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
                     }
                 } else Column {
-                    SearchHeader(back={ motion.commit { if(scopeSearch) closeScopeSearch() else showRecommendations() } },
+                    SearchHeader(back=if(searchMode || (scopeSearch && (if(inLive) liveQuery else catalogQuery).isNotBlank())) { { motion.commit { if(scopeSearch) closeScopeSearch() else showRecommendations() } } } else null,
                         backLabel=if(scopeSearch) "返回" else "返回推荐") {
                     HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
                     {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},

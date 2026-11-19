@@ -118,11 +118,13 @@ internal enum class GlassPlacement { SIDE, BOTTOM }
         val colors = if(dark) intArrayOf(0xf534424a.toInt(), 0xf7192329.toInt())
             else intArrayOf(0xf7f8fafb.toInt(), 0xf3e1e8eb.toInt())
         val background = GradientDrawable(GradientDrawable.Orientation.TL_BR, colors).apply {
-            cornerRadii = if(placement==GlassPlacement.SIDE) floatArrayOf(radius,radius,0f,0f,0f,0f,radius,radius)
-                else floatArrayOf(radius,radius,radius,radius,0f,0f,0f,0f)
+            // Android reads a uniform round-rect outline for the compositor's blur radius.
+            cornerRadius=radius
             setStroke(with(density) { 1.dp.roundToPx() }, stroke)
         }
         window.setBackgroundDrawable(background)
+        glassLayer.outlineProvider=android.view.ViewOutlineProvider.BACKGROUND
+        glassLayer.clipToOutline=true
         val windowManager = context.getSystemService(WindowManager::class.java)
         val blurListener = if(Build.VERSION.SDK_INT >= 31) {
             window.setBackgroundBlurRadius(with(density) { 18.dp.roundToPx() })

@@ -196,10 +196,7 @@ class UiLayoutDeviceTest {
 
 
                 ui.onNodeWithTag("openSearch").performClick()
-                val field = ui.onNodeWithTag("searchInput").getUnclippedBoundsInRoot()
-                val arrow = ui.onNodeWithContentDescription("返回推荐").getUnclippedBoundsInRoot()
-                assertTrue(arrow.right < field.left)
-                assertEquals((arrow.top.value+arrow.bottom.value)/2, (field.top.value+field.bottom.value)/2, 1f)
+                ui.onNodeWithContentDescription("返回推荐").assertDoesNotExist()
                 capture("design-search-input")
                 ui.onNodeWithTag("searchInput").performTextInput("星河")
                 ui.onNodeWithTag("searchInput").performImeAction()
@@ -229,7 +226,8 @@ class UiLayoutDeviceTest {
                 ui.onNodeWithTag("historySearch").performTextInput("山海")
                 ui.onNodeWithTag("historySearch").performImeAction()
                 capture("design-history-search")
-                ui.onNodeWithContentDescription("返回历史").performClick()
+                ui.onNodeWithContentDescription("返回历史").assertDoesNotExist()
+                ui.runOnIdle { ui.activity.onBackPressedDispatcher.onBackPressed() }
                 val id=HistoryGroups.key(video).stableKey
                 ui.onNodeWithTag("swipeHistory:$id").performTouchInput { swipeLeft() }
                 capture("design-history-swipe")
