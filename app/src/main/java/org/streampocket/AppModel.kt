@@ -16,7 +16,7 @@ data class UiState(val recommendPreview:Video?=null,val recommendSynopsis:String
     val probeWork:String?=null,val probeEpisodes:Map<String,Episode> = emptyMap(),val probeLines:Map<String,String> = emptyMap(),
     val sourceAvailability:Map<String,Boolean> = emptyMap(), val probes:Map<String,ProbeStatus> = emptyMap(), val probeRunning:Boolean=false, val probeResolutions:Map<String,String> = emptyMap(),
     val searchQuery: String = "", val searchOrder: SearchOrder = SearchOrder.RELEVANCE,
-    val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0,
+    val searching: Boolean = false, val completed: Int = 0, val total: Int = 0, val failures: Int = 0, val nonPublicDnsFailures:Int=0,
     val relatedVideos:List<Video> = emptyList(), val relatedLoading:Boolean=false, val relatedError:String?=null,
     val detail: Detail? = null, val detailLoadingVideo: Video? = null, val detailError:String? = null, val playback: Playback? = null,
     val catalogSource: Source? = null, val categories: List<Category> = emptyList(), val catalogVideos: List<Video> = emptyList(),
@@ -260,7 +260,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         cancelLive();_state.update { it.copy(liveSourceKey=null,liveChannels=emptyList(),liveError=null) }
         closeAlternatives(); cancelSearch(); cancelCatalog(); closeDetail(); clearCache(silent = true)
         _state.update { it.copy(catalogSource=null,catalogVideos=emptyList(),categories=emptyList(),catalogMore=false,catalogError=null) }
-        _state.update { it.copy(results = emptyList(), completed = 0, total = 0, failures = 0) }
+        _state.update { it.copy(results = emptyList(), completed = 0, total = 0, failures = 0, nonPublicDnsFailures=0) }
     }
     fun setSearchHistory(enabled: Boolean) = change { saved ->
         saved.copy(searchHistoryEnabled=enabled, recentSearches=if(enabled) saved.recentSearches else emptyList())
@@ -371,15 +371,16 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         cancelSearch();probeCatalog=false
         searchOrderPinned=false
         val q = query.trim().take(100); if(q.isEmpty()) return
-        val sources = distinctSearchDomains(sourceHealth.ordered(state.value.saved.enabledSources(),QueryKind.SEARCH),network::actualDomain)
-        _state.update { it.copy(probeEpisodes=emptyMap(),probeLines=emptyMap(),probes=emptyMap(),probeResolutions=emptyMap(), searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0) }
+        val sources = distinctSearchEndpoints(sourceHealth.ordered(state.value.saved.enabledSources(),QueryKind.SEARCH),network::actualSearchEndpoint)
+        _state.update { it.copy(probeEpisodes=emptyMap(),probeLines=emptyMap(),probes=emptyMap(),probeResolutions=emptyMap(), searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0, nonPublicDnsFailures=0) }
         if (sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
         searchJob = viewModelScope.launch {
             val merger = SearchResultMerger()
             val semaphore = Semaphore(4)
-            try { withTimeout(45_000) { supervisorScope { sources.forEach { source -> launch {
+            try { supervisorScope { sources.forEach { source -> launch {
                 semaphore.withPermit {
                     var failed = false
+                    var nonPublicDns=false
                     try {
                         val list = withTimeout(22_000) { searchRepository.search(source, q) }
                         ensureActive()
@@ -391,11 +392,11 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                         }
                     } catch(e: TimeoutCancellationException) { ensureActive();failed = true }
                     catch(e: CancellationException) { throw e }
-                    catch(e: Exception) { failed = true }
+                    catch(e: Exception) { failed = true;nonPublicDns=e is NonPublicDnsException }
                     ensureActive()
-                    if (failed) { sourceHealth.record(source.key,QueryKind.SEARCH,false);_state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1,sourceAvailability=sourceHealth.snapshot()) } }
+                    if (failed) { sourceHealth.record(source.key,QueryKind.SEARCH,false);_state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1,nonPublicDnsFailures=it.nonPublicDnsFailures+if(nonPublicDns) 1 else 0,sourceAvailability=sourceHealth.snapshot()) } }
                 }
-            } } } } } catch(_: TimeoutCancellationException) { message("搜索达到45秒总时限，已保留返回结果；可换源或重试") } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=if(searchOrderPinned) it.results else SearchRules.sorted(it.results, q, it.searchOrder)) } }
+            } } } } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=if(searchOrderPinned) it.results else SearchRules.sorted(it.results, q, it.searchOrder)) } }
         }
         startProbes()
     }
@@ -575,7 +576,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                 withTimeout(20_000) {
                     val slots=Semaphore(3)
                     supervisorScope {
-                        distinctSearchDomains(sourceHealth.ordered(snapshot.saved.enabledSources(SourceKind.VOD),QueryKind.SEARCH),network::actualDomain)
+                        distinctSearchEndpoints(sourceHealth.ordered(snapshot.saved.enabledSources(SourceKind.VOD),QueryKind.SEARCH),network::actualSearchEndpoint)
                             .take(12).forEach { source -> launch {
                                 slots.withPermit {
                                     try {
@@ -705,7 +706,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                             } catch(e:CancellationException) { throw e } catch(_:Exception) { failures++ }
                         }
                         val slots=Semaphore(3)
-                        distinctSearchDomains(sourceHealth.ordered(snapshot.saved.enabledSources(SourceKind.VOD),QueryKind.SEARCH),network::actualDomain)
+                        distinctSearchEndpoints(sourceHealth.ordered(snapshot.saved.enabledSources(SourceKind.VOD),QueryKind.SEARCH),network::actualSearchEndpoint)
                             .take(PlaybackAlternatives.MAX_SOURCES).forEach { source -> launch {
                                 slots.withPermit {
                                     try {

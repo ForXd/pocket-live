@@ -111,6 +111,7 @@ class PlaybackGestureDeviceTest {
         val mediaTemplate=MockResponse().addHeader("Content-Type","video/mp4").setBody(Buffer().write(bytes))
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
+                if(request.path!!.startsWith("/stall.mp4")) return mediaTemplate.clone().throttleBody(128,1,TimeUnit.SECONDS)
                 if(request.path!!.startsWith("/failure")) return MockResponse().setResponseCode(404).setBody("local test failure")
                 if(request.path!!.startsWith("/api")) {
                     val episodes=(1..1000).joinToString("#") { "第${it}集${'$'}$base/test.mp4?episode=$it" }
@@ -187,6 +188,22 @@ class PlaybackGestureDeviceTest {
                 }
                 return
             }
+            if(InstrumentationRegistry.getArguments().getString("stallOnly")=="true") {
+                instrument.runOnMainSync {
+                    val d=model.state.value.detail!!
+                    model.play(d.video,Episode("缓冲测试","$base/stall.mp4"))
+                }
+                ui.onNodeWithContentDescription("横屏全屏").performClick()
+                ui.waitUntil(30000) { ui.onAllNodesWithTag("playbackError").fetchSemanticsNodes().isNotEmpty() }
+                ui.onNodeWithText("缓冲较慢").assertIsDisplayed()
+                ui.onNodeWithText("重新连接").assertIsDisplayed()
+                ui.onNodeWithText("换源").assertIsDisplayed()
+                capture("fullscreen-buffering")
+                ui.onNodeWithContentDescription("退出全屏").performClick()
+                ui.onNodeWithContentDescription("返回选集").performClick()
+                waitFor { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }
+                return
+            }
             if(InstrumentationRegistry.getArguments().getString("errorOnly")=="true") {
                 instrument.runOnMainSync { val d=model.state.value.detail!!;model.play(d.video,Episode("失败夹具","$base/failure.mp4")) }
                 waitFor { view(ui.activity.window.decorView)?.player?.playerError!=null }
@@ -235,7 +252,7 @@ class PlaybackGestureDeviceTest {
             stage("first-frame-ready")
             observingActivePlayer=true
             instrument.runOnMainSync { playerView().player!!.pause();playerView().player!!.seekTo(2000) }
-            ui.onNodeWithContentDescription("上一集").assertIsNotEnabled()
+            ui.onNodeWithText("上一集").assertIsNotEnabled()
             ui.onNodeWithContentDescription("横屏全屏").performClick()
             waitFor { ui.activity.window.decorView.width>ui.activity.window.decorView.height && !playerView().isControllerFullyVisible }
             ui.onNodeWithContentDescription("退出全屏").assertDoesNotExist();capture("fullscreen-hidden");stage("fullscreen-hidden")
@@ -273,10 +290,37 @@ class PlaybackGestureDeviceTest {
                 }
             }
             instrument.runOnMainSync { playerView().player!!.addListener(seekListener) }
-            val (x,y)=point(true);val down=SystemClock.uptimeMillis()
-            inject(MotionEvent.ACTION_DOWN,x,y,down);SystemClock.sleep(ViewConfiguration.getLongPressTimeout()+900L);inject(MotionEvent.ACTION_UP,x,y,down)
+            val (x,y)=point(false)
+            val (right,_)=point(true)
+            val down=SystemClock.uptimeMillis()
+            inject(MotionEvent.ACTION_DOWN,x,y,down)
+            SystemClock.sleep(ViewConfiguration.getLongPressTimeout()+180L)
+            ui.onNodeWithTag("scrubPreview").assertIsDisplayed()
+            inject(MotionEvent.ACTION_MOVE,right,y,down)
+            val initialTime=android.text.format.DateUtils.formatElapsedTime(2)
+            ui.waitUntil(3000) { ui.onAllNodes(hasText(initialTime) and hasAnyAncestor(hasTestTag("scrubPreview"))).fetchSemanticsNodes().isEmpty() }
+            ui.onNodeWithTag("scrubPreview").assertIsDisplayed()
+            instrument.waitForIdleSync()
+            capture("fullscreen-scrub")
+            instrument.runOnMainSync { assertEquals(0,seeks.get()) }
+            inject(MotionEvent.ACTION_CANCEL,right,y,down)
+            ui.onNodeWithTag("scrubPreview").assertDoesNotExist()
+            assertEquals("Cancelling a drag does not seek",0,seeks.get())
+            val second=SystemClock.uptimeMillis()
+            inject(MotionEvent.ACTION_DOWN,x,y,second)
+            SystemClock.sleep(ViewConfiguration.getLongPressTimeout()+180L)
+            inject(MotionEvent.ACTION_MOVE,right,y,second)
+            val middle=(right+x)/2
+            inject(MotionEvent.ACTION_MOVE,middle,y,second)
+            inject(MotionEvent.ACTION_UP,middle,y,second)
+            ui.onNodeWithTag("scrubPreview").assertDoesNotExist()
             var heldPosition=0L
-            instrument.runOnMainSync { heldPosition=playerView().player!!.currentPosition;assertTrue(heldPosition>3000) }
+            instrument.runOnMainSync {
+                val player=playerView().player!!
+                heldPosition=player.currentPosition
+                assertTrue("Reversing the drag updates the target",heldPosition in player.duration/3..player.duration*2/3)
+                assertEquals("One seek on release",1,seeks.get())
+            }
             stage("long-press-released")
             val releasedSeekCount=seeks.get()
             SystemClock.sleep(800)

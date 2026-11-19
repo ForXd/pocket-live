@@ -13,6 +13,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+internal class NonPublicDnsException : java.net.UnknownHostException("Domain resolves to a non-public address")
+
 object PublicNetwork {
     fun publicAddress(a: InetAddress): Boolean {
         if(a.isAnyLocalAddress || a.isLoopbackAddress || a.isLinkLocalAddress || a.isSiteLocalAddress || a.isMulticastAddress) return false
@@ -28,23 +30,26 @@ object PublicNetwork {
     val dns = object : Dns {
         override fun lookup(hostname: String): List<InetAddress> =
         Dns.SYSTEM.lookup(hostname).also { addresses ->
-            if(addresses.isEmpty() || addresses.any { !publicAddress(it) }) throw IOException("Local network blocked")
+            if(addresses.any { !publicAddress(it) }) throw NonPublicDnsException()
+            if(addresses.isEmpty()) throw java.net.UnknownHostException("No addresses returned")
         }
     }
 }
 class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns, private val cache: ResponseCache? = null, requestLimit:Int=4) {
-    private val apiDomains=linkedMapOf<String,Pair<Long,String>>()
-    private fun endpointKey(url:HttpUrl)=hash(url.newBuilder().query(null).fragment(null).build().toString())
-    @Synchronized fun actualDomain(url:String):String? {
-        val parsed=url.toHttpUrl()
+    private val apiEndpoints=linkedMapOf<String,Pair<Long,String>>()
+    @Synchronized internal fun actualSearchEndpoint(url:String):String {
+        val key=searchEndpointKey(url.toHttpUrl())
         val now=System.currentTimeMillis()
-        apiDomains.entries.removeAll { now-it.value.first !in 0..3_600_000L }
-        return apiDomains[endpointKey(parsed)]?.second ?: parsed.host
+        apiEndpoints.entries.removeAll { now-it.value.first !in 0..3_600_000L }
+        return apiEndpoints[key]?.second ?: key
     }
-    @Synchronized private fun rememberApiDomain(initial:HttpUrl,final:HttpUrl) {
-        if(initial.queryParameter("ac")==null || initial.host==final.host) return
-        val key=endpointKey(initial);apiDomains.remove(key);apiDomains[key]=System.currentTimeMillis() to final.host
-        while(apiDomains.size>300) apiDomains.remove(apiDomains.keys.first())
+    @Synchronized private fun rememberSearchEndpoint(initial:HttpUrl,final:HttpUrl) {
+        val query=initial.queryParameter("wd") ?: return
+        if(initial==final || final.queryParameter("wd")!=query || initial.queryParameter("ac")!=final.queryParameter("ac")) return
+        val key=searchEndpointKey(initial)
+        apiEndpoints.remove(key)
+        apiEndpoints[key]=System.currentTimeMillis() to searchEndpointKey(final)
+        while(apiEndpoints.size>300) apiEndpoints.remove(apiEndpoints.keys.first())
     }
     val client: OkHttpClient = OkHttpClient.Builder()
         .dispatcher(Dispatcher().apply { maxRequests = requestLimit; maxRequestsPerHost = requestLimit })
@@ -82,16 +87,17 @@ class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns
         }
         val result = download(normalized)
         if(cacheSearch) withContext(Dispatchers.Default) {
-            val payload=JsonData.parse(result.first).obj()
-            if(payload?.get("list")?.isJsonArray==true) rememberApiDomain(normalized.toHttpUrl(),result.third)
+            val payload=JsonData.parse(result.first).obj() ?: throw UserError("查询接口需要 JSON 对象")
+            val request=normalized.toHttpUrl()
+            if(request.queryParameter("wd")!=null) {
+                CmsParser.validateSearchList(payload)
+                if(payload.get("list")?.isJsonArray==true) rememberSearchEndpoint(request,result.third)
+            } else {
+                val list=payload.get("list")
+                if(list!=null && !list.isJsonNull && !list.isJsonArray) throw UserError("查询接口 list 无效")
+            }
         }
         if(cacheSearch && result.second > System.currentTimeMillis() && cache != null) {
-            // Cache only structurally valid JSON. Subscription, detail and media never use this path.
-            withContext(Dispatchers.Default) {
-                val payload = JsonData.parse(result.first).obj() ?: throw UserError("搜索接口需要JSON对象")
-                val list = payload.get("list")
-                if(list != null && !list.isJsonNull && !list.isJsonArray) throw UserError("搜索接口list无效")
-            }
             try { withContext(Dispatchers.IO) { cache.put(key,result.first,owner,(result.second-System.currentTimeMillis()).coerceAtLeast(0)) } }
             catch(e: CancellationException) { throw e } catch(_: IOException) { /* network result still usable */ }
         }
@@ -136,5 +142,5 @@ class Network(private val allowHttp: () -> Boolean, dns: Dns = PublicNetwork.dns
     }
     fun api(source: Source, key: String, value: String): String = source.url.toHttpUrl().newBuilder()
         .setQueryParameter("ac", if(key == "wd") "videolist" else "detail").setQueryParameter(key, value).build().toString()
-    fun close() { synchronized(this) { apiDomains.clear() };client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdown() }
+    fun close() { synchronized(this) { apiEndpoints.clear() };client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdown() }
 }

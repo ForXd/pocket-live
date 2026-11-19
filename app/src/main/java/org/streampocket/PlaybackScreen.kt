@@ -71,6 +71,7 @@ import kotlinx.coroutines.delay
     var playerView by remember(playback.sessionId) { mutableStateOf<GesturePlayerView?>(null) }
     var controlsVisible by remember(playback.sessionId) { mutableStateOf(false) }
     var knownDuration by remember(playback.sessionId) { mutableLongStateOf(playback.duration) }
+    val scrub=remember(playback.sessionId) { mutableStateOf<ScrubPreview?>(null) }
     var gestureFeedback by remember(playback.sessionId) { mutableStateOf("") }
     LaunchedEffect(gestureFeedback) { if(gestureFeedback.isNotEmpty()) { delay(1000);gestureFeedback="" } }
     var episodesOpen by remember { mutableStateOf(false) }
@@ -304,13 +305,9 @@ import kotlinx.coroutines.delay
                         Text(if(state.detailError!=null) "选集暂不可用：${state.detailError}" else "当前集不在可用线路中，选集暂不可用",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         GlassTextButton(onClick=model::retryPlaybackDetail) { Text("重试选集") }
                     }
-                    (error ?: if(slowBuffering) (if(isLive) "缓冲较慢，可重新连接" else "缓冲较慢，可重连或快速换源") else null)?.let { problem ->
-                        Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=MaterialTheme.shapes.large) {
-                            Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                                Text(problem,style=MaterialTheme.typography.bodyMedium)
-                                GlassTextButton(onClick={error=null;controller.retry()}) { Text(if(error!=null) "重试播放" else "重新连接") }
-                            }
-                        }
+                    (error ?: if(slowBuffering) "缓冲较慢" else null)?.let { problem ->
+                        PlaybackNotice(problem,error==null,playback.video.source.name,isLive,
+                            retry={error=null;controller.retry()},alternatives=::showAlternatives)
                     }
                 }
     }
@@ -341,10 +338,12 @@ import kotlinx.coroutines.delay
                     feedback={ gestureFeedback=it }
                     playerView=this
                     resizeMode=AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                 }},
                 update={
                     controller.attach(it)
+                    it.setShowBuffering(if(full && slowBuffering) PlayerView.SHOW_BUFFERING_NEVER else PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    it.liveSource=isLive
+                    it.onScrub={ preview -> scrub.value=preview }
                     it.seekRelative=controller::seekRelative
                     it.feedback={ gestureFeedback=it }
                     // AndroidView may survive an episode change: rebind the listener to
@@ -372,7 +371,8 @@ import kotlinx.coroutines.delay
                     }
                 }
             }
-            if(gestureFeedback.isNotEmpty() && !pip) {
+            if(full && !pip) ScrubIndicator(scrub,Modifier.align(Alignment.Center))
+            if(gestureFeedback.isNotEmpty() && !pip && scrub.value==null) {
                 Text(gestureFeedback,color=Color.White,modifier=Modifier.align(Alignment.Center).offset(y=(-64).dp).background(Color.Black.copy(alpha=0.7f),androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal=24.dp,vertical=16.dp))
             }
             }
@@ -437,19 +437,10 @@ import kotlinx.coroutines.delay
         // Recovery must remain reachable even with hidden controls or no initialized player.
         if(full && !pip) {
             (error ?: if(slowBuffering) "缓冲较慢" else null)?.let { problem ->
-                Row(Modifier.align(Alignment.BottomCenter).then(fullscreenPadding).padding(horizontal=PageGutter,vertical=52.dp)
-                    .widthIn(max=600.dp).fillMaxWidth().smokeGlass(MaterialTheme.shapes.large)
-                    .heightIn(max=windowSize.height*.6f).verticalScroll(rememberScrollState()).padding(horizontal=12.dp,vertical=4.dp)
-                    .testTag("playbackError"), verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text(problem, style=MaterialTheme.typography.titleSmall)
-                        Text("${playback.episode.name} · ${android.text.format.DateUtils.formatElapsedTime(playback.position.coerceAtLeast(0)/1000)}",
-                            style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    GlassTextButton(onClick={error=null;controller.retry()}) { Text(if(error==null) "重连" else "重试播放") }
-                    if(playback.video.source.kind==SourceKind.VOD) GlassButton(onClick=::showAlternatives,
-                        colors=ButtonDefaults.filledTonalButtonColors(containerColor=MaterialTheme.colorScheme.tertiary,contentColor=MaterialTheme.colorScheme.onTertiary)) { Text("换源") }
-                }
+                PlaybackNotice(problem, error==null, playback.video.source.name, isLive,
+                    retry={error=null;controller.retry()}, alternatives=::showAlternatives,
+                    modifier=Modifier.align(Alignment.BottomCenter).then(fullscreenPadding)
+                        .padding(start=PageGutter,end=PageGutter,bottom=76.dp).heightIn(max=windowSize.height*.55f))
             }
         }
     }
@@ -570,4 +561,51 @@ import kotlinx.coroutines.delay
     val prefix = if (status.buffering) "正在缓冲 ·" else "已缓冲"
     Text("$prefix ${status.bufferedSeconds} 秒", style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable private fun ScrubIndicator(state:State<ScrubPreview?>,modifier:Modifier) {
+    val preview=state.value ?: return
+    fun time(ms:Long)=android.text.format.DateUtils.formatElapsedTime(ms/1000)
+    Surface(modifier.padding(horizontal=24.dp).width(280.dp).testTag("scrubPreview"),
+        shape=MaterialTheme.shapes.large,color=Color(0xEE181D21),contentColor=Color.White) {
+        Column(Modifier.padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                Text(time(preview.position),style=MaterialTheme.typography.titleMedium)
+                Text(time(preview.duration),style=MaterialTheme.typography.labelMedium,color=Color.LightGray)
+            }
+            LinearProgressIndicator(progress={preview.position.toFloat()/preview.duration},modifier=Modifier.fillMaxWidth(),
+                color=Color.White,trackColor=Color.DarkGray)
+        }
+    }
+}
+
+@Composable private fun PlaybackNotice(problem:String,buffering:Boolean,source:String,live:Boolean,
+    retry:()->Unit,alternatives:()->Unit,modifier:Modifier=Modifier) {
+    Surface(modifier.widthIn(max=480.dp).fillMaxWidth().heightIn(max=240.dp).testTag("playbackError"),
+        shape=MaterialTheme.shapes.large,color=Color(0xF21C2227),contentColor=Color.White) {
+        BoxWithConstraints(Modifier.verticalScroll(rememberScrollState()).padding(horizontal=16.dp,vertical=8.dp)) {
+            val label:@Composable (Modifier)->Unit={ area ->
+                Row(area,verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    if(buffering) CircularProgressIndicator(Modifier.size(16.dp),color=Color.White,strokeWidth=2.dp)
+                    Column {
+                        Text(problem,style=MaterialTheme.typography.titleSmall)
+                        Text(source,style=MaterialTheme.typography.bodySmall,color=Color(0xFFD6DADE),maxLines=1,overflow=TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            val actions:@Composable ()->Unit={
+                TextButton(onClick=retry,colors=ButtonDefaults.textButtonColors(contentColor=Color.White)) {
+                    Text(if(buffering) "重新连接" else "重试播放")
+                }
+                if(!live) FilledTonalButton(onClick=alternatives,colors=ButtonDefaults.filledTonalButtonColors(
+                    containerColor=Color(0xFFE2E8EB),contentColor=Color(0xFF172126))) { Text("换源") }
+            }
+            if(maxWidth>=340.dp*LocalDensity.current.fontScale) {
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) { label(Modifier.weight(1f));actions() }
+            } else Column {
+                label(Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End,verticalAlignment=Alignment.CenterVertically) { actions() }
+            }
+        }
+    }
 }

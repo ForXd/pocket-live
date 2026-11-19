@@ -149,10 +149,15 @@ object SubscriptionParser {
     }
 }
 object CmsParser {
+    internal fun validateSearchList(root:JsonObject) {
+        val list=root.get("list") ?: throw UserError("片源未返回搜索列表")
+        if(!list.isJsonNull && !list.isJsonArray) throw UserError("接口 list 不是数组")
+        if(root.scalar("code") in setOf("0","-1","403","429","500") && (list.isJsonNull || list.asJsonArray.size()==0))
+            throw UserError("片源拒绝了查询")
+    }
     fun search(text: String, source: Source): List<Video> {
         val root = JsonData.parse(text).obj() ?: throw UserError("接口需要 JSON 对象")
-        val raw = root.get("list")
-        if(raw != null && !raw.isJsonNull && !raw.isJsonArray) throw UserError("接口 list 不是数组")
+        validateSearchList(root)
         return root.arr("list").take(100).mapNotNull { it.obj() }.mapNotNull {
             val id = it.scalar("vod_id").take(256); val title = it.str("vod_name")?.take(200)
             if(id.isEmpty() || title == null) null else Video(source, id, title, listOf(it.scalar("vod_year"), it.scalar("vod_remarks")).filter { it.isNotBlank() }.joinToString(" · ").take(200), QualityRules.api(it), validUrl(it.str("vod_pic")), rating=sourceRating(it.scalar("vod_score")), updatedAt=sourceUpdatedAt(it.scalar("vod_time")), typeId=it.scalar("type_id").take(128), typeName=it.scalar("type_name").take(80), alias=it.scalar("vod_sub").take(200), genreText=it.scalar("vod_class").take(300))

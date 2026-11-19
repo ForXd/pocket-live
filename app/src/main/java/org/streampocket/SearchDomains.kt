@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
-/** Call after health ordering. Preserve subscriptions and choose one enabled representative
- * per exact normalized HTTP host; do not collapse unrelated subdomains or public suffixes. */
-internal fun distinctSearchDomains(sources:List<Source>,resolvedHost:(String)->String?={it.toHttpUrlOrNull()?.host}):List<Source> = sources.distinctBy {
-    resolvedHost(it.url)?.trimEnd('.')?.lowercase(java.util.Locale.ROOT) ?: it.key
+/** Only the request's own parameters vary between searches. Keep port, path and provider credentials. */
+internal fun searchEndpointKey(url:HttpUrl):String = hash(url.newBuilder()
+    .removeAllQueryParameters("ac").removeAllQueryParameters("wd").fragment(null).build().toString())
+
+internal fun distinctSearchEndpoints(sources:List<Source>,
+    resolvedEndpoint:(String)->String={ searchEndpointKey(it.toHttpUrl()) }):List<Source> = sources.distinctBy {
+    it.kind to if(it.kind==SourceKind.VOD) resolvedEndpoint(it.url) else it.url
 }

@@ -33,23 +33,36 @@ class LiveProbeDeviceTest {
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
             val players=PlaybackMetrics.created
+            ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextInput("谷雨")
             ui.onNodeWithTag("searchInput").performImeAction()
             ui.waitUntil(65000) { !model.state.value.searching && !model.state.value.probeRunning }
             val s=model.state.value
             InstrumentationRegistry.getInstrumentation().sendStatus(0,android.os.Bundle().apply {
-                putInt("configured_sources",sources.size);putInt("total",s.total);putInt("completed",s.completed);putInt("failures",s.failures);putInt("returned",s.results.size);putString("query",s.searchQuery)
+                putInt("configured_sources",sources.size);putInt("total",s.total);putInt("completed",s.completed);putInt("failures",s.failures);putInt("non_public_dns",s.nonPublicDnsFailures);putInt("returned",s.results.size);putString("query",s.searchQuery)
             })
+            if(InstrumentationRegistry.getArguments().getString("expectNonPublicDns")=="true") {
+                assertEquals(s.total,s.nonPublicDnsFailures)
+                ui.onNodeWithText("解析到非公网地址",substring=true).assertIsDisplayed()
+                return
+            }
             assertTrue("Live query must return actual matches",s.results.any { SearchRules.relevance(it,"谷雨")>0 })
-            assertTrue("Live query must actually attempt media validation",s.probes.isNotEmpty())
-            assertTrue(s.probes.values.count { it==ProbeStatus.READY }<=2)
-            assertEquals(distinctSearchDomains(sources).size,s.total)
+            if(InstrumentationRegistry.getArguments().getString("searchOnly")=="true") {
+                assertEquals(s.total,s.completed)
+                return
+            }
+            ui.onNodeWithTag("searchVideo:"+s.results.first().id).performScrollTo().performClick()
+            ui.waitUntil(65000) { model.state.value.probes.isNotEmpty() && !model.state.value.probeRunning }
+            val checked=model.state.value
+            assertTrue("Live query must actually attempt media validation",checked.probes.isNotEmpty())
+            assertTrue(checked.probes.values.count { it==ProbeStatus.READY }<=2)
+            assertEquals(distinctSearchEndpoints(sources).size,s.total)
             ui.waitUntil(10000) { model.activeProbeCalls()==0 }
             captureUi(ui,"live-guyu-probes")
             val result=android.os.Bundle().apply {
                 putInt("sources_configured",sources.size);putInt("domains_searched",s.total)
-                putInt("results",s.results.size);putInt("probe_ready",s.probes.values.count { it==ProbeStatus.READY })
-                putInt("probe_failed",s.probes.values.count { it==ProbeStatus.FAILED });putInt("resolutions",s.probeResolutions.size)
+                putInt("results",s.results.size);putInt("probe_ready",checked.probes.values.count { it==ProbeStatus.READY })
+                putInt("probe_failed",checked.probes.values.count { it==ProbeStatus.FAILED });putInt("resolutions",checked.probeResolutions.size)
             }
             repeat(10) {
                 ui.runOnIdle { model.search("谷雨");model.setSearchProbeActive(true) }

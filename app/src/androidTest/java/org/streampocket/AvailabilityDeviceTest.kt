@@ -26,6 +26,7 @@ class AvailabilityDeviceTest {
                 val url=request.requestUrl!!
                 return when(url.encodedPath) {
                     "/recommend" -> MockResponse().setBody("{\"subjects\":[]}")
+                    "/duplicate" -> MockResponse().setBody("""{"code":0,"msg":"rejected"}""")
                     "/bad" -> MockResponse().setResponseCode(503)
                     "/api" -> {
                         val id=url.queryParameter("ids")
@@ -73,7 +74,8 @@ class AvailabilityDeviceTest {
         assertTrue(details.size in 1..4)
 
         assertEquals(5,model.state.value.results.size)
-        assertEquals(2,model.state.value.total)
+        assertEquals(3,model.state.value.total)
+        assertEquals(2,model.state.value.failures)
         assertEquals("1920×1080",model.state.value.probeResolutions[model.state.value.results.first { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.probeKey()])
         assertEquals(created,PlaybackMetrics.created)
         val first=model.state.value.results.first { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.id

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
+import kotlin.math.roundToLong
+import androidx.media3.common.Player
 import kotlin.math.roundToInt
 import androidx.core.view.updateLayoutParams
 
@@ -26,6 +28,36 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
     }
     var seekRelative:(Long)->String = { "当前不可跳转" }
     var feedback:(String)->Unit = {}
+    internal var onScrub:(ScrubPreview?)->Unit = {}
+    private var scrubStart:ScrubPreview?=null
+    private var scrubX=0f
+    private var scrubTarget=0L
+    private var draggingScrub=false
+    private val slop=android.view.ViewConfiguration.get(context).scaledTouchSlop
+    var liveSource=false
+    private fun canScrub(p:Player)=!liveSource && p.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) &&
+        !p.isCurrentMediaItemLive && !p.isPlayingAd && p.isCurrentMediaItemSeekable && p.duration>0
+
+    private fun previewAt(x:Float) {
+        val start=scrubStart ?: return
+        val dx=x-scrubX
+        if(!draggingScrub && kotlin.math.abs(dx)<slop) return
+        draggingScrub=true
+        val available=if(dx<0) scrubX else width-scrubX
+        val range=if(dx<0) start.position else start.duration-start.position
+        val fraction=(dx/available.coerceAtLeast(1f)).coerceIn(-1f,1f)
+        scrubTarget=(start.position+fraction*range.toDouble()).roundToLong().coerceIn(0,start.duration)
+        onScrub(start.copy(position=scrubTarget))
+    }
+    private fun endScrub(commit:Boolean) {
+        val start=scrubStart ?: return
+        scrubStart=null
+        val p=player
+        if(commit && scrubTarget!=start.position && p!=null && p===gestureOwner && canScrub(p)) {
+            p.seekTo(scrubTarget.coerceIn(0,p.duration))
+        }
+        onScrub(null)
+    }
     var gesturesEnabled=true
         set(value) { if(field!=value) cancelGestures();field=value }
     var verticalGesturesEnabled=false
@@ -61,6 +93,13 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         }
         override fun onLongPress(e:MotionEvent) {
             if(!gesturesEnabled || player!==gestureOwner) return
+            if(fullscreenLayout) {
+                val p=player
+                if(p==null || !canScrub(p)) { feedback("当前媒体不可跳转");return }
+                val start=ScrubPreview(p.currentPosition.coerceIn(0,p.duration),p.duration)
+                scrubX=e.x;draggingScrub=false;scrubStart=start;scrubTarget=start.position;onScrub(start)
+                return
+            }
             direction=if(e.x<width/2f) -1 else 1;held=true;timer.post(repeatSeek)
         }
         override fun onScroll(e1:MotionEvent?,e2:MotionEvent,distanceX:Float,distanceY:Float):Boolean {
@@ -100,7 +139,7 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         controllerShowTimeoutMs=3000
         setControllerAnimationEnabled(false)
         setShowNextButton(false);setShowPreviousButton(false)
-        contentDescription="视频，单击显示控制，左右双击跳转10秒，长按连续跳转，全屏左侧上下滑动调亮度、右侧调音量"
+        contentDescription="视频，单击显示控制，左右双击跳转10秒，全屏长按后左右滑动预览进度，松手跳转，左侧上下滑动调亮度、右侧调音量"
     }
     private var fullscreenLayout=false
     // DefaultTimeBar insets the drawn track by half its largest thumb. The toolbar
@@ -122,6 +161,7 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
             bottom.layoutParams = footer
         }
         if(fullscreenLayout==enabled) return
+        cancelGestures()
         fullscreenLayout=enabled
         findViewById<View>(androidx.media3.ui.R.id.exo_controls_background).setBackgroundColor(if(enabled) android.graphics.Color.TRANSPARENT else 0x80000000.toInt())
     }
@@ -134,6 +174,13 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         }
         if(controlsTouch) return super.dispatchTouchEvent(event)
         if(event.pointerCount>1) { cancelGestures();return true }
+        if(scrubStart!=null) {
+            when(event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> previewAt(event.x)
+                MotionEvent.ACTION_UP -> { previewAt(event.x);endScrub(true) }
+                MotionEvent.ACTION_CANCEL -> endScrub(false)
+            }
+        }
         detector.onTouchEvent(event)
         if(event.actionMasked==MotionEvent.ACTION_UP || event.actionMasked==MotionEvent.ACTION_CANCEL) {
             held=false;timer.removeCallbacks(repeatSeek)
@@ -147,14 +194,17 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         return v is ViewGroup && (0 until v.childCount).any { hitsControl(v.getChildAt(it),x,y) }
     }
     fun cancelGestures() {
+        endScrub(false)
         held=false;verticalCancelled=true;timer.removeCallbacksAndMessages(null)
         val e=MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,0f,0f,0)
         detector.onTouchEvent(e);e.recycle();gestureOwner=null
     }
     override fun onSizeChanged(w:Int,h:Int,oldw:Int,oldh:Int) { cancelGestures();super.onSizeChanged(w,h,oldw,oldh) }
     override fun onWindowFocusChanged(hasWindowFocus:Boolean) { if(!hasWindowFocus) cancelGestures();super.onWindowFocusChanged(hasWindowFocus) }
-    override fun onDetachedFromWindow() { cancelGestures();seekRelative={ "" };feedback={};beginVertical={};adjustVertical={ "" };super.onDetachedFromWindow() }
+    override fun onDetachedFromWindow() { cancelGestures();onScrub={};seekRelative={ "" };feedback={};beginVertical={};adjustVertical={ "" };super.onDetachedFromWindow() }
 }
+
+internal data class ScrubPreview(val position:Long,val duration:Long)
 
 internal fun boundedSeek(position:Long,delta:Long,duration:Long,seekable:Boolean):Long? {
     if(!seekable || duration<=0) return null

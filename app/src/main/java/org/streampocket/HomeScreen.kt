@@ -126,9 +126,23 @@ import androidx.compose.ui.unit.dp
         }
         if(videos.isEmpty() && !s.searching) item(span={GridItemSpan(maxLineSpan)}) {
             Column {
-                if(!compact) EmptyPanel(if(s.total == 0) "还没有可搜索的来源" else if(s.results.isNotEmpty()) "没有匹配的影片" else "暂未找到结果",
-                    if(s.total == 0) "添加订阅或启用来源后，再搜索这部影片。" else if(s.results.isNotEmpty()) "当前已加载结果没有该题材，可切换题材或查看其他源站结果。" else "试试其他关键词，或检查已启用的订阅来源。",R.drawable.ic_search)
-                if (compact) Text(if (s.total == 0) "请先添加或启用订阅来源" else "暂无结果，试试其他关键词")
+                val unavailable=s.results.isEmpty() && s.failures>0
+                val title=when {
+                    s.total==0 -> "还没有可搜索的来源"
+                    s.results.isNotEmpty() -> "没有匹配的影片"
+                    unavailable && s.failures==s.total -> "片源暂时无法响应"
+                    unavailable -> "已响应的片源暂无匹配"
+                    else -> "暂未找到结果"
+                }
+                val hint=when {
+                    s.total==0 -> "添加订阅或启用来源后，再搜索这部影片。"
+                    s.results.isNotEmpty() -> "当前已加载结果没有该题材，可切换题材或查看其他源站结果。"
+                    unavailable && s.nonPublicDnsFailures>0 -> "${s.nonPublicDnsFailures} 个片源域名解析到非公网地址，请检查片源地址或代理的 DNS 设置。"
+                    unavailable -> "${s.failures} 个片源请求失败，可重新搜索。"
+                    else -> "试试其他关键词，或检查已启用的订阅来源。"
+                }
+                if(compact) { Text(title);if(unavailable) Text(hint,style=MaterialTheme.typography.bodySmall) } else EmptyPanel(title,hint,R.drawable.ic_search)
+                if(unavailable) GlassTextButton(onClick={model.search(query)}) { Text("重新搜索") }
                 GlassButton(shape=MaterialTheme.shapes.medium,onClick=subscriptions) { Text("管理订阅") }
             }
         }

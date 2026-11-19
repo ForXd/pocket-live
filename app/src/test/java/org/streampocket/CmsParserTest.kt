@@ -7,6 +7,12 @@ class CmsParserTest {
         assertTrue(CmsParser.search("{\"list\":null}",source).isEmpty())
         try { CmsParser.search("{\"list\":{}}",source); fail() } catch(_:UserError) {}
     }
+    @Test fun rejectedQueryDoesNotLookLikeAnEmptyCatalog() {
+        for(reply in listOf("""{"msg":"denied"}""","""{"code":0,"list":[]}""")) {
+            assertThrows(UserError::class.java) { CmsParser.search(reply,source) }
+        }
+        assertTrue(CmsParser.search("""{"code":1,"list":[]}""",source).isEmpty())
+    }
     @Test fun numericIdsAndLines() {
         val video=CmsParser.search("""{"list":[{"vod_id":1,"vod_name":"Movie"}]}""",source).single()
         assertEquals("1",video.id)
