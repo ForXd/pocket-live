@@ -137,22 +137,35 @@ private class RoutePreviews {
     var current: String? = null
     var bounds = Rect()
 
-    fun enter(routes: List<String>, window: Window?) {
+    private var canCaptureCurrent = true
+
+    fun enter(routes: List<String>, window: Window?, canCaptureParent: Boolean) {
+        val capturePrevious=canCaptureCurrent
+        canCaptureCurrent=canCaptureParent
         val previous=current
         current=routes.last()
-        if(previous==current) return
+        if (previous==current) {
+            // A synopsis opens over the live home route. Save home before the first overlay frame.
+            if (capturePrevious && !canCaptureParent) capture(routes.last(),window)
+            if (!capturePrevious && canCaptureParent) entries.remove(previous)
+            return
+        }
         entries.keys.retainAll(routes.dropLast(1).toSet())
-        if(previous==null || previous !in routes || window==null || bounds.isEmpty) return
+        if (previous!=null && previous in routes && capturePrevious) capture(previous,window)
+    }
+
+    private fun capture(route: String, window: Window?) {
+        if (window==null || bounds.isEmpty) return
         // Copy the last presented buffer before Compose draws the destination. A display
         // list can still refer to live child layers, which change when those nodes are reused.
         val preview=ReturnPreview(Rect(bounds))
-        entries[previous]=preview
+        entries[route]=preview
         val scale=minOf(1.0,1024.0/maxOf(bounds.width(),bounds.height()))
         val bitmap=createBitmap((bounds.width()*scale).roundToInt().coerceAtLeast(1),
             (bounds.height()*scale).roundToInt().coerceAtLeast(1))
         try {
             PixelCopy.request(window,preview.bounds,bitmap,{ result ->
-                if(result==PixelCopy.SUCCESS && entries[previous]===preview) preview.image=bitmap.asImageBitmap()
+                if(result==PixelCopy.SUCCESS && entries[route]===preview) preview.image=bitmap.asImageBitmap()
                 else bitmap.recycle()
             },handler)
         } catch (_: IllegalArgumentException) {
@@ -167,7 +180,7 @@ private class RoutePreviews {
 }
 
 /** Keep only bounded, in-memory previews of ancestors. Forward navigation just draws the new screen. */
-@Composable internal fun CardRouteHost(routes: List<String>, content: @Composable () -> Unit) {
+@Composable internal fun CardRouteHost(routes: List<String>, canCaptureParent: Boolean = true, content: @Composable () -> Unit) {
     val window=LocalActivity.current?.window
     val previews=remember(window) { RoutePreviews() }
     DisposableEffect(previews) { onDispose { previews.clear() } }
@@ -199,7 +212,7 @@ private class RoutePreviews {
         }
     }
     SideEffect {
-        previews.enter(routes,window)
+        previews.enter(routes,window,canCaptureParent)
         previews.motion = motion
     }
     val surface=MaterialTheme.colorScheme.background

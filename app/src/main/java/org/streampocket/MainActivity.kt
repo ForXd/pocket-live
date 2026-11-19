@@ -105,10 +105,17 @@ class MainActivity : ComponentActivity() {
     var scopeSearch by rememberSaveable(liveTab.value,recommendations.value) { mutableStateOf(false) }
     var catalogQuery by rememberSaveable { mutableStateOf("") }
     var submittedQuery by rememberSaveable { mutableStateOf("") }
+    val expansion = rememberSaveable(saver=PosterExpansion.Saver) { PosterExpansion() }
     fun search(text:String) {
         if(text.isBlank()) return
         query=text.take(100);submittedQuery=query;searchMode=true;searchOpen=true;tab=0
         focusManager.clearFocus();keyboard?.hide();model.search(query)
+    }
+    fun searchRecommendation(title:String) {
+        if(title.isBlank()) return
+        model.closeRecommendation()
+        expansion.selected=null
+        search(title)
     }
     fun showRecommendations() {
         model.cancelSearch();searchMode=false;searchOpen=false;query="";submittedQuery="";recommendations.value=true;liveTab.value=false
@@ -169,9 +176,9 @@ class MainActivity : ComponentActivity() {
     val searchScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
     LaunchedEffect(tab,searchMode,recommendations.value,liveTab.value,imeVisible) { searchScroll.reveal() }
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
-    val expansion = rememberSaveable(saver=PosterExpansion.Saver) { PosterExpansion() }
     val selected = expansion.selected
-    val cardVideo = s.recommendPreview ?: s.detailLoadingVideo ?: s.detail?.video
+    val recommendation = s.recommendPreview.takeUnless { searchMode }
+    val cardVideo = recommendation ?: s.detailLoadingVideo ?: s.detail?.video
     val destinationKey = remember(cardVideo?.source?.key,cardVideo?.id) { cardVideo?.let { hash(it.probeKey()) } }
     val inline = selected != null && selected.destinationKey == destinationKey
     LaunchedEffect(cardVideo,s.playback) {
@@ -185,11 +192,11 @@ class MainActivity : ComponentActivity() {
         if(tab!=0) add("tab:$tab")
         if(tab==2 && historySearch.value) add("history-search")
         if(tab==3 && settingsPage!=null) add("settings:${settingsPage!!.name}")
-        if(!inline && s.recommendPreview!=null) add("preview")
+        if(!inline && recommendation!=null) add("preview")
         if(!inline && (s.detail!=null || s.detailLoading)) add("detail")
         if(playback!=null) add("playback")
     }
-    CardRouteHost(routes) {
+    CardRouteHost(routes, canCaptureParent=recommendation==null) {
     val motion=LocalCardReturn.current
     if(playback != null) { PlaybackScreen(playback, model); return@CardRouteHost }
     if(exportOpen) SourceExportSheet(model) { exportOpen=false }
@@ -222,7 +229,7 @@ class MainActivity : ComponentActivity() {
     val homeSearchVisible=tab==0 && (inline || (s.detail==null && !s.detailLoading))
     val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
     val wide=windowSizeDp().width.value>=840
-    if(!inline && s.recommendPreview!=null) { RecommendationPreview(s,model,::search);return@CardRouteHost }
+    if(!inline && recommendation!=null) { RecommendationPreview(s,model,::searchRecommendation);return@CardRouteHost }
     val destinations=listOf("首页","订阅","历史","设置")
     val navIcon:@Composable (Int)->Unit = { i -> Icon(painterResource(listOf(R.drawable.ic_home,R.drawable.ic_library,R.drawable.ic_history,R.drawable.ic_settings)[i]),null) }
     val showDock = !wide && !imeVisible && (inline || (s.detail==null && !s.detailLoading))
@@ -356,14 +363,14 @@ class MainActivity : ComponentActivity() {
     } // Bounded content
     } // Browsing surface
     if(inline && selected!=null) key(selected) {
-        val isRecommendation=s.recommendPreview!=null
+        val isRecommendation=recommendation!=null
         val detail=s.detail
         val loadingVideo=s.detailLoadingVideo
         ExpandedPosterCard(selected,onClose={
             if(isRecommendation) model.closeRecommendation() else model.closeDetail()
         }) {
             when {
-                isRecommendation -> RecommendationPreview(s,model,::search)
+                isRecommendation -> RecommendationPreview(s,model,::searchRecommendation)
                 detail!=null -> DetailScreen(detail,model)
                 loadingVideo!=null -> PendingDetail(loadingVideo,model,checkNotNull(LocalPosterClose.current))
             }

@@ -62,7 +62,7 @@ internal class PosterAnchor(private val host: PosterExpansion?, private val vide
         host?.selected?.takeIf { it.sourceKey == key }?.let { measure(it,layout) }
     }.graphicsLayer {
         val selected=host?.selected
-        alpha = if (selected?.sourceKey==key) selected.thumbnailAlpha?.invoke() ?: 0f else 1f
+        alpha = if (selected?.sourceKey==key) selected.thumbnailAlpha?.invoke() ?: 1f else 1f
     }
 
     fun open(destination: Video, load: () -> Unit) {
@@ -78,6 +78,8 @@ internal class PosterAnchor(private val host: PosterExpansion?, private val vide
     return remember(host, video, model, large) { PosterAnchor(host, video, model, large) }
 }
 
+// Portion of the journey used to blend the travelling artwork over the live thumbnail.
+private const val OriginBlend = .08f
 private val LocalCoverHeight = staticCompositionLocalOf<((Int) -> Unit)?> { null }
 @Composable internal fun Modifier.posterDestination(): Modifier {
     val measure = LocalCoverHeight.current ?: return this
@@ -96,7 +98,11 @@ private val LocalCoverHeight = staticCompositionLocalOf<((Int) -> Unit)?> { null
     val dismiss = remember(back) { { back.finish { close() } } }
     val t = remember(enter,back) { { enter.value * (1f-back.progress) } }
     DisposableEffect(selection,back) {
-        selection.thumbnailAlpha={ ((t()-.85f)/.15f).coerceIn(0f,1f) }
+        // At the origin the real card owns the pixels, including its rating and clipped corners.
+        selection.thumbnailAlpha={
+            val progress=t()
+            maxOf((2f-progress/OriginBlend).coerceIn(0f,1f), ((progress-.85f)/.15f).coerceIn(0f,1f))
+        }
         onDispose { selection.thumbnailAlpha=null }
     }
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_STOP) { back.windowHidden() }
@@ -136,14 +142,14 @@ private val LocalCoverHeight = staticCompositionLocalOf<((Int) -> Unit)?> { null
             Canvas(Modifier.matchParentSize()) {
                 val p=t()
                 val start=selection.origin
-                if (p>=1f || start.isEmpty || panel.isEmpty || coverHeight==0) return@Canvas
+                if (p<=0f || p>=1f || start.isEmpty || panel.isEmpty || coverHeight==0) return@Canvas
                 val end=Rect(panel.left,panel.top,panel.right,panel.top+coverHeight)
                 val frame=lerp(start,end,p)
                 val clip=lerp(selection.visible,end,p)
                 if(clip.isEmpty || frame.isEmpty) return@Canvas
                 path.reset()
                 path.addRoundRect(RoundRect(frame,CornerRadius((16.dp+4.dp*p).toPx())))
-                val alpha=((1f-p)/.13f).coerceIn(0f,1f)
+                val alpha=minOf((p/OriginBlend).coerceIn(0f,1f),((1f-p)/.13f).coerceIn(0f,1f))
                 clipRect(clip.left,clip.top,clip.right,clip.bottom) {
                     clipPath(path) {
                         val image=selection.image

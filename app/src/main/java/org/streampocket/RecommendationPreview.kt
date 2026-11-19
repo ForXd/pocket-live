@@ -64,7 +64,7 @@ internal fun recommendationMetadata(json:String):String? {
                 else Text(s.recommendSynopsis ?: "暂未获取到简介。你可以重试，或继续搜索片源。",style=MaterialTheme.typography.bodyLarge)
                 if(!s.recommendPreviewLoading && s.recommendSynopsis==null) GlassTextButton(onClick={model.openRecommendation(video)}) { Text("重试简介") }
             }
-            GlassButton(colors=ButtonDefaults.filledTonalButtonColors(containerColor=MaterialTheme.colorScheme.onSurface,contentColor=MaterialTheme.colorScheme.surface),onClick={model.closeRecommendation();search(video.title)},modifier=Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=16.dp).testTag("searchRecommendationSources")) { Text("搜索片源") }
+            GlassButton(colors=ButtonDefaults.filledTonalButtonColors(containerColor=MaterialTheme.colorScheme.onSurface,contentColor=MaterialTheme.colorScheme.surface),onClick={search(video.title)},modifier=Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=16.dp).testTag("searchRecommendationSources")) { Text("搜索片源") }
         }
     }
 }

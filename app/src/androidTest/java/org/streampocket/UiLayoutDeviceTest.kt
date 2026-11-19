@@ -2,6 +2,7 @@ package org.streampocket
 
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
@@ -14,6 +15,7 @@ import okhttp3.mockwebserver.*
 import org.junit.*
 import org.junit.Assert.*
 import java.net.InetAddress
+import kotlin.math.roundToInt
 
 class UiLayoutDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
@@ -409,7 +411,25 @@ class UiLayoutDeviceTest {
             assertEquals(short.bottom.value+12f,nextLeft.top.value,1f)
             assertEquals(long.bottom.value+12f,nextRight.top.value,1f)
             assertTrue("The next two covers begin at different heights",nextLeft.top < nextRight.top)
+            val dispatcher=ui.activity.onBackPressedDispatcher
+            fun drag(edge:Int, fraction:Float=.5f) {
+                val width=ui.activity.window.decorView.width.toFloat()
+                ui.runOnIdle {
+                    val start=if(edge==androidx.activity.BackEventCompat.EDGE_LEFT) 0f else width
+                    dispatcher.dispatchOnBackStarted(androidx.activity.BackEventCompat(start,0f,0f,edge))
+                    val x=if(edge==androidx.activity.BackEventCompat.EDGE_LEFT) width*fraction else width*(1f-fraction)
+                    dispatcher.dispatchOnBackProgressed(androidx.activity.BackEventCompat(x,0f,fraction,edge))
+                }
+                ui.mainClock.advanceTimeByFrame()
+            }
+            fun crop(rect:androidx.compose.ui.geometry.Rect):android.graphics.Bitmap {
+                val image=ui.onRoot().captureToImage().asAndroidBitmap()
+                return android.graphics.Bitmap.createBitmap(image,rect.left.roundToInt(),rect.top.roundToInt(),
+                    rect.width.roundToInt(),rect.height.roundToInt())
+            }
             capture("waterfall")
+            val ratingBounds=ui.onNodeWithTag("recommendRating:4",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+            val originalBadge=crop(ratingBounds)
             ui.mainClock.autoAdvance=false
             try {
                 ui.onNodeWithTag("recommendation:4").performClick()
@@ -418,16 +438,6 @@ class UiLayoutDeviceTest {
                 ui.mainClock.advanceTimeBy(480)
                 ui.onNodeWithTag("recommendationPreview").assertIsDisplayed()
                 capture("poster-expanded")
-                val dispatcher=ui.activity.onBackPressedDispatcher
-                fun drag(edge:Int) {
-                    val width=ui.activity.window.decorView.width.toFloat()
-                    ui.runOnIdle {
-                        val start=if(edge==androidx.activity.BackEventCompat.EDGE_LEFT) 0f else width
-                        dispatcher.dispatchOnBackStarted(androidx.activity.BackEventCompat(start,0f,0f,edge))
-                        dispatcher.dispatchOnBackProgressed(androidx.activity.BackEventCompat(width*.5f,0f,.5f,edge))
-                    }
-                    ui.mainClock.advanceTimeByFrame()
-                }
                 drag(androidx.activity.BackEventCompat.EDGE_RIGHT)
                 capture("poster-return-half")
                 ui.runOnIdle { dispatcher.dispatchOnBackCancelled() }
@@ -435,7 +445,9 @@ class UiLayoutDeviceTest {
                 ui.onNodeWithContentDescription("关闭详情").assertIsDisplayed()
                 assertEquals("4", model.state.value.recommendPreview?.id)
                 capture("poster-return-cancelled")
-                drag(androidx.activity.BackEventCompat.EDGE_LEFT)
+                drag(androidx.activity.BackEventCompat.EDGE_LEFT,1f)
+                capture("poster-at-origin")
+                assertTrue("Original thumbnail rating is visible before the overlay is disposed",originalBadge.sameAs(crop(ratingBounds)))
                 ui.runOnIdle { dispatcher.onBackPressed() }
                 ui.mainClock.advanceTimeBy(350)
                 assertNull(model.state.value.recommendPreview)
@@ -460,10 +472,38 @@ class UiLayoutDeviceTest {
                 .performScrollToNode(hasTestTag("recommendation:1"))
             ui.onNodeWithTag("recommendation:1").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
             capture("07-discovery-action")
+            fun smallFrame()=android.graphics.Bitmap.createScaledBitmap(
+                ui.onRoot().captureToImage().asAndroidBitmap(),32,64,true)
+            val homeFrame=smallFrame()
             ui.onNodeWithTag("recommendation:1").performClick()
             ui.onNodeWithTag("searchRecommendationSources").performClick()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==2 }
             ui.onNodeWithTag("searchInput").assertTextContains("星河漫游")
+            ui.onNodeWithTag("expandedPoster").assertDoesNotExist()
+            assertNull(model.state.value.recommendPreview)
+            ui.mainClock.autoAdvance=false
+            try {
+                drag(androidx.activity.BackEventCompat.EDGE_LEFT,1f)
+                val preview=smallFrame()
+                var channelError=0L
+                for(y in 0 until preview.height) for(x in 0 until preview.width) {
+                    val home=homeFrame.getPixel(x,y)
+                    val actual=preview.getPixel(x,y)
+                    for(shift in 0..16 step 8) {
+                        channelError+=kotlin.math.abs(((home shr shift) and 255)-((actual shr shift) and 255))
+                    }
+                }
+                val meanError=channelError.toFloat()/(preview.width*preview.height*3)
+                assertTrue("Search back preview must match home before expansion (mean RGB error $meanError)",meanError<7f)
+                capture("recommendation-search-back-preview")
+                ui.runOnIdle { dispatcher.onBackPressed() }
+                ui.mainClock.advanceTimeBy(240)
+                ui.onNodeWithTag("recommendationGrid").assertIsDisplayed()
+                ui.onNodeWithTag("expandedPoster").assertDoesNotExist()
+                capture("recommendation-search-return")
+            } finally { ui.mainClock.autoAdvance=true }
+            ui.onNodeWithTag("recommendation:1").performClick()
+            ui.onNodeWithTag("searchRecommendationSources").performClick()
             ui.onNodeWithTag("nav:3").performClick()
             ui.onNodeWithTag("searchInput").assertDoesNotExist()
             ui.onNodeWithTag("nav:0").performClick()
