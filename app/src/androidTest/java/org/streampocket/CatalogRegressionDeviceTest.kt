@@ -71,7 +71,8 @@ class CatalogRegressionDeviceTest {
         ui.waitForIdle(); android.os.SystemClock.sleep(500)
         val insets=ViewCompat.getRootWindowInsets(ui.activity.window.decorView)!!
         val imeTop=ui.activity.window.decorView.height-insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-        val bounds=ui.onNodeWithTag("searchLanding").fetchSemanticsNode().boundsInWindow
+        captureUi(ui,"home-inline-search")
+        val bounds=ui.onNodeWithTag("recommendationGrid").fetchSemanticsNode().boundsInWindow
         assertEquals("内容应贴合键盘上沿，不重复扣除底栏/导航栏高度",imeTop.toFloat(),bounds.bottom,3f)
     }
     @Test fun cancelledGenreSearchCanRetryWithoutReportingAnEmptyCatalog() {

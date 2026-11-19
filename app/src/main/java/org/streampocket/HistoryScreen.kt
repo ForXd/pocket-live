@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.dp
     var searchOpen by searchState
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    CardBackHandler(enabled=searchOpen && !filtersOpen && !imeVisible) { searchOpen=false;query="" }
+    androidx.activity.compose.BackHandler(enabled=searchOpen && !filtersOpen && !imeVisible) { searchOpen=false;query="" }
     var period by rememberSaveable { mutableStateOf(HistoryPeriod.ALL) }
     var kind by rememberSaveable { mutableStateOf(HistoryKind.ALL) }
     var source by rememberSaveable { mutableStateOf<String?>(null) }

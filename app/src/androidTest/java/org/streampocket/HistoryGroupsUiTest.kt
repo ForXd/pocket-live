@@ -21,6 +21,14 @@ class HistoryGroupsUiTest {
         val records=mutableStateOf(listOf(a2,a,b,other,sameEpisode));var selected:History?=null
         ui.runOnUiThread { ui.activity.setContent { PocketTheme { androidx.compose.material3.Surface(Modifier.safeDrawingPadding()) { HistoryScreen(records.value,{selected=it},{key -> records.value=HistoryGroups.remove(Saved(history=records.value),key).history},{records.value=emptyList()}) } } } }
         val id=HistoryGroups.key(a.playback.video).stableKey
+        ui.onNodeWithContentDescription("搜索历史").performClick()
+        ui.onNodeWithTag("historySearch").performTextInput("剧目b")
+        ui.onNodeWithTag("historySearch").performImeAction()
+        ui.onNodeWithTag("historyGroup:"+HistoryGroups.key(b.playback.video).stableKey).assertIsDisplayed()
+        ui.onNodeWithText("剧目a").assertDoesNotExist()
+        captureUi(ui,"history-inline-search")
+        ui.onNodeWithTag("historySearch").performTextClearance()
+        ui.runOnIdle { ui.activity.onBackPressedDispatcher.onBackPressed() }
         ui.onNodeWithTag("historyGroups").performScrollToNode(hasTestTag("historyGroup:$id"))
         ui.onNodeWithTag("continue:$id").performClick();ui.runOnIdle { assertEquals(sameEpisode,selected) }
         ui.onNodeWithText("分集进度",substring=true).assertDoesNotExist()

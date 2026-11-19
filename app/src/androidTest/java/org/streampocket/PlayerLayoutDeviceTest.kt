@@ -109,11 +109,12 @@ class PlayerLayoutDeviceTest {
             }
             val hasPip=ui.activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
             val fullTarget=ui.onNodeWithContentDescription("横屏全屏").fetchSemanticsNode().boundsInWindow
-            if(hasPip) {
+            val quickStart=if(hasPip) {
                 val pipTarget=ui.onNodeWithContentDescription("进入画中画").assertHeightIsEqualTo(48.dp).fetchSemanticsNode().boundsInWindow
                 assertEquals(fullTarget.top,pipTarget.top,1f)
                 assertTrue("Separate PiP and fullscreen targets",pipTarget.right<fullTarget.left)
-            }
+                pipTarget.left
+            } else fullTarget.left
             ui.runOnIdle {
                 val pv=view(ui.activity.window.decorView)!!
                 fun bounds(id:Int):android.graphics.Rect {
@@ -122,8 +123,8 @@ class PlayerLayoutDeviceTest {
                     return android.graphics.Rect(xy[0],xy[1],xy[0]+v.width,xy[1]+v.height)
                 }
                 val settings=bounds(androidx.media3.ui.R.id.exo_settings)
-                assertTrue("Quick actions clear settings",fullTarget.bottom<=settings.top+1)
-                assertTrue("Quick actions clear seek target",fullTarget.bottom<=bounds(androidx.media3.ui.R.id.exo_progress).top+1)
+                assertTrue("Quick actions clear settings",settings.right<=quickStart || settings.bottom<=fullTarget.top+1)
+                assertTrue("Quick actions clear seek target",bounds(androidx.media3.ui.R.id.exo_progress).bottom<=fullTarget.top+1)
                 assertTrue("Timestamps clear settings",bounds(androidx.media3.ui.R.id.exo_time).right<=settings.left)
             }
             captureUi(ui,"player-portrait")
@@ -141,6 +142,9 @@ class PlayerLayoutDeviceTest {
             ui.onNodeWithContentDescription("关闭").performClick()
             assertEquals(session,model.state.value.playback!!.sessionId)
             assertEquals(created,PlaybackMetrics.created)
+            ui.onNodeWithContentDescription("横屏全屏").assertDoesNotExist()
+            ui.onNodeWithTag("videoViewport").performTouchInput { click(center) }
+            ui.waitUntil(5000) { ui.onAllNodesWithContentDescription("横屏全屏").fetchSemanticsNodes().isNotEmpty() }
             ui.onNodeWithContentDescription("横屏全屏").performClick()
             ui.waitUntil(5000) { ui.activity.window.decorView.width>ui.activity.window.decorView.height }
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
@@ -164,7 +168,7 @@ class PlayerLayoutDeviceTest {
             captureUi(ui,"player-landscape")
             val actions = ui.onNodeWithText("换源").fetchSemanticsNode().boundsInRoot
             val leftControl=ui.onNodeWithContentDescription("退出全屏").fetchSemanticsNode().boundsInWindow
-            val rightControl=ui.onNodeWithContentDescription(if(hasPip) "进入画中画" else "更多播放选项").fetchSemanticsNode().boundsInWindow
+            val rightControl=ui.onNodeWithContentDescription("更多播放选项").fetchSemanticsNode().boundsInWindow
             ui.runOnIdle {
                 val player = view(ui.activity.window.decorView)!!
                 val progress = player.findViewById<View>(androidx.media3.ui.R.id.exo_progress)
