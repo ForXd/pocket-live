@@ -33,9 +33,9 @@ import androidx.compose.ui.unit.sp
     if(reserveLines>1) Box(Modifier.height(reservedHeight)) { badge() } else badge()
 }
 @Composable fun EmptyPanel(title:String,body:String,icon:Int) {
-    Column(Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=36.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        Surface(shape=MaterialTheme.shapes.extraLarge,color=MaterialTheme.colorScheme.surfaceContainerHigh) {
-            Icon(painterResource(icon),null,Modifier.padding(22.dp).size(32.dp),tint=MaterialTheme.colorScheme.primary)
+    Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        Surface(shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Icon(painterResource(icon),null,Modifier.padding(14.dp).size(24.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(title,style=MaterialTheme.typography.titleMedium,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
         Text(body,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=androidx.compose.ui.text.style.TextAlign.Center)

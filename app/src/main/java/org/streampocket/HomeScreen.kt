@@ -49,11 +49,11 @@ import androidx.compose.ui.unit.dp
                 .focusRequester(requester).testTag("searchInput").semantics { contentDescription="影片或频道名称" },trailingIcon={
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         AnimatedVisibility(query.isNotEmpty() || searchMode,enter=fadeIn(tween(120))+expandHorizontally(tween(180)),exit=fadeOut(tween(90))+shrinkHorizontally(tween(150))) {
-                            IconButton(onClick=clear,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,clearLabel) }
+                            GlassIconButton(onClick=clear) { Icon(Icons.Default.Close,clearLabel) }
                         }
                         if (cancelSearch != null) {
-                            IconButton(onClick=cancelSearch,modifier=Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_stop_search),"取消搜索") }
-                        } else IconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank(),modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
+                            GlassIconButton(onClick=cancelSearch) { Icon(painterResource(R.drawable.ic_stop_search),"取消搜索") }
+                        } else GlassIconButton(onClick=submit,enabled=allowEmpty || query.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward,"开始搜索") }
                     }
                 })
         }

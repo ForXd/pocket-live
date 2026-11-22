@@ -25,10 +25,10 @@ import androidx.compose.ui.unit.dp
         SwipeTile(onClick={onReveal(false);onUpdate()},enabled=!importing) { Icon(Icons.Default.Refresh,updateLabel) }
         SwipeTile(onClick={onReveal(false);onDelete()},destructive=true) { Icon(Icons.Default.Delete,"删除订阅") }
     }) {
-    ContentCard(Modifier.fillMaxWidth(),containerColor=MaterialTheme.colorScheme.surface) {
+    ContentCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(4.dp),verticalAlignment=Alignment.CenterVertically) {
             GlassTextButton(onClick=onExpand,modifier=Modifier.weight(1f).heightIn(min=80.dp).testTag("subscription:${sub.id}").semantics { stateDescription=if(expanded) "已展开" else "已收起" },shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(12.dp)) {
-                Surface(shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surfaceContainerLow) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_library),null,Modifier.padding(10.dp).size(22.dp)) }
+                Surface(shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surfaceContainerHigh) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_library),null,Modifier.padding(10.dp).size(22.dp)) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Text(sub.name,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface,maxLines=2,overflow=TextOverflow.Ellipsis)
@@ -37,8 +37,8 @@ import androidx.compose.ui.unit.dp
                 Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,if(expanded) "收起来源" else "展开来源",Modifier.size(20.dp))
             }
         }
-        ContentDivider()
         if(expanded || importing) {
+            ContentDivider(Modifier.padding(horizontal=16.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {
                 Text(if(importing) "正在更新订阅…" else "更新于 ${historyTime(sub.updated)}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(importing) GlassTextButton(onClick=onCancel) { Text("取消") }
@@ -57,7 +57,7 @@ import androidx.compose.ui.unit.dp
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text(source.name,style=MaterialTheme.typography.bodyLarge)
                     Text(when(availability) { true->"● 最近搜索成功";false->"● 最近搜索失败";null->"● 待验证" },
-                        style=MaterialTheme.typography.labelMedium,color=when(availability) { true->androidx.compose.ui.graphics.Color(if(MaterialTheme.colorScheme.background.luminance()<0.5f) 0xff79d69b else 0xff26864b);false->MaterialTheme.colorScheme.error;null->androidx.compose.ui.graphics.Color(if(MaterialTheme.colorScheme.background.luminance()<0.5f) 0xffe4bf60 else 0xff966a00) })
+                        style=MaterialTheme.typography.labelMedium,color=when(availability) { true->androidx.compose.ui.graphics.Color(if(MaterialTheme.colorScheme.background.luminance()<0.5f) 0xff79d69b else 0xff26864b);false->MaterialTheme.colorScheme.error;null->MaterialTheme.colorScheme.onSurfaceVariant })
                     Text(if(source.kind==SourceKind.LIVE) "直播 M3U" else "点播 API",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 PocketSwitch(enabled)

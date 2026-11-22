@@ -26,7 +26,7 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
     val transfer by model.updater.state.collectAsStateWithLifecycle()
 
     val sources=remember(s.saved.subscriptions) { s.saved.subscriptions.flatMap { it.sources }.filter { it.kind==SourceKind.VOD }.distinctBy { it.key } }
-    LazyColumn(Modifier.fillMaxSize().padding(bottom=LocalDockInset.current).testTag("settingsList"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(page!=null) {
             item { Row(Modifier.fillMaxWidth().heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 val motion=LocalCardReturn.current
@@ -108,7 +108,7 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
                     Text(title,style=MaterialTheme.typography.titleMedium)
                     Text(summary.replace(" · ","，"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Icon(if(expanded==null) Icons.AutoMirrored.Filled.KeyboardArrowRight else if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(if(expanded==null) Icons.AutoMirrored.Filled.KeyboardArrowRight else if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

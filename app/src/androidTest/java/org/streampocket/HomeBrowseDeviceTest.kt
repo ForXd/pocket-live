@@ -63,7 +63,7 @@ class HomeBrowseDeviceTest {
     }
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
 
-    @Test fun stickyControlsAlignedPostersPaginationRefreshAndReturnToTop() {
+    @Test fun collapsingControlsAlignedPostersPaginationRefreshAndReturnToTop() {
         val grid=ui.onNodeWithTag("recommendationGrid")
         val poster=ui.onNodeWithTag("recommendPoster:1",useUnmergedTree=true).getUnclippedBoundsInRoot()
         val first=ui.onNodeWithTag("recommendation:1").getUnclippedBoundsInRoot()
@@ -84,14 +84,12 @@ class HomeBrowseDeviceTest {
         captureUi(ui,"home-expanded")
         grid.performTouchInput { swipeUp(durationMillis=600) }
         ui.onNodeWithTag("searchInput").assertIsNotDisplayed()
-        ui.onNodeWithTag("recommendToolbar").assertIsDisplayed()
-        ui.onNodeWithTag("recommendCategoryPicker").assertIsDisplayed()
-        val fixedTop=ui.onNodeWithTag("recommendToolbar").getUnclippedBoundsInRoot().top
+        ui.onNodeWithTag("openSearch").assertIsNotDisplayed()
+        ui.onNodeWithTag("recommendCategoryPicker").assertIsNotDisplayed()
         grid.performScrollToIndex(17)
         ui.waitUntil(10000) { model.state.value.recommendations.size==40 && !model.state.value.recommendLoading }
-        assertEquals(fixedTop.value,ui.onNodeWithTag("recommendToolbar").getUnclippedBoundsInRoot().top.value,1f)
         assertEquals(1,requests.count { it=="/recommend?page=2" })
-        captureUi(ui,"home-sticky-paged")
+        captureUi(ui,"home-collapsed-paged")
         grid.performScrollToIndex(37)
         ui.waitUntil(10000) { !model.state.value.recommendMore && !model.state.value.recommendLoading }
         assertEquals(40,model.state.value.recommendations.size)
@@ -110,6 +108,9 @@ class HomeBrowseDeviceTest {
         grid.assertDoesNotExist()
         ui.onNodeWithTag("searchInput").assertIsDisplayed().assertTextContains("星河")
         captureUi(ui,"home-keyboard-pinned")
+        ui.onNodeWithContentDescription("返回推荐").performClick()
+        ui.onNodeWithTag("recommendation:1").assertIsDisplayed()
+        ui.onNodeWithTag("searchInput").assertDoesNotExist()
     }
     @Test fun failedAppendRetainsResultsAndRetriesOnlyOnDemand() {
         failMore.set(true)
@@ -126,7 +127,7 @@ class HomeBrowseDeviceTest {
         ui.waitUntil(10000) { model.state.value.recommendations.size==40 && !model.state.value.recommendLoading }
         assertNull(model.state.value.recommendError)
     }
-    @Test fun catalogFiltersStayPinnedWhileNextPageLoadsAndTopReturns() {
+    @Test fun catalogFiltersCollapseWhileNextPageLoadsAndTopReturns() {
         ui.onNodeWithText("分类").performClick()
         ui.waitUntil(10000) { model.state.value.catalogVideos.size==20 && !model.state.value.catalogLoading }
         val first=ui.onNodeWithTag("catalogVideo:1").getUnclippedBoundsInRoot()
@@ -137,15 +138,13 @@ class HomeBrowseDeviceTest {
         assertEquals((poster.right-poster.left).value*3f/2f,(poster.bottom-poster.top).value,1f)
         val list=ui.onNodeWithTag("catalogList")
         list.performTouchInput { swipeUp(durationMillis=600) }
-        ui.onNodeWithTag("catalogSourcePicker").assertIsDisplayed()
-        ui.onNodeWithTag("catalogGenrePicker").assertIsDisplayed()
-        ui.onNodeWithTag("discoverySort").assertIsDisplayed()
-        val top=ui.onNodeWithTag("catalogToolbar").getUnclippedBoundsInRoot().top
+        ui.onNodeWithTag("catalogSourcePicker").assertIsNotDisplayed()
+        ui.onNodeWithTag("catalogGenrePicker").assertIsNotDisplayed()
+        ui.onNodeWithTag("discoverySort").assertIsNotDisplayed()
         list.performScrollToIndex(18)
         ui.waitUntil(10000) { model.state.value.catalogVideos.size==40 && !model.state.value.catalogLoading }
         assertFalse(model.state.value.catalogMore)
-        assertEquals(top.value,ui.onNodeWithTag("catalogToolbar").getUnclippedBoundsInRoot().top.value,1f)
-        captureUi(ui,"catalog-sticky-paged")
+        captureUi(ui,"catalog-collapsed-paged")
         ui.onNodeWithTag("backToTop").performClick()
         ui.onNodeWithTag("catalogVideo:1").assertIsDisplayed()
         ui.onNodeWithTag("openSearch").assertIsDisplayed()
@@ -216,9 +215,10 @@ class HomeBrowseDeviceTest {
         ui.onNodeWithTag("nav:1").performClick()
         ui.onNodeWithTag("nav:0").performClick()
         recommendation.assertIsDisplayed()
-        // Tab switching intentionally reveals search; compare offset relative to the grid.
+        // Compare the anchor relative to its scroll container.
         assertEquals(recommendationOffset.value,(recommendation.getUnclippedBoundsInRoot().top-recommendations.getUnclippedBoundsInRoot().top).value,1f)
         assertEquals(1,requests.count { it=="/recommend?page=1" })
+        recommendations.performTouchInput { swipeDown(durationMillis=500) }
         ui.onNodeWithText("分类").performClick()
         ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogVideos.size==20 }
         val catalog=ui.onNodeWithTag("catalogList")
@@ -237,6 +237,7 @@ class HomeBrowseDeviceTest {
         anchor.assertIsDisplayed()
         assertEquals(before.value,anchor.getUnclippedBoundsInRoot().top.value,1f)
         assertEquals(calls,requests.count { it.startsWith("/catalog") && !it.contains("ids=") && !it.contains("wd=") })
+        catalog.performTouchInput { swipeDown(durationMillis=500) }
         ui.onNodeWithTag("discoverySort").performClick()
         ui.onNodeWithText("评分最高").performClick()
         ui.onNodeWithTag("catalogVideo:1").assertIsDisplayed()
@@ -317,6 +318,11 @@ class HomeBrowseDeviceTest {
         assertEquals(20,model.state.value.catalogVideos.size)
         assertTrue(requests.any { it.contains("pg=2") && it.contains("wd=") })
         captureUi(ui,"catalog-random")
+        ui.onNodeWithContentDescription("返回分类").performClick()
+        ui.onNodeWithTag("catalogSourcePicker").assertIsDisplayed()
+        ui.onNodeWithTag("openSearch").assertIsDisplayed()
+        ui.onNodeWithTag("searchInput").assertDoesNotExist()
+        ui.waitUntil(10000) { model.state.value.catalogQuery.isEmpty() && !model.state.value.catalogLoading }
     }
 
     @Test fun recommendationCategoryUsesDraftSheetAndResetsForType() {
@@ -344,4 +350,40 @@ class HomeBrowseDeviceTest {
         captureUi(ui,"recommend-one-row")
     }
 
+
+    @Test fun horizontalPagingAndCollapsingChannelTools() {
+        val pages=ui.onNodeWithTag("discoveryPages")
+        fun swipePage(left:Boolean) = pages.performTouchInput {
+            val start=percentOffset(if(left) .85f else .15f,.5f)
+            val end=percentOffset(if(left) .15f else .85f,.5f)
+            swipe(start,end,400)
+        }
+        val search=ui.onNodeWithTag("openSearch").fetchSemanticsNode().boundsInWindow
+        val filter=ui.onNodeWithTag("recommendCategoryPicker").fetchSemanticsNode().boundsInWindow
+        assertEquals(search.center.y,filter.center.y,1f)
+        assertTrue(filter.right<=search.left)
+        val recommended=ui.onNodeWithTag("recommendationGrid")
+        recommended.performTouchInput { swipeUp() }
+        ui.onNodeWithTag("openSearch").assertIsNotDisplayed()
+        fun scrollPosition()=recommended.fetchSemanticsNode().config[
+            androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange].value()
+        val position=scrollPosition()
+        swipePage(true)
+        ui.onNodeWithText("分类").assertIsSelected()
+        ui.onNodeWithTag("catalogSourcePicker").assertIsDisplayed()
+        val catalog=ui.onNodeWithTag("catalogList")
+        catalog.performTouchInput { swipeUp() }
+        ui.onNodeWithTag("openSearch").assertIsNotDisplayed()
+        ui.onNodeWithTag("catalogSourcePicker").assertIsNotDisplayed()
+        catalog.performTouchInput { swipeDown() }
+        ui.onNodeWithTag("openSearch").assertIsDisplayed()
+        ui.onNodeWithTag("catalogSourcePicker").assertIsDisplayed()
+        swipePage(true)
+        ui.onNodeWithTag("liveTab").assertIsSelected()
+        ui.onNodeWithTag("liveChannels").assertIsDisplayed()
+        swipePage(false)
+        swipePage(false)
+        ui.onNodeWithText("推荐").assertIsSelected()
+        assertEquals("保留推荐页浏览位置",position,scrollPosition(),.01f)
+    }
 }

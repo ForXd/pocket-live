@@ -5,6 +5,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
@@ -50,7 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit,
-    recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery,liveTab:MutableState<Boolean> = rememberSaveable { mutableStateOf(false) },liveQuery:String="",onTop:()->Unit={}) {
+    recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery,liveTab:MutableState<Boolean> = rememberSaveable { mutableStateOf(false) },liveQuery:String="",onTop:()->Unit={},
+    onOpenSearch:()->Unit={},showHeader:Boolean=true) {
     val sources = remember(s.saved.subscriptions, s.saved.disabled) { s.saved.enabledSources(SourceKind.VOD) }
     val recommendationFilters=rememberSaveable { mutableStateOf(false) }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
@@ -141,8 +145,8 @@ import androidx.compose.ui.text.style.TextOverflow
     ScrollToTopOnChange(s.catalogSourceKeys.sorted().toString(),s.catalogCategory.orEmpty(),s.catalogGenres.sortedBy { it.ordinal }.toString(),s.catalogQuery,catalogSort.name) { catalogState.scrollToItem(0) }
     var catalogDemand by remember(s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery) { mutableIntStateOf(-1) }
     // Request each result boundary once; sparse pages remain manually resumable.
-    LaunchedEffect(recommendations.value,s.catalogVideos.size,s.catalogLoading,s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery) {
-        if(!recommendations.value && s.catalogVideos.isNotEmpty()) snapshotFlow {
+    LaunchedEffect(recommendations.value,liveTab.value,s.catalogVideos.size,s.catalogLoading,s.catalogSourceKeys,s.catalogCategory,s.catalogGenres,s.catalogQuery) {
+        if(!recommendations.value && !liveTab.value && s.catalogVideos.isNotEmpty()) snapshotFlow {
             val layout=catalogState.layoutInfo
             catalogState.firstVisibleItemIndex>0 && layout.totalItemsCount>s.catalogVideos.size &&
                 (layout.visibleItemsInfo.maxOfOrNull { it.index } ?: 0)>=layout.totalItemsCount-3
@@ -154,61 +158,108 @@ import androidx.compose.ui.text.style.TextOverflow
             }
         }
     }
-    Column(Modifier.fillMaxSize()) {
-        val selectedTab=if(liveTab.value) 2 else if(recommendations.value) 0 else 1
-        val tabs:@Composable RowScope.()->Unit = {
-            DiscoveryTab("推荐", selectedTab==0) { liveTab.value=false;recommendations.value=true }
-            DiscoveryTab("分类", selectedTab==1) { liveTab.value=false;recommendations.value=false }
-            DiscoveryTab("直播", selectedTab==2, Modifier.testTag("liveTab")) { liveTab.value=true }
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("recommendToolbar"),verticalAlignment=Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) {
-                SlidingTabs(selectedTab,3,Modifier.widthIn(max=if(LocalDensity.current.fontScale>1.3f) 236.dp else 198.dp),content=tabs)
+    fun selectedTabFromState()=if(liveTab.value) 2 else if(recommendations.value) 0 else 1
+    val selectedTab=selectedTabFromState()
+    val pager=rememberPagerState(initialPage=selectedTab,pageCount={3})
+    val toolbarScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
+    val connection=rememberSearchScrollConnection(toolbarScroll,showHeader)
+    var liveGroup by rememberSaveable(s.liveSourceKey) { mutableStateOf("") }
+    if(showHeader) LaunchedEffect(pager) {
+        snapshotFlow { pager.settledPage }.collect { page ->
+            if(page!=selectedTabFromState()) {
+                liveTab.value=page==2
+                recommendations.value=page==0
+                toolbarScroll.reveal()
             }
-            Spacer(Modifier.width(ActionGap))
-            if(recommendations.value && !liveTab.value) GlassIconButton(onClick={recommendationFilters.value=true},modifier=Modifier.testTag("recommendCategoryPicker")) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"筛选推荐") } else Spacer(Modifier.width(IconTarget))
         }
-        if(liveTab.value) { LiveScreen(s,model,liveQuery,addSource);return@Column }
-        if(recommendations.value) { RecommendationList(s,model,searchTitle,recommendationSort,{ recommendationSort=it },onTop,recommendationFilters); return@Column }
-        if(s.catalogSource!=null) {
-            Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=ActionGap).testTag("catalogToolbar")) {
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(ActionGap),verticalAlignment=Alignment.Top) {
-                        FlowRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(ActionGap),
-                            verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            FilterSelector(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",
-                                {openPicker("source")},Modifier.testTag("catalogSourcePicker"))
-                            FilterSelector(s.categories.find { it.id==s.catalogCategory }?.name
-                                ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}",
-                                {openPicker("genre")},Modifier.testTag("catalogGenrePicker"))
+    }
+    val revealTop={ toolbarScroll.reveal();onTop() }
+    Column(Modifier.fillMaxSize().nestedScroll(connection)) {
+        val header:@Composable ()->Unit = {
+            Column(Modifier.fillMaxWidth()) {
+                if(showHeader) Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("recommendToolbar"),
+                    horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        SlidingTabs(selectedTab,3,Modifier.widthIn(max=if(LocalDensity.current.fontScale>1.3f) 236.dp else 198.dp)) {
+                            listOf("推荐","分类","直播").forEachIndexed { index,label ->
+                                DiscoveryTab(label,selectedTab==index,if(index==2) Modifier.testTag("liveTab") else Modifier) {
+                                    scope.launch { pager.animateScrollToPage(index) }
+                                }
+                            }
                         }
-                        DiscoverySortControl(catalogSort,{catalogSort=it},catalogVideos,false,compact=true)
                     }
-                    if(s.catalogSourceKeys.isNotEmpty() || s.catalogGenres.isNotEmpty() || s.catalogCategory!=null) {
-                        LazyRow(Modifier.fillMaxWidth().testTag("activeCatalogFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                            items(sources.filter { it.key in s.catalogSourceKeys },key={it.key}) { selected ->
-                                InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys-selected.key,query=catalogQuery.trim(),genres=s.catalogGenres)},
-                                    label={Text(selected.name,maxLines=1,overflow=TextOverflow.Ellipsis)},trailingIcon={Icon(Icons.Default.Close,"取消${selected.name}",Modifier.size(16.dp))},
-                                    modifier=Modifier.widthIn(max=200.dp).testTag("activeSource:${selected.key}"))
-                            }
-                            items(s.catalogGenres.sortedBy { it.ordinal },key={it.name}) { genre ->
-                                InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim(),genres=s.catalogGenres-genre)},
-                                    label={Text(genre.label)},trailingIcon={Icon(Icons.Default.Close,"取消${genre.label}",Modifier.size(16.dp))},
-                                    modifier=Modifier.testTag("activeGenre:${genre.name}"))
-                            }
-                            s.categories.find { it.id==s.catalogCategory }?.let { category -> item {
-                                InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim())},label={Text(category.name)},
-                                    trailingIcon={Icon(Icons.Default.Close,"取消${category.name}",Modifier.size(16.dp))})
-                            } }
-                        }
+                    if(selectedTab==0) GlassIconButton(onClick={recommendationFilters.value=true},modifier=Modifier.testTag("recommendCategoryPicker")) {
+                        Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_sort),"筛选推荐")
+                    }
+                    GlassIconButton(onClick=onOpenSearch,modifier=Modifier.testTag("openSearch")) {
+                        Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_search),"搜索")
                     }
                 }
+                if(selectedTab==2) LiveFilters(s,model,liveGroup) { liveGroup=it }
+                if(selectedTab==1 && s.catalogSource!=null) {
+                    CatalogFilters(s,model,sources,catalogQuery,catalogVideos,catalogSort,{catalogSort=it},::openPicker)
+                }
+            }
         }
-        val showTop by remember { derivedStateOf { catalogState.firstVisibleItemIndex>2 } }
-        var refreshing by remember { mutableStateOf(false) }
-        LaunchedEffect(s.catalogLoading) { if(!s.catalogLoading) refreshing=false }
-        PullToRefreshBox(isRefreshing=refreshing && s.catalogLoading,onRefresh={if(!s.catalogLoading && sources.isNotEmpty()) {
-            refreshing=true;catalogSort=DiscoverySort.DEFAULT;model.shuffleCatalog();scope.launch { catalogState.scrollToItem(0) }
-        }},modifier=Modifier.weight(1f).testTag("catalogRefresh")) {
+        if(showHeader) CollapsingHomeSearch(toolbarScroll,statusBars=false,content=header) else header()
+        val pageContent:@Composable (Int)->Unit = { page ->
+            when(page) {
+                0 -> RecommendationList(s,model,searchTitle,recommendationSort,{recommendationSort=it},revealTop,recommendationFilters)
+                2 -> LiveScreen(s,model,liveQuery,liveGroup,addSource)
+                else -> CatalogList(s,model,sources,catalogVideos,catalogState,addSource,::openPicker,{catalogSort=DiscoverySort.DEFAULT},revealTop)
+            }
+        }
+        if(showHeader) HorizontalPager(state=pager,modifier=Modifier.fillMaxSize().testTag("discoveryPages"),pageContent={ pageContent(it) })
+        else pageContent(selectedTab)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable private fun CatalogFilters(s:UiState,model:AppModel,sources:List<Source>,catalogQuery:String,
+    catalogVideos:List<Video>,catalogSort:DiscoverySort,onSort:(DiscoverySort)->Unit,openPicker:(String)->Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=ActionGap).testTag("catalogToolbar")) {
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(ActionGap),verticalAlignment=Alignment.Top) {
+            FlowRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(ActionGap),
+                verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                FilterSelector(if(s.catalogSourceKeys.isEmpty()) "全部来源" else "来源 · ${s.catalogSourceKeys.size}",
+                    {openPicker("source")},Modifier.testTag("catalogSourcePicker"))
+                FilterSelector(s.categories.find { it.id==s.catalogCategory }?.name
+                    ?: if(s.catalogGenres.isEmpty()) "题材 · 不限" else "题材 · ${s.catalogGenres.size}",
+                    {openPicker("genre")},Modifier.testTag("catalogGenrePicker"))
+            }
+            DiscoverySortControl(catalogSort,onSort,catalogVideos,false,compact=true)
+        }
+        if(s.catalogSourceKeys.isNotEmpty() || s.catalogGenres.isNotEmpty() || s.catalogCategory!=null) {
+            LazyRow(Modifier.fillMaxWidth().testTag("activeCatalogFilters"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                items(sources.filter { it.key in s.catalogSourceKeys },key={it.key}) { selected ->
+                    InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys-selected.key,query=catalogQuery.trim(),genres=s.catalogGenres)},
+                        label={Text(selected.name,maxLines=1,overflow=TextOverflow.Ellipsis)},trailingIcon={Icon(Icons.Default.Close,"取消${selected.name}",Modifier.size(16.dp))},
+                        modifier=Modifier.widthIn(max=200.dp).testTag("activeSource:${selected.key}"))
+                }
+                items(s.catalogGenres.sortedBy { it.ordinal },key={it.name}) { genre ->
+                    InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim(),genres=s.catalogGenres-genre)},
+                        label={Text(genre.label)},trailingIcon={Icon(Icons.Default.Close,"取消${genre.label}",Modifier.size(16.dp))},
+                        modifier=Modifier.testTag("activeGenre:${genre.name}"))
+                }
+                s.categories.find { it.id==s.catalogCategory }?.let { category -> item {
+                    InputChip(selected=true,border=null,onClick={model.browseSources(s.catalogSourceKeys,query=catalogQuery.trim())},label={Text(category.name)},
+                        trailingIcon={Icon(Icons.Default.Close,"取消${category.name}",Modifier.size(16.dp))})
+                } }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun CatalogList(s:UiState,model:AppModel,sources:List<Source>,catalogVideos:List<Video>,
+    catalogState:LazyStaggeredGridState,addSource:()->Unit,openPicker:(String)->Unit,resetSort:()->Unit,onTop:()->Unit) {
+    val scope=rememberCoroutineScope()
+    val showTop by remember { derivedStateOf { catalogState.firstVisibleItemIndex>2 } }
+    var refreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(s.catalogLoading) { if(!s.catalogLoading) refreshing=false }
+    PullToRefreshBox(isRefreshing=refreshing && s.catalogLoading,onRefresh={if(!s.catalogLoading && sources.isNotEmpty()) {
+        refreshing=true;resetSort();model.shuffleCatalog();scope.launch { catalogState.scrollToItem(0) }
+    }},modifier=Modifier.fillMaxSize().testTag("catalogRefresh")) {
         LazyVerticalStaggeredGrid(columns=StaggeredGridCells.Fixed(2),modifier=Modifier.fillMaxSize().testTag("catalogList"),state=catalogState,contentPadding=PaddingValues(start=PageGutter,end=PageGutter,top=8.dp,bottom=16.dp+LocalDockInset.current),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalItemSpacing=12.dp) {
             if(sources.isEmpty()) item(span=StaggeredGridItemSpan.FullLine) {
                 Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -258,7 +309,6 @@ import androidx.compose.ui.text.style.TextOverflow
             }
         }
         BackToTop(showTop,Modifier.align(Alignment.BottomEnd)) { scope.launch { catalogState.animateScrollToItem(0);onTop() } }
-        }
     }
 }
 

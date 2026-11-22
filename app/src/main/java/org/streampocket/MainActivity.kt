@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
-import androidx.activity.compose.BackHandler
-
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.draw.clip
@@ -100,22 +98,20 @@ class MainActivity : ComponentActivity() {
     var query by rememberSaveable { mutableStateOf("") }
     var focusSearch by remember { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
-    var searchMode by rememberSaveable { mutableStateOf(false) }
     val liveTab=rememberSaveable { mutableStateOf(false) }
     var liveQuery by rememberSaveable { mutableStateOf("") }
     val recommendations=rememberSaveable { mutableStateOf(true) }
-    var scopeSearch by rememberSaveable(liveTab.value,recommendations.value) { mutableStateOf(false) }
     var catalogQuery by rememberSaveable { mutableStateOf("") }
     var submittedQuery by rememberSaveable { mutableStateOf("") }
-    // Keep the browse toolbar at its original offset while search owns a different toolbar.
-    val browseScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
+    val searchMode=searchOpen && submittedQuery.isNotEmpty()
+    val inLive=liveTab.value && !searchMode
+    val inCatalog=!liveTab.value && !recommendations.value && !searchMode
     val resultScroll=rememberSaveable(saver=HomeSearchScroll.Saver) { HomeSearchScroll() }
-    val searchScroll=if(searchMode) resultScroll else browseScroll
     val expansion = rememberSaveable(saver=PosterExpansion.Saver) { PosterExpansion() }
     fun search(text:String) {
         if(text.isBlank()) return
         resultScroll.reveal()
-        query=text.take(100);submittedQuery=query;searchMode=true;searchOpen=true;tab=0
+        query=text.take(100);submittedQuery=query;searchOpen=true;tab=0
         focusManager.clearFocus();keyboard?.hide();model.search(query)
     }
     fun searchRecommendation(title:String) {
@@ -124,18 +120,19 @@ class MainActivity : ComponentActivity() {
         expansion.selected=null
         search(title)
     }
-    fun showRecommendations() {
+    fun closeSearch() {
         resultScroll.reveal()
-        model.cancelSearch();searchMode=false;searchOpen=false;query="";submittedQuery="";recommendations.value=true;liveTab.value=false
+        if(searchMode) model.cancelSearch()
+        if(inCatalog && s.catalogQuery.isNotEmpty()) {
+            model.browseSources(s.catalogSourceKeys,s.catalogCategory,"",genres=s.catalogGenres)
+        }
+        searchOpen=false;focusSearch=false;query="";submittedQuery="";liveQuery="";catalogQuery=""
         focusManager.clearFocus();keyboard?.hide()
     }
-    fun closeScopeSearch() {
-        scopeSearch=false
-        liveQuery=""
-        catalogQuery=""
-        if(!liveTab.value && s.catalogQuery.isNotEmpty()) model.browseSources(s.catalogSourceKeys,s.catalogCategory,"",genres=s.catalogGenres)
-        focusManager.clearFocus()
-        keyboard?.hide()
+    fun openSearch() {
+        resultScroll.reveal()
+        focusSearch=true
+        searchOpen=true
     }
     // Do not put token-bearing input into saved-instance-state or screen titles.
     var url by remember { mutableStateOf("") }
@@ -180,8 +177,7 @@ class MainActivity : ComponentActivity() {
     }
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(s.message) { s.message?.let { snack.showSnackbar(it); model.message(null) } }
-    LaunchedEffect(tab,recommendations.value,liveTab.value) { searchScroll.reveal() }
-    LaunchedEffect(imeVisible) { if(imeVisible) searchScroll.reveal() }
+    LaunchedEffect(imeVisible) { if(imeVisible && searchOpen) resultScroll.reveal() }
     LaunchedEffect(tab) { if(tab==1) model.refreshSourceAvailability() }
     val selected = expansion.selected
     val recommendation = s.recommendPreview.takeUnless { searchMode }
@@ -195,7 +191,7 @@ class MainActivity : ComponentActivity() {
     // The same hierarchy supplies the destination preview for buttons and system gestures.
     val routes = buildList {
         add(when { liveTab.value -> "live"; !recommendations.value -> "catalog"; else -> "tab:0" })
-        if(searchMode) add("search")
+        if(searchOpen) add("search")
         if(tab!=0) add("tab:$tab")
         if(tab==3 && settingsPage!=null) add("settings:${settingsPage!!.name}")
         if(!inline && recommendation!=null) add("preview")
@@ -222,20 +218,16 @@ class MainActivity : ComponentActivity() {
     }
     if(appearanceOpen) AppearanceDialog { appearanceOpen=false }
     if(updatesOpen) UpdateDialog(s,model) { updatesOpen=false }
-    CardBackHandler(!inline && (s.detail != null || s.detailLoading || searchMode || tab!=0)) {
+    CardBackHandler(!inline && (s.detail != null || s.detailLoading || searchOpen || tab!=0)) {
         when {
             s.detail!=null || s.detailLoading -> model.closeDetail()
             tab==3 && settingsPage!=null -> settingsPage=null
             tab!=0 -> tab=0
-            else -> showRecommendations()
+            else -> closeSearch()
         }
     }
-    BackHandler(tab==0 && !inline && s.detail==null && !s.detailLoading && recommendation==null && playback==null && !searchMode && (scopeSearch || searchOpen) && !imeVisible) {
-        if(scopeSearch) closeScopeSearch() else { searchOpen=false;query="";focusManager.clearFocus() }
-    }
-    val hasHomeContent=if(searchMode) s.results.isNotEmpty() else if(liveTab.value) s.liveChannels.isNotEmpty() else if(recommendations.value) s.recommendations.isNotEmpty() else s.catalogVideos.isNotEmpty()
-    val homeSearchVisible=tab==0 && (inline || (s.detail==null && !s.detailLoading))
-    val searchConnection=rememberSearchScrollConnection(searchScroll,homeSearchVisible && !imeVisible && hasHomeContent)
+    val searchHeaderVisible=tab==0 && searchOpen && (inline || (s.detail==null && !s.detailLoading))
+    val searchConnection=rememberSearchScrollConnection(resultScroll,searchHeaderVisible && !imeVisible && searchMode && s.results.isNotEmpty())
     val wide=windowSizeDp().width.value>=840
     if(!inline && recommendation!=null) { RecommendationPreview(s,model,::searchRecommendation);return@CardRouteHost }
     val destinations=listOf("首页","订阅","历史","设置")
@@ -245,40 +237,44 @@ class MainActivity : ComponentActivity() {
     Box(if(inline) Modifier.fillMaxSize().clearAndSetSemantics {} else Modifier.fillMaxSize()) {
     Scaffold(modifier=Modifier.fillMaxSize().nestedScroll(searchConnection),
         topBar = {
-            if(homeSearchVisible || (tab==0 && wide && searchMode)) {
-                val inLive=!searchMode && liveTab.value
-                val inCatalog=!searchMode && !liveTab.value && !recommendations.value
+            if(searchHeaderVisible || (tab==0 && wide && searchMode)) {
                 fun browseQuery(value:String) {
                     catalogQuery=value;focusManager.clearFocus();keyboard?.hide()
                     model.browseSources(s.catalogSourceKeys,s.catalogCategory,value.trim(),genres=s.catalogGenres)
                 }
-                CollapsingHomeSearch(searchScroll) {
-                if(!searchOpen && !searchMode && !scopeSearch) {
-                    PageHeading("口袋片源") {
-                        GlassIconButton(onClick={
-                            focusSearch=true
-                            if(inCatalog || inLive) scopeSearch=true else searchOpen=true
-                        },modifier=Modifier.testTag("openSearch")) { Icon(painterResource(R.drawable.ic_search),"搜索") }
+                CollapsingHomeSearch(resultScroll) {
+                    SearchHeader(back={ motion.commit { closeSearch() } },
+                        backLabel=when { inLive -> "返回直播"; inCatalog -> "返回分类"; else -> "返回推荐" }) {
+                        HomeSearchBar(
+                            query=when { inLive -> liveQuery; inCatalog -> catalogQuery; else -> query },
+                            onQuery={ text ->
+                                val value=text.take(100)
+                                when { inLive -> liveQuery=value; inCatalog -> catalogQuery=value; else -> query=value }
+                            },
+                            searchMode=searchMode,
+                            submit={
+                                when {
+                                    inLive -> { focusManager.clearFocus();keyboard?.hide() }
+                                    inCatalog -> browseQuery(catalogQuery)
+                                    else -> { model.recordSearch(query);search(query) }
+                                }
+                            },
+                            clear={
+                                when {
+                                    inLive -> liveQuery=""
+                                    inCatalog -> browseQuery("")
+                                    else -> { query="";model.cancelSearch();submittedQuery="";focusSearch=true }
+                                }
+                            },
+                            placeholder=when {
+                                inLive -> "搜索当前来源的直播频道"
+                                inCatalog -> if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源"
+                                else -> "搜索影片、剧集或频道"
+                            },
+                            clearLabel=when { inLive -> "清空频道搜索"; inCatalog -> "清空分类关键词"; else -> "清除输入" },
+                            allowEmpty=inCatalog || inLive,focusOnOpen=focusSearch,onFocused={focusSearch=false},
+                            cancelSearch=if(searchMode && s.searching) model::cancelSearch else null)
                     }
-                } else Column {
-                    SearchHeader(back=if(searchMode) { { motion.commit { showRecommendations() } } } else null,
-                        backLabel="返回推荐") {
-                    HomeSearchBar(if(inLive) liveQuery else if(inCatalog) catalogQuery else query,{if(inLive) liveQuery=it.take(100) else if(inCatalog) catalogQuery=it.take(100) else query=it.take(100)},searchMode,
-                    {if(inLive) {focusManager.clearFocus();keyboard?.hide()} else if(inCatalog) browseQuery(catalogQuery) else { model.recordSearch(query);search(query) }},
-                    {if(inLive) liveQuery="" else if(inCatalog) browseQuery("") else { query="";model.cancelSearch();searchMode=false;searchOpen=true;focusSearch=true }},
-                    placeholder=if(inLive) "搜索当前来源的直播频道" else if(inCatalog) if(s.catalogSourceKeys.isEmpty()) "搜索所有来源" else "搜索所选来源" else "搜索影片、剧集或频道",
-                    clearLabel=if(inLive) "清空频道搜索" else if(inCatalog) "清空分类关键词" else "清除输入",allowEmpty=inCatalog || inLive,focusOnOpen=focusSearch,onFocused={focusSearch=false},
-                    cancelSearch=if(searchMode && s.searching) model::cancelSearch else null)
-                    }
-                    if(!inCatalog && !inLive && query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
-                        androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=PageGutter),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                            item { Text("最近搜索",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                            items(s.saved.recentSearches,key={it}) { term ->
-                                SuggestionChip(onClick={model.recordSearch(term);search(term)},label={Text(term,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)},modifier=Modifier.widthIn(max=200.dp).testTag("recentSearch:$term"))
-                            }
-                        }
-                    }
-                }
                 }
             }
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
@@ -316,13 +312,26 @@ class MainActivity : ComponentActivity() {
                     else if(loadingVideo != null) PendingDetail(loadingVideo,model) { motion.commit(model::closeDetail) }
                 }
                 if(wide && searchMode) Row(Modifier.fillMaxSize()) {
-                    Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1}) }
+                    Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::closeSearch,{tab=1}) }
                     Box(Modifier.weight(.62f)) { detailPane() }
                 } else detailPane()
             } else when(tab) {
-                0 -> homeState.SaveableStateProvider(if(searchMode) "results" else "recommendations") {
-                    if(searchMode) key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::showRecommendations,{tab=1},onTop={searchScroll.reveal()}) }
-                    else DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,liveTab,liveQuery,onTop={searchScroll.reveal()})
+                0 -> homeState.SaveableStateProvider(if(searchOpen) "search" else "recommendations") {
+                    when {
+                        searchMode -> key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::closeSearch,{tab=1},onTop=resultScroll::reveal) }
+                        searchOpen && !inLive && !inCatalog -> Box(Modifier.fillMaxSize().testTag("searchLanding")) {
+                            if(query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
+                                androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=PageGutter),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+                                    item { Text("最近搜索",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    items(s.saved.recentSearches,key={it}) { term ->
+                                        SuggestionChip(onClick={model.recordSearch(term);search(term)},label={Text(term,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)},modifier=Modifier.widthIn(max=200.dp).testTag("recentSearch:$term"))
+                                    }
+                                }
+                            }
+                        }
+                        else -> DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,liveTab,liveQuery,
+                            onOpenSearch=::openSearch,showHeader=!searchOpen)
+                    }
                 }
                 3 -> SettingsScreen(s,model,settingsPage,{settingsPage=it},{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })

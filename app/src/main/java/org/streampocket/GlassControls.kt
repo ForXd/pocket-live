@@ -174,7 +174,7 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 }
 
 @Composable internal fun PocketClose(onClick: () -> Unit) {
-    IconButton(onClick, Modifier.size(48.dp)) { Icon(Icons.Default.Close,"关闭", Modifier.size(20.dp)) }
+    GlassIconButton(onClick=onClick) { Icon(Icons.Default.Close,"关闭") }
 }
 
 @Composable internal fun SheetHeading(title:String, close:()->Unit) {
@@ -205,10 +205,11 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
         checkedTrackColor=MaterialTheme.colorScheme.tertiary,checkedThumbColor=MaterialTheme.colorScheme.onTertiary))
 }
 
-@Composable internal fun SearchHeader(back: (() -> Unit)? = null, backLabel: String = "返回", field: @Composable () -> Unit) {
+@Composable internal fun SearchHeader(back: (() -> Unit)? = null, backLabel: String = "返回", trailing: (@Composable () -> Unit)? = null, field: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min=64.dp).padding(horizontal=PageGutter),
         verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         if(back!=null) PocketBack(back, label=backLabel)
         Box(Modifier.weight(1f)) { field() }
+        trailing?.invoke()
     }
 }

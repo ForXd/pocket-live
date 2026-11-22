@@ -41,10 +41,7 @@ import androidx.compose.ui.unit.dp
     if(choosing) HandleOnlySheet(onDismissRequest={choosing=false}) {
         var selected by rememberSaveable { mutableIntStateOf(lines.indexOfFirst { line -> line.episodes.any { it.url==primary?.url } }.coerceAtLeast(0)) }
         Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment=Alignment.CenterVertically) {
-                Text("选集",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                PocketClose({choosing=false})
-            }
+            SheetHeading("选集") { choosing=false }
             if(lines.size>1) LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 items(lines.size) { i -> ContentFilterChip(i==selected,{selected=i},modifier=Modifier.testTag("detailLine:$i"),label={Text(lines[i].name)}) }
             }

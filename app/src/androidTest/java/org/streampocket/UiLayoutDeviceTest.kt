@@ -143,7 +143,11 @@ class UiLayoutDeviceTest {
                     val layout=results.single()
                     assertTrue("$label: ${layout.size}, ${layout.lineCount} lines, ellipsized=${layout.isLineEllipsized(0)}", layout.lineCount==1 && !layout.isLineEllipsized(0))
                 }
-                assertRightRail("recommendCategoryPicker")
+                val searchTarget=ui.onNodeWithTag("openSearch").assertWidthIsEqualTo(48.dp).getUnclippedBoundsInRoot()
+                val filterTarget=ui.onNodeWithTag("recommendCategoryPicker").assertWidthIsEqualTo(48.dp).getUnclippedBoundsInRoot()
+                assertTrue("Home actions have separate hit areas",filterTarget.right<=searchTarget.left)
+                assertEquals("Home actions share a row",filterTarget.top.value,searchTarget.top.value,1f)
+                ui.onNodeWithText("口袋片源").assertDoesNotExist()
                 noHomeBack()
                 ui.onNodeWithTag("recommendCategoryPicker").performClick(); capture("sheet-recommend"); back()
                 ui.onNodeWithText("分类").performClick()
@@ -196,7 +200,8 @@ class UiLayoutDeviceTest {
 
 
                 ui.onNodeWithTag("openSearch").performClick()
-                ui.onNodeWithContentDescription("返回推荐").assertDoesNotExist()
+                ui.onNodeWithContentDescription("返回推荐").assertIsDisplayed()
+                ui.onNodeWithTag("recommendationGrid").assertDoesNotExist()
                 capture("design-search-input")
                 ui.onNodeWithTag("searchInput").performTextInput("星河")
                 ui.onNodeWithTag("searchInput").performImeAction()

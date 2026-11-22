@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.Close
@@ -30,6 +29,8 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,11 @@ import androidx.compose.ui.unit.dp
     val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val imeVisible=WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)>0
     var searchOpen by searchState
+    val fieldFocus=remember { FocusRequester() }
+    var focusOnOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(searchOpen,focusOnOpen) {
+        if(searchOpen && focusOnOpen) { fieldFocus.requestFocus();focusOnOpen=false }
+    }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     androidx.activity.compose.BackHandler(enabled=searchOpen && !filtersOpen && !imeVisible) { searchOpen=false;query="" }
@@ -61,22 +67,20 @@ import androidx.compose.ui.unit.dp
     val scrollConnection=rememberSearchScrollConnection(searchScroll,!imeVisible && groups.isNotEmpty())
     Column(Modifier.fillMaxSize().nestedScroll(scrollConnection)) {
     Column(Modifier.fillMaxWidth()) {
+        val filterAction: @Composable () -> Unit = {
+            GlassIconButton(onClick={keyboard?.hide();filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
+        }
         if(!searchOpen) PageHeading("历史") {
-            GlassIconButton(onClick={ searchScroll.reveal();searchOpen=true }) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
-            GlassIconButton(onClick={filtersOpen=true}) { Icon(painterResource(R.drawable.ic_sort),"筛选历史") }
+            GlassIconButton(onClick={ searchScroll.reveal();focusOnOpen=true;searchOpen=true }) { Icon(painterResource(R.drawable.ic_search),"搜索历史") }
+            filterAction()
         }
         if(searchOpen) CollapsingHomeSearch(searchScroll,statusBars=false) {
-        SearchHeader {
-        ContentSearchField(query,{query=it.take(100)},"搜索片名、来源或集数",onSearch={keyboard?.hide()},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).testTag("historySearch")) {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                if(query.isNotEmpty()) IconButton(onClick={query=""},modifier=Modifier.size(48.dp)) { Icon(Icons.Default.Close,"清空历史关键词") }
-                IconButton(onClick={keyboard?.hide()},modifier=Modifier.size(48.dp)) { Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward,"搜索观看历史") }
+            SearchHeader(trailing=filterAction) {
+                ContentSearchField(query,{ query=it.take(100) },"搜索片名、来源或集数",onSearch={keyboard?.hide()},
+                    modifier=Modifier.fillMaxWidth().padding(vertical=4.dp).focusRequester(fieldFocus).testTag("historySearch")) {
+                    if(query.isNotEmpty()) GlassIconButton(onClick={query=""}) { Icon(Icons.Default.Close,"清空历史关键词") }
+                }
             }
-        }
-        }
-        }
-        if(searchOpen) Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter),horizontalArrangement=Arrangement.End) {
-            GlassTextButton(onClick={filtersOpen=true}) { Text("筛选历史") }
         }
         if(filtersOpen) HandleOnlySheet(onDismissRequest={filtersOpen=false}) {
         SheetSystemBars()
