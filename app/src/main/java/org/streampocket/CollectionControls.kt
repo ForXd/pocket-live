@@ -28,10 +28,10 @@ import androidx.compose.ui.unit.dp
 }
 
 /** Shared source rows for search/detail and player; availability never inferred from metadata. */
-@Composable fun SourceChoices(videos:List<Video>,selected:Video?,state:UiState,choose:(Video)->Unit,limit:Int=Int.MAX_VALUE,rowInset:androidx.compose.ui.unit.Dp=12.dp) {
+@Composable fun SourceChoices(videos:List<Video>,selected:Video?,probes:Map<String,ProbeStatus>,resolutions:Map<String,String>,choose:(Video)->Unit,limit:Int=Int.MAX_VALUE,rowInset:androidx.compose.ui.unit.Dp=12.dp) {
     if(videos.size>3 && limit>3) {
         androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max=280.dp)) {
-            items(videos.take(limit),key={it.probeKey()}) { video -> SourceChoices(listOf(video),selected,state,choose,1,rowInset) }
+            items(videos.take(limit),key={it.probeKey()}) { video -> SourceChoices(listOf(video),selected,probes,resolutions,choose,1,rowInset) }
         }
         return
     }
@@ -42,18 +42,18 @@ import androidx.compose.ui.unit.dp
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
                     Text(video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
                     val label=if(selected?.probeKey()==video.probeKey()) "当前来源" else video.subtitle
-                    if(state.probes[video.probeKey()]==ProbeStatus.READY) Text(state.probeResolutions[video.probeKey()]?.let { "播放清单 · $it" } ?: "清晰度未确认",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeResolution:${video.id}"))
+                    if(probes[video.probeKey()]==ProbeStatus.READY) Text(resolutions[video.probeKey()]?.let { "播放清单 · $it" } ?: "清晰度未确认",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeResolution:${video.id}"))
                     else if(video.quality.evidence!=QualityEvidence.UNKNOWN) QualityBadge(video.quality,lastPlayback=true)
                     if(label.isNotEmpty()) Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
                 }
-                MediaProbeIndicator(state.probes[video.probeKey()],textModifier=Modifier.testTag("probe:${video.id}"))
+                MediaProbeIndicator(probes[video.probeKey()],textModifier=Modifier.testTag("probe:${video.id}"))
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
 }
 
-@Composable fun CollectionControls(current:Video,state:UiState,model:AppModel,choose:(Video)->Unit) {
+@Composable internal fun CollectionControls(current:Video,state:PlayerUiState,model:AppModel,choose:(Video)->Unit) {
     val options=remember(current,state.relatedVideos) { VideoGroups.options(current,state.relatedVideos) }
     var sourcesOpen by remember(current.probeKey()) { mutableStateOf(false) }
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.dp
             GlassTextButton(onClick={sourcesOpen=!sourcesOpen},modifier=Modifier.weight(1f,false).testTag("collectionSources")) { Text(if(sourcesOpen) "收起来源" else "${sources.size} 个来源",maxLines=1) }
             GlassTextButton(onClick={model.related(current,true)},enabled=!state.relatedLoading,modifier=Modifier.testTag("findSeasons")) { Text(if(state.relatedLoading) "查找中…" else "查找更多") }
         }
-        if(sourcesOpen) SourceChoices(sources,current,state,choose)
+        if(sourcesOpen) SourceChoices(sources,current,state.probes,state.probeResolutions,choose)
         state.relatedError?.let { Text(it,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }

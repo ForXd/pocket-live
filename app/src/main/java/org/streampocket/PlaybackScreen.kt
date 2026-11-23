@@ -55,9 +55,19 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 
+internal data class PlayerUiState(
+    val detail:Detail?, val detailLoading:Boolean, val detailError:String?,
+    val alternativeSession:String?, val alternatives:List<PlaybackAlternative>, val alternativesLoading:Boolean,
+    val alternativesError:String?, val smoothPlayback:Boolean, val saved:Saved,
+    val relatedVideos:List<Video>, val relatedLoading:Boolean, val relatedError:String?,
+    val probes:Map<String,ProbeStatus>, val probeResolutions:Map<String,String>
+)
+internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailError,alternativeSession,alternatives,
+    alternativesLoading,alternativesError,smoothPlayback,saved,relatedVideos,relatedLoading,relatedError,probes,probeResolutions)
+
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @OptIn(ExperimentalLayoutApi::class)
-@Composable fun PlaybackScreen(playback: Playback, model: AppModel) {
+@Composable internal fun PlaybackScreen(playback: Playback, model: AppModel,state:PlayerUiState) {
     val context = LocalContext.current
     val activity = context as androidx.activity.ComponentActivity
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -67,7 +77,7 @@ import kotlinx.coroutines.delay
         activity.addOnPictureInPictureModeChangedListener(listener)
         onDispose { activity.removeOnPictureInPictureModeChangedListener(listener) }
     }
-    val state by model.state.collectAsStateWithLifecycle()
+
     var playerView by remember(playback.sessionId) { mutableStateOf<GesturePlayerView?>(null) }
     var controlsVisible by remember(playback.sessionId) { mutableStateOf(false) }
     var knownDuration by remember(playback.sessionId) { mutableLongStateOf(playback.duration) }
@@ -174,8 +184,8 @@ import kotlinx.coroutines.delay
     val currentLine=remember(matchingDetail,playback.episode.url) { matchingDetail?.lines?.firstOrNull { line -> line.episodes.any { it.url==playback.episode.url } } }
     val isLive=playback.video.source.kind==SourceKind.LIVE
     val hasEpisodes=currentLine!=null
-    val previous=adjacentEpisode(state.detail,playback,-1)
-    val next=adjacentEpisode(state.detail,playback,1)
+    val previous=remember(state.detail,playback.sessionId,playback.episode) { adjacentEpisode(state.detail,playback,-1) }
+    val next=remember(state.detail,playback.sessionId,playback.episode) { adjacentEpisode(state.detail,playback,1) }
     val slowBuffering by remember(playback.sessionId) { derivedStateOf { health.slow } }
     val openEpisodes={ controller.checkpointNow();playerView?.cancelGestures();playerView?.hideController();episodesOpen=true }
     val openOptions={ playerView?.cancelGestures();playerView?.hideController();optionsOpen=true }
@@ -507,7 +517,7 @@ import kotlinx.coroutines.delay
 }
 
 /** Browsing another season/source is isolated from the active Media3 session until an episode is chosen. */
-@Composable private fun PlayerCollectionBrowser(current:Playback,detail:Detail?,state:UiState,model:AppModel,close:()->Unit,modifier:Modifier=Modifier) {
+@Composable private fun PlayerCollectionBrowser(current:Playback,detail:Detail?,state:PlayerUiState,model:AppModel,close:()->Unit,modifier:Modifier=Modifier) {
     var chosen by remember(current.sessionId) { mutableStateOf(current.video) }
     var browsing by remember(current.sessionId) { mutableStateOf(detail) }
     var loading by remember { mutableStateOf(false) }

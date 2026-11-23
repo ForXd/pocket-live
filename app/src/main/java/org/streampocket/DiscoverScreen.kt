@@ -59,7 +59,11 @@ import androidx.compose.ui.text.style.TextOverflow
     val recommendationFilters=rememberSaveable { mutableStateOf(false) }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
     var catalogSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
-    val catalogVideos=remember(s.catalogVideos,catalogSort,s.probes) { catalogSort.apply(s.catalogVideos).sortedBy { if(s.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 } }
+    val sortedCatalog=remember(s.catalogVideos,catalogSort) { catalogSort.apply(s.catalogVideos) }
+    val catalogVideos=remember(sortedCatalog,s.probes,catalogSort) {
+        if(catalogSort==DiscoverySort.DEFAULT || s.probes.isEmpty()) sortedCatalog
+        else sortedCatalog.partition { s.probes[it.probeKey()]==ProbeStatus.READY }.let { (ready,remaining) -> ready+remaining }
+    }
     var picker by rememberSaveable { mutableStateOf<String?>(null) }
     var draftGenres by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var draftSources by rememberSaveable { mutableStateOf(emptyList<String>()) }

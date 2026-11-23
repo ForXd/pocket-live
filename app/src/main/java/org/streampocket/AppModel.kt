@@ -162,7 +162,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         probeGeneration++;probeJob?.cancel();probeJob=null
         _state.update { it.copy(probeRunning=false,probes=it.probes.filterValues { status->status!=ProbeStatus.CHECKING }) }
     }
-    private fun probeSorted(rows:List<Video>,statuses:Map<String,ProbeStatus>)=rows.sortedBy { if(statuses[it.probeKey()]==ProbeStatus.READY) 0 else 1 }
+    private fun probeSorted(rows:List<Video>,statuses:Map<String,ProbeStatus>)=rows.partition { statuses[it.probeKey()]==ProbeStatus.READY }.let { (ready,remaining) -> ready+remaining }
     private fun startProbes() {
         val catalog=probeCatalog
         val work=sourceProbeWork
@@ -205,7 +205,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                                     probeCache.remove(key);probeCache[key]=System.currentTimeMillis() to result
                                     while(probeCache.size>100) probeCache.remove(probeCache.keys.first())
                                 }
-                                _state.update { val statuses=it.probes+(key to result.status);it.copy(probes=statuses,probeLines=if(result.lineName!=null) it.probeLines+(key to result.lineName) else it.probeLines-key,probeEpisodes=if(result.status==ProbeStatus.READY && result.episode!=null) it.probeEpisodes+(key to result.episode) else it.probeEpisodes-key,probeResolutions=if(result.resolution!=null) it.probeResolutions+(key to result.resolution) else it.probeResolutions-key,results=it.results,catalogVideos=if(catalog) probeSorted(it.catalogVideos,statuses) else it.catalogVideos) }
+                                _state.update { val statuses=it.probes+(key to result.status);it.copy(probes=statuses,probeLines=if(result.lineName!=null) it.probeLines+(key to result.lineName) else it.probeLines-key,probeEpisodes=if(result.status==ProbeStatus.READY && result.episode!=null) it.probeEpisodes+(key to result.episode) else it.probeEpisodes-key,probeResolutions=if(result.resolution!=null) it.probeResolutions+(key to result.resolution) else it.probeResolutions-key,results=it.results,catalogVideos=if(catalog && result.status==ProbeStatus.READY) probeSorted(it.catalogVideos,statuses) else it.catalogVideos) }
                                 if(readyCount()>=limit) {
                                     enough=true;detection.cancel()
                                 }
@@ -376,6 +376,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         if (sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
         searchJob = viewModelScope.launch {
             val merger = SearchResultMerger()
+            val mergeLock = Mutex()
+            val ranking = QueryRanking(q)
             val semaphore = Semaphore(4)
             try { supervisorScope { sources.forEach { source -> launch {
                 semaphore.withPermit {
@@ -385,10 +387,21 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                         val list = withTimeout(22_000) { searchRepository.search(source, q) }
                         ensureActive()
                         sourceHealth.record(source.key,QueryKind.SEARCH,true)
-                        _state.update { state ->
-                            state.copy(results = merger.append(state.results, list, state.saved.history,
-                                { rows -> if(searchOrderPinned) rows else SearchRules.sorted(rows, q, state.searchOrder) }),
-                                completed = state.completed + 1,sourceAvailability=sourceHealth.snapshot())
+                        mergeLock.withLock {
+                            while(true) {
+                                val before=state.value
+                                val pinned=searchOrderPinned
+                                val rows=withContext(Dispatchers.Default) {
+                                    merger.append(before.results,list,before.saved.history) { combined ->
+                                        ranking.merge(combined,before.results,before.searchOrder,pinned)
+                                    }
+                                }
+                                val latest=state.value
+                                if(latest.results !== before.results || latest.searchOrder!=before.searchOrder ||
+                                    latest.saved.history !== before.saved.history || pinned!=searchOrderPinned) continue
+                                _state.update { it.copy(results=rows,completed=it.completed+1,sourceAvailability=sourceHealth.snapshot()) }
+                                break
+                            }
                         }
                     } catch(e: TimeoutCancellationException) { ensureActive();failed = true }
                     catch(e: CancellationException) { throw e }
@@ -396,7 +409,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                     ensureActive()
                     if (failed) { sourceHealth.record(source.key,QueryKind.SEARCH,false);_state.update { it.copy(completed = it.completed + 1, failures = it.failures + 1,nonPublicDnsFailures=it.nonPublicDnsFailures+if(nonPublicDns) 1 else 0,sourceAvailability=sourceHealth.snapshot()) } }
                 }
-            } } } } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false,results=if(searchOrderPinned) it.results else SearchRules.sorted(it.results, q, it.searchOrder)) } }
+            } } } } finally { if(currentCoroutineContext().isActive) _state.update { it.copy(searching = false) } }
         }
         startProbes()
     }

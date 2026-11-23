@@ -200,7 +200,11 @@ class MainActivity : ComponentActivity() {
     }
     CardRouteHost(routes, canCaptureParent=recommendation==null) {
     val motion=LocalCardReturn.current
-    if(playback != null) { PlaybackScreen(playback, model); return@CardRouteHost }
+    if(playback != null) {
+        val playerState by remember { derivedStateOf(structuralEqualityPolicy()) { s.playerUiState() } }
+        PlaybackScreen(playback, model,playerState)
+        return@CardRouteHost
+    }
     if(exportOpen) SourceExportSheet(model) { exportOpen=false }
     if(addingSubscription) HandleOnlySheet(onDismissRequest={model.cancelImport("new");addingSubscription=false}) {
         SheetSystemBars()

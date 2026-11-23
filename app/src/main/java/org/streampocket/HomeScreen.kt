@@ -75,12 +75,12 @@ import androidx.compose.ui.unit.dp
         onDispose { probeLifecycle.removeObserver(observer);model.setSearchProbeActive(false) }
     }
     var sortMenu by remember { mutableStateOf(false) }
-    val matches = remember(s.results, query) { s.results.filter { SearchRules.relevance(it, query) > 0 } }
-    val candidates = if (showOthers) s.results else matches
-    val candidateGroups=remember(candidates) { VideoGroups.searchGroups(candidates) }
-    val counts = remember(candidateGroups) { candidateGroups.flatMap { group -> group.flatMap { Genres.of(it) }.distinct() }.groupingBy { it }.eachCount() }
-    val videos = remember(candidates, category) { candidates.filter { category == Genre.ALL || Genres.matches(it, category) } }
-    val groups=remember(videos) { VideoGroups.searchGroups(videos) }
+    val presentation by androidx.compose.runtime.produceState(remember(query) { SearchPresentation(emptyList(),query,false) },s.results,query,showOthers) {
+        value=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SearchPresentation(s.results,query,showOthers) }
+    }
+    val counts=presentation.counts
+    val candidateGroups=presentation.groups
+    val groups=remember(presentation,category) { presentation.groupsFor(category) }
     val grid=rememberLazyGridState()
     val scope=rememberCoroutineScope()
     ScrollToTopOnChange(category.name,showOthers.toString(),s.searchOrder.name) { grid.scrollToItem(0) }
@@ -106,8 +106,8 @@ import androidx.compose.ui.unit.dp
                     }
                 }
             }
-            if(matches.size < s.results.size) GlassTextButton(onClick={showOthers=!showOthers;model.requestSourceProbe(null)},modifier=Modifier.testTag("showOtherResults")) {
-                Text(if(showOthers) "仅看匹配片名" else "展开其他源站结果 · ${s.results.size-matches.size}")
+            if(presentation.matchCount < presentation.rows.size) GlassTextButton(onClick={showOthers=!showOthers;model.requestSourceProbe(null)},modifier=Modifier.testTag("showOtherResults")) {
+                Text(if(showOthers) "仅看匹配片名" else "展开其他源站结果 · ${presentation.rows.size-presentation.matchCount}")
             }
         }
         Box(Modifier.weight(1f)) {
@@ -124,7 +124,7 @@ import androidx.compose.ui.unit.dp
         if (s.results.size == QualityRules.RESULT_LIMIT) item(span={GridItemSpan(maxLineSpan)}) {
             Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)
         }
-        if(videos.isEmpty() && !s.searching) item(span={GridItemSpan(maxLineSpan)}) {
+        if(groups.isEmpty() && !s.searching && presentation.rows === s.results) item(span={GridItemSpan(maxLineSpan)}) {
             Column {
                 val unavailable=s.results.isEmpty() && s.failures>0
                 val title=when {
@@ -211,7 +211,7 @@ import androidx.compose.ui.unit.dp
                         Modifier.weight(1f).testTag("probeSummary"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     if(!state.probeRunning && !ready) GlassTextButton(onClick={model.requestSourceProbe(selectedWork,retry=true)}) { Text("重试") }
                 }
-                SourceChoices(options.sortedBy { if(state.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 },state.detail?.video,state,{ choice -> anchor.open(choice) { model.open(choice) } },Int.MAX_VALUE,rowInset=0.dp)
+                SourceChoices(options.sortedBy { if(state.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 },state.detail?.video,state.probes,state.probeResolutions,{ choice -> anchor.open(choice) { model.open(choice) } },Int.MAX_VALUE,rowInset=0.dp)
             }
         }
     }

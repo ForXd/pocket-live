@@ -42,6 +42,40 @@ internal class SearchResultMerger {
             measured[video.source.key + ":" + video.id]?.let { video.copy(quality = it) } ?: video
         }
         return if (rank == null) QualityRules.merge(current, enriched)
-        else rank((current + enriched).distinctBy { it.source.key + ":" + it.id }).take(QualityRules.RESULT_LIMIT)
+        else rank((current + enriched).distinctBy { it.source.key + ":" + it.id }).let { if(it.size<=QualityRules.RESULT_LIMIT) it else it.take(QualityRules.RESULT_LIMIT) }
+    }
+}
+
+/** Serial, query-local merge. Existing rows precede new ones on equal scores. */
+internal class QueryRanking(private val query:String) {
+    private val scores=java.util.IdentityHashMap<Video,Int>()
+    private var previousOrder:SearchOrder?=null
+    private var previous:List<Video>?=null
+
+    fun merge(rows:List<Video>, current:List<Video>, order:SearchOrder, pinned:Boolean):List<Video> {
+        val quality=compareByDescending<Video> { it.quality.pixels }.thenByDescending { it.quality.evidence.ordinal }
+        val comparator=if(order==SearchOrder.QUALITY) quality else
+            compareByDescending<Video> { video -> scores.getOrPut(video) { SearchRules.relevance(video,query) } }.then(quality)
+        val result=when {
+            pinned -> rows.take(QualityRules.RESULT_LIMIT)
+            previous !== current || previousOrder!=order -> rows.sortedWith(comparator).take(QualityRules.RESULT_LIMIT)
+            else -> {
+                val added=rows.drop(current.size).sortedWith(comparator)
+                buildList {
+                    var old=0
+                    var new=0
+                    while(size<QualityRules.RESULT_LIMIT && (old<current.size || new<added.size)) {
+                        if(new==added.size || (old<current.size && comparator.compare(current[old],added[new])<=0)) add(current[old++])
+                        else add(added[new++])
+                    }
+                }
+            }
+        }
+        val retained=java.util.IdentityHashMap<Video,Boolean>()
+        result.forEach { retained[it]=true }
+        scores.keys.retainAll(retained.keys)
+        previous=result
+        previousOrder=if(pinned) null else order
+        return result
     }
 }

@@ -11,6 +11,7 @@ object VideoGroups {
         val work:String get()="$family:${season ?: 0}:$year"
         val label:String get()=season?.let { "第 $it 季" } ?: "影片"
     }
+    private val yearPattern=Regex("^(?:19|20)\\d{2}(?=\\s*(?:·|$))")
     private val seasonPattern=Regex("(?:第\\s*([0-9一二三四五六七八九十百零〇两]+)\\s*季|\\bseason\\s*(\\d{1,3})\\b|\\bs(\\d{1,3})\\b)",RegexOption.IGNORE_CASE)
     private fun normalized(s:String)=Normalizer.normalize(s,Normalizer.Form.NFKC).lowercase(Locale.ROOT)
     private fun compact(s:String)=normalized(s).filterNot { it.isWhitespace() || Character.isSpaceChar(it) }
@@ -27,7 +28,7 @@ object VideoGroups {
         val match=matches.singleOrNull()
         val season=match?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() }?.let(::number)
         val base=if(season!=null) title.removeRange(match!!.range).trim() else title
-        val year=Regex("^(?:19|20)\\d{2}(?=\\s*(?:·|$))").find(video.subtitle.trim())?.value.orEmpty()
+        val year=yearPattern.find(video.subtitle.trim())?.value.orEmpty()
         val category=SearchRules.category(video)
         return Identity(compact(base),season,year,if(season!=null && category==MediaCategory.OTHER) MediaCategory.SERIES else category)
     }
@@ -51,24 +52,35 @@ object VideoGroups {
     /** Missing provider metadata joins only one unambiguous, more complete work.
      * Known remakes, editions and seasons never collapse into one playback choice. */
     fun searchSeasons(videos:List<Video>):List<List<Video>> {
-        val strict=videos.distinctBy { it.probeKey() }.groupBy(::workKey)
-        val buckets=strict.entries.groupBy { identity(it.value.first()).let { id -> id.base to id.season } }
-        val target=mutableMapOf<String,String>()
-        for(bucket in buckets.values) for(entry in bucket) {
-            val video=entry.value.first();val id=identity(video)
-            if(video.source.kind!=SourceKind.VOD || video.title.isBlank()) continue
-            val richer=bucket.filter { candidate ->
-                val other=candidate.value.first();val x=identity(other)
-                candidate.key!=entry.key && playbackMatch(video,other) &&
-                    (id.year.isEmpty() || x.year==id.year) && (id.kind==MediaCategory.OTHER || x.kind==id.kind) &&
-                    ((id.year.isEmpty() && x.year.isNotEmpty()) || (id.kind==MediaCategory.OTHER && x.kind!=MediaCategory.OTHER))
-            }
-            if(richer.size==1) target[entry.key]=richer.single().key
+        val identities=java.util.IdentityHashMap<Video,Identity>()
+        fun id(video:Video)=identities.getOrPut(video) { identity(video) }
+        val strict=videos.distinctBy { it.probeKey() }.groupBy {
+            if(it.source.kind==SourceKind.LIVE || it.title.isBlank()) workKey(it) else id(it).work
         }
+        // Index each richer work under the incomplete identities it could resolve.
+        // An empty target records ambiguity, so conflicting remakes never merge.
+        val compatible=HashMap<Identity,String>()
+        fun offer(partial:Identity,key:String) {
+            compatible[partial]=if(partial in compatible) "" else key
+        }
+        for((key,rows) in strict) {
+            val video=rows.first()
+            if(video.source.kind!=SourceKind.VOD || video.title.isBlank()) continue
+            val full=id(video)
+            if(full.year.isNotEmpty()) offer(full.copy(year=""),key)
+            if(full.kind!=MediaCategory.OTHER) offer(full.copy(kind=MediaCategory.OTHER),key)
+            if(full.year.isNotEmpty() && full.kind!=MediaCategory.OTHER)
+                offer(full.copy(year="",kind=MediaCategory.OTHER),key)
+        }
+        val target=strict.mapNotNull { (key,rows) ->
+            val video=rows.first()
+            val match=compatible[id(video)]
+            if(video.source.kind==SourceKind.VOD && video.title.isNotBlank() && !match.isNullOrEmpty()) key to match else null
+        }.toMap()
         fun resolved(key:String):String { var next=key;repeat(3) { next=target[next] ?: return next };return next }
         return strict.entries.groupBy { resolved(it.key) }.map { (key,entries) ->
             strict.getValue(key)+entries.filter { it.key!=key }.flatMap { it.value }
-        }.sortedWith(compareBy({ identity(it.first()).season ?: 0 },{ identity(it.first()).year }))
+        }.sortedWith(compareBy({ id(it.first()).season ?: 0 },{ id(it.first()).year }))
     }
     fun searchGroups(videos:List<Video>):List<List<Video>> {
         val order=videos.mapIndexed { index,video -> video.probeKey() to index }.toMap()
