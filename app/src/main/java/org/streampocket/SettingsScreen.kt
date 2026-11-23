@@ -28,11 +28,10 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
     val sources=remember(s.saved.subscriptions) { s.saved.subscriptions.flatMap { it.sources }.filter { it.kind==SourceKind.VOD }.distinctBy { it.key } }
     LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(page!=null) {
-            item { Row(Modifier.fillMaxWidth().heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            item {
                 val motion=LocalCardReturn.current
-                PocketBack({motion.commit { navigate(null) }},label="返回设置")
-                Text(page.title,style=MaterialTheme.typography.headlineMedium)
-            } }
+                BackHeading(page.title,"返回设置",{ motion.commit { navigate(null) } },inset=0.dp)
+            }
             when(page) {
                 SettingsPage.NETWORK -> item { Column {
             SettingSwitch("允许未加密 HTTP","可能被监听或篡改，仅用于可信源",s.saved.allowHttp,model::allowHttp)

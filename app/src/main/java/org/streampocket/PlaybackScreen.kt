@@ -322,9 +322,7 @@ import kotlinx.coroutines.delay
         Row(Modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             if(!full && !pip) {
-                Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=PageGutter),verticalAlignment=Alignment.CenterVertically) {
-                    PocketBack(leavePlayback, label = if(playback.video.source.kind==SourceKind.LIVE) "返回频道" else "返回选集")
-                    Text("播放",Modifier.weight(1f).padding(horizontal=8.dp),style=MaterialTheme.typography.headlineSmall,maxLines=1,overflow=TextOverflow.Ellipsis)
+                BackHeading("播放",if(isLive) "返回频道" else "返回选集",leavePlayback) {
                     GlassIconButton(onClick=openOptions,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"更多播放选项") }
                 }
             }

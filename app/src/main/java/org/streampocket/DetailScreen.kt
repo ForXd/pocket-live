@@ -126,6 +126,6 @@ private fun detailCoverHeight(height: androidx.compose.ui.unit.Dp) = minOf(heigh
         if(close!=null) GlassIconButton(onClick=close,modifier=Modifier.align(Alignment.TopEnd).padding(8.dp),
             colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=Color.Black.copy(alpha=.52f),contentColor=Color.White)) {
             Icon(androidx.compose.material.icons.Icons.Default.Close,"关闭详情")
-        } else PocketBack(back, Modifier.align(Alignment.TopStart).padding(start=PageGutter,top=6.dp), label = label,overVideo=true)
+        } else PocketBack(back, Modifier.align(Alignment.TopStart).padding(start=PageGutter-IconFaceInset,top=6.dp), label = label,overVideo=true)
     }
 }

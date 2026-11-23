@@ -40,10 +40,7 @@ internal fun recommendationMetadata(json:String):String? {
     val largeFont=androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f
     Surface(Modifier.fillMaxSize().testTag("recommendationPreview")) {
         Column(if(close==null) Modifier.safeDrawingPadding() else Modifier.fillMaxSize()) {
-            if(wide) Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-                PocketBack(back, label = "返回推荐")
-                Text("影片介绍",Modifier.padding(12.dp),style=MaterialTheme.typography.titleMedium)
-            }
+            if(wide) BackHeading("影片介绍","返回推荐",back)
             if(!wide) TitleCover(video,model,if(close==null) minOf(windowSizeDp().height*.32f,290.dp) else minOf(windowSizeDp().height*.26f,210.dp),back, label = "返回推荐")
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal=PageGutter,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                 if(wide) FlowRow(maxItemsInEachRow=if(largeFont && !wide) 1 else 2,horizontalArrangement=Arrangement.spacedBy(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {

@@ -166,8 +166,8 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 }
 
 @Composable internal fun PocketBack(onClick: () -> Unit, modifier: Modifier = Modifier, label: String = "返回", overVideo: Boolean = false) {
-    GlassIconButton(onClick=onClick,modifier=modifier,colors=IconButtonDefaults.filledTonalIconButtonColors(
-        containerColor=if(overVideo) Color.Black.copy(alpha=.50f) else MaterialTheme.colorScheme.surfaceContainerLow,
+    GlassIconButton(onClick=onClick,modifier=modifier.then(if(overVideo) Modifier else Modifier.offset(x=-IconFaceInset)),colors=IconButtonDefaults.filledTonalIconButtonColors(
+        containerColor=if(overVideo) Color.Black.copy(alpha=.50f) else MaterialTheme.colorScheme.surfaceContainerHighest,
         contentColor=if(overVideo) Color.White else MaterialTheme.colorScheme.onSurface)) {
         Icon(Icons.AutoMirrored.Filled.ArrowBack,label)
     }
@@ -203,6 +203,16 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 @Composable internal fun PocketSwitch(checked: Boolean) {
     Switch(checked=checked,onCheckedChange=null,colors=SwitchDefaults.colors(
         checkedTrackColor=MaterialTheme.colorScheme.tertiary,checkedThumbColor=MaterialTheme.colorScheme.onTertiary))
+}
+
+@Composable internal fun BackHeading(title:String, backLabel:String, back:()->Unit,
+    inset:androidx.compose.ui.unit.Dp=PageGutter, action:(@Composable ()->Unit)?=null) {
+    Row(Modifier.fillMaxWidth().heightIn(min=60.dp).padding(horizontal=inset),
+        verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(ActionGap)) {
+        PocketBack(back,label=backLabel)
+        Text(title,Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+        if(action!=null) Box(Modifier.offset(x=IconFaceInset)) { action() }
+    }
 }
 
 @Composable internal fun SearchHeader(back: (() -> Unit)? = null, backLabel: String = "返回", trailing: (@Composable () -> Unit)? = null, field: @Composable () -> Unit) {
