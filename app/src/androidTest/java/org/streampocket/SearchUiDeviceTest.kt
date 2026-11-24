@@ -177,11 +177,14 @@ class SearchUiDeviceTest {
             ui.onNodeWithTag("searchInput").performTextReplacement("")
             ui.onNodeWithTag("searchInput").performImeAction()
             ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogQuery.isEmpty() }
+            assertEquals(setOf(Genre.ROMANCE),model.state.value.catalogGenres)
             assertTrue(requests.any { it.requestUrl?.queryParameter("t")=="7" && it.requestUrl?.queryParameter("wd")==null })
             ui.onNodeWithTag("catalogList").performScrollToIndex(0)
             ui.onNodeWithTag("catalogGenrePicker").performClick()
-            ui.onNodeWithTag("catalogGenre:ROMANCE").performClick()
-            ui.onNodeWithTag("catalogGenre:MYSTERY").performClick()
+            ui.onNodeWithTag("catalogGenre:ROMANCE").assertIsSelected().performClick()
+            ui.onNodeWithTag("catalogGenre:ROMANCE").assertIsNotSelected()
+            ui.onNodeWithTag("catalogGenre:MYSTERY").assertIsNotSelected().performClick()
+            ui.onNodeWithTag("catalogGenre:MYSTERY").assertIsSelected()
             ui.onNodeWithTag("applyCatalogFilters").performClick()
             ui.waitUntil(10000) { !model.state.value.catalogLoading && model.state.value.catalogGenres==setOf(Genre.MYSTERY) }
             ui.onNodeWithTag("catalogList").performScrollToNode(hasTestTag("catalogVideo:series"))

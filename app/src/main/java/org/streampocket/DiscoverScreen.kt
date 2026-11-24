@@ -54,7 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable fun DiscoverScreen(s:UiState,model:AppModel,addSource:()->Unit,searchTitle:(String)->Unit,
     recommendations:MutableState<Boolean> = rememberSaveable { mutableStateOf(true) },catalogQuery:String=s.catalogQuery,liveTab:MutableState<Boolean> = rememberSaveable { mutableStateOf(false) },liveQuery:String="",onTop:()->Unit={},
-    onOpenSearch:()->Unit={},showHeader:Boolean=true) {
+    onOpenSearch:()->Unit={},showHeader:Boolean=true,trialVisible:Boolean=true) {
     val sources = remember(s.saved.subscriptions, s.saved.disabled) { s.saved.enabledSources(SourceKind.VOD) }
     val recommendationFilters=rememberSaveable { mutableStateOf(false) }
     var recommendationSort by rememberSaveable { mutableStateOf(DiscoverySort.DEFAULT) }
@@ -77,17 +77,16 @@ import androidx.compose.ui.text.style.TextOverflow
         onDispose { lifecycle.removeObserver(observer) }
     }
     val catalogProbeVisible=!recommendations.value && !liveTab.value && s.catalogQuery.isNotBlank()
-    DisposableEffect(model,lifecycle,catalogProbeVisible,s.catalogQuery) {
-        fun update() { model.setSearchProbeActive(catalogProbeVisible && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED),catalog=true) }
-        val observer=androidx.lifecycle.LifecycleEventObserver { _,_->update() }
-        lifecycle.addObserver(observer);update()
-        onDispose { lifecycle.removeObserver(observer);model.setSearchProbeActive(false,catalog=true) }
-    }
+    SourceTrialLifecycle(model,trialVisible && catalogProbeVisible,catalog=true)
     val keyboard=LocalSoftwareKeyboardController.current
     val focus=androidx.compose.ui.platform.LocalFocusManager.current
     fun openPicker(value:String) {
         focus.clearFocus();keyboard?.hide()
-        draftGenres=s.catalogGenres.map { it.name };draftCategory=s.catalogCategory;draftSources=s.catalogSourceKeys.toList();picker=value
+        val applied=model.state.value
+        draftGenres=applied.catalogGenres.map { it.name }
+        draftCategory=applied.catalogCategory
+        draftSources=applied.catalogSourceKeys.toList()
+        picker=value
     }
     LaunchedEffect(sources.map { it.key }) { if(sources.isNotEmpty() && s.catalogSource==null) model.browseSources(emptySet()) }
     if(picker!=null) HandleOnlySheet(onDismissRequest={picker=null}) {

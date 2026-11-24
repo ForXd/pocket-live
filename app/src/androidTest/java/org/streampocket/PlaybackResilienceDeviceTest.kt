@@ -2,6 +2,9 @@ package org.streampocket
 
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.Lifecycle
@@ -34,14 +37,77 @@ class PlaybackResilienceDeviceTest {
             ui.activity.setContent { PocketTheme { Pocket(model) } }
         }
         ui.waitUntil(15000) { !model.state.value.loading }
-        ui.runOnIdle { model.allowHttp(true) }
-        ui.waitUntil(10000) { model.state.value.saved.allowHttp }
+        assertTrue(model.state.value.saved.allowHttp)
         return model
     }
     private fun player(view:android.view.View):androidx.media3.common.Player? {
         if(view is androidx.media3.ui.PlayerView) return view.player
         if(view is android.view.ViewGroup) for(i in 0 until view.childCount) player(view.getChildAt(i))?.let { return it }
         return null
+    }
+    @Test fun dismissedOrHiddenAlternativesReleaseTheirTrialWhileTheOriginalPlayerSurvives() {
+        val server = MockWebServer().apply { start() }
+        val base = "http://fixture.test:${server.port}"
+        val media = mediaFixtureBytes("gestures-video-only.mp4")
+        val trials = AtomicInteger()
+        val sep = "$" + "$" + "$"
+        val episodes = listOf("main","slow","queued").joinToString(sep) { "1${'$'}$base/$it.mp4" }
+        server.dispatcher = object: Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when (request.requestUrl!!.encodedPath) {
+                "/api" -> MockResponse().setBody("""{"list":[{"vod_play_from":"main${sep}slow${sep}queued","vod_play_url":"$episodes"}]}""")
+                "/main.mp4" -> MockResponse().setBody(Buffer().write(media))
+                "/slow.mp4" -> { trials.incrementAndGet(); MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE) }
+                "/recommend" -> MockResponse().setBody("""{"subjects":[]}""")
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+        val model = model(base)
+        val activity = ui.activity
+        fun openPanel() {
+            val before = trials.get()
+            ui.onNodeWithText("换源").performClick()
+            ui.waitUntil(10000) { trials.get() > before && model.activeAlternativeProbeCalls() == 1 }
+        }
+        fun awaitReleased() {
+            ui.waitUntil(5000) {
+                model.state.value.alternativeSession == null && model.state.value.alternatives.isEmpty() &&
+                    model.activeAlternativeProbeCalls() == 0 && Thread.getAllStackTraces().keys.none { it.name == "PocketPlaybackTrial" }
+            }
+        }
+        try {
+            val video = Video(Source("原始来源", "$base/api"), "1", "换源生命周期")
+            ui.runOnIdle { model.open(video) }
+            ui.waitUntil(10000) { model.state.value.detail != null }
+            val frame = PlaybackMetrics.frames
+            ui.runOnIdle { model.play(video, model.state.value.detail!!.lines.first().episodes.first()) }
+            ui.waitUntil(15000) { PlaybackMetrics.frames > frame }
+            val original = ui.runOnIdle { checkNotNull(player(activity.window.decorView)) }
+            val session = model.state.value.playback!!.sessionId
+            val position = ui.runOnIdle { original.currentPosition }
+            openPanel()
+            ui.onNodeWithContentDescription("关闭").performClick()
+            awaitReleased()
+            ui.waitUntil(10000) { ui.runOnIdle { original.isPlaying && original.currentPosition > position } }
+            openPanel()
+            ui.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+            awaitReleased()
+            ui.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+            ui.waitUntil(10000) { ui.runOnIdle { original.isPlaying } }
+            if (activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                openPanel()
+                ui.runOnIdle { assertTrue(activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().build())) }
+                ui.waitUntil(5000) { activity.isInPictureInPictureMode }
+                awaitReleased()
+            }
+            assertEquals(session, model.state.value.playback?.sessionId)
+            ui.runOnIdle {
+                assertSame(original, player(activity.window.decorView))
+                assertTrue("Original playback continues after leaving the panel", original.isPlaying)
+            }
+        } finally {
+            ui.runOnUiThread { model.stopPlayback(); activity.viewModelStore.clear() }
+            server.shutdown()
+        }
     }
     @Test fun smoothModeChoosesLowerRendition() = renditionCase(false)
     @Test fun transientServerFailureRetriesWithoutChangingSource() = renditionCase(true)

@@ -39,6 +39,7 @@ internal class PlaybackProbe(private val network:Network) {
             override fun onResponse(call:Call,response:Response) {
                 try {
                     val mime=response.use {
+                        if(!continuation.isActive) return
                         if(!it.isSuccessful) throw IOException("Media HTTP ${it.code}")
                         val source=it.body?.source() ?: throw IOException("Empty media")
                         if(isHls(source)) "application/x-mpegURL" else null

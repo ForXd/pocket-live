@@ -93,17 +93,39 @@ class AlternativeProbeDeviceTest {
         } finally { release.countDown() }
     }
 
-    @Test fun closingAndLeavingPlaybackCancelPendingProbesWithoutLateResults() {
-        fixture({ MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE) }) { model,_ ->
-            repeat(2) { iteration ->
-                main { model.openAlternatives(model.state.value.playback!!.sessionId) }
-                await { model.activeAlternativeProbeCalls()==1 }
-                main { if(iteration==0) model.closeAlternatives() else model.stopPlayback() }
-                await { model.activeAlternativeProbeCalls()==0 }
-                assertNull(model.state.value.alternativeSession)
-                assertTrue(model.state.value.alternatives.isEmpty())
-                assertFalse(model.state.value.alternativesLoading)
+    @Test fun rapidReopenCancelsQueuedTrialsAndStaleSessionCleanupCannotCloseTheNewPanel() {
+        val paths = java.util.concurrent.CopyOnWriteArrayList<String>()
+        fixture({ path ->
+            paths.add(path)
+            MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
+        }, slowSearch=true) { model,_ ->
+            val original = model.state.value.playback!!
+            main { model.openAlternatives(original.sessionId) }
+            repeat(5) { round ->
+                await { paths.size > round && model.activeAlternativeProbeCalls() == 1 && model.activeSearchCalls() > 0 }
+                assertEquals(5, model.state.value.alternatives.size)
+                main {
+                    model.closeAlternatives(original.sessionId)
+                    if (round < 4) model.openAlternatives(original.sessionId)
+                }
             }
+            await { model.activeAlternativeProbeCalls() == 0 && model.activeSearchCalls() == 0 && MediaCallOwner.active.get() == 0 }
+            assertEquals("Cancelled candidates never start their requests", setOf("/a-2.mp4"), paths.toSet())
+            assertEquals(original, model.state.value.playback)
+            assertNull(model.state.value.alternativeSession)
+            assertTrue(model.state.value.alternatives.isEmpty())
+            val next = model.state.value.detail!!.lines.first().episodes.first()
+            main {
+                model.play(original.video, next)
+                model.openAlternatives(model.state.value.playback!!.sessionId)
+                model.closeAlternatives(original.sessionId)
+            }
+            await { "/a-1.mp4" in paths }
+            assertEquals(model.state.value.playback!!.sessionId, model.state.value.alternativeSession)
+            main { model.stopPlayback() }
+            await { model.activeAlternativeProbeCalls() == 0 && model.activeSearchCalls() == 0 && MediaCallOwner.active.get() == 0 }
+            assertTrue(model.state.value.alternatives.isEmpty())
+            assertFalse(model.state.value.alternativesLoading)
         }
     }
 

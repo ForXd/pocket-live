@@ -71,8 +71,13 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
     val activity = context as androidx.activity.ComponentActivity
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var pip by remember { mutableStateOf(activity.isInPictureInPictureMode) }
-    DisposableEffect(activity) {
-        val listener=androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { pip=it.isInPictureInPictureMode }
+    DisposableEffect(activity, model, playback.sessionId) {
+        fun updatePip(active: Boolean) {
+            pip = active
+            if (active) model.closeAlternatives(playback.sessionId)
+        }
+        val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { updatePip(it.isInPictureInPictureMode) }
+        updatePip(activity.isInPictureInPictureMode)
         activity.addOnPictureInPictureModeChangedListener(listener)
         onDispose { activity.removeOnPictureInPictureModeChangedListener(listener) }
     }
@@ -135,6 +140,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
     }
     LaunchedEffect(controller,state.smoothPlayback) { controller.setSmoothMode(state.smoothPlayback) }
     fun showAlternatives() {
+        if (activity.isInPictureInPictureMode || !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
         episodesOpen=false
         optionsOpen=false
         gestureFeedback=""
@@ -153,7 +159,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
     val returningFromPlayer = !full && !pip && state.alternativeSession==null && !episodesOpen && !optionsOpen
     val motion=LocalCardReturn.current
     CardBackHandler(enabled=returningFromPlayer) { playerView?.cancelGestures();model.stopPlayback() }
-    BackHandler(enabled=!returningFromPlayer) { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives() else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) exitFullscreen() else model.stopPlayback() }
+    BackHandler(enabled=!returningFromPlayer) { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives(playback.sessionId) else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) exitFullscreen() else model.stopPlayback() }
     val darkTheme=LocalPocketDark.current
     LaunchedEffect(full, pip,darkTheme) {
         val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
@@ -169,12 +175,16 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
     DisposableEffect(controller,lifecycle) {
         val observer=LifecycleEventObserver { _,event -> when(event) {
             Lifecycle.Event.ON_START -> controller.foreground()
-            Lifecycle.Event.ON_STOP -> { model.pauseRelatedDiscovery();model.closeAlternatives();playerView?.cancelGestures();levels.restoreBrightness();controller.background() }
+            Lifecycle.Event.ON_STOP -> { model.pauseRelatedDiscovery();model.closeAlternatives(playback.sessionId);playerView?.cancelGestures();levels.restoreBrightness();controller.background() }
             else -> Unit
         } }
         lifecycle.addObserver(observer)
         if(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) controller.foreground()
-        onDispose { lifecycle.removeObserver(observer); controller.close(activity.isChangingConfigurations) }
+        onDispose {
+            lifecycle.removeObserver(observer)
+            model.closeAlternatives(playback.sessionId)
+            controller.close(activity.isChangingConfigurations)
+        }
     }
     val windowSize = windowSizeDp()
     // Media3 needs room for both center transport and its bottom time/settings bar.
@@ -246,7 +256,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
             full, keepPosition, { keepPosition = it }, { option ->
                 controller.checkpointNow()
                 model.chooseAlternative(option, keepPosition)
-            }, ::showAlternatives, model::closeAlternatives)
+            }, ::showAlternatives, { model.closeAlternatives(playback.sessionId) })
     }
     if(episodesOpen && !pip && !full) {
         LaunchedEffect(episodesOpen) { playerView?.cancelGestures() }

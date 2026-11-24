@@ -122,7 +122,8 @@ class MainActivity : ComponentActivity() {
     }
     fun closeSearch() {
         resultScroll.reveal()
-        if(searchMode) model.cancelSearch()
+        model.dismissSearch()
+        homeState.removeState("search")
         if(inCatalog && s.catalogQuery.isNotEmpty()) {
             model.browseSources(s.catalogSourceKeys,s.catalogCategory,"",genres=s.catalogGenres)
         }
@@ -133,6 +134,12 @@ class MainActivity : ComponentActivity() {
         resultScroll.reveal()
         focusSearch=true
         searchOpen=true
+    }
+    fun clearSubmittedSearch() {
+        model.dismissSearch()
+        query=""
+        submittedQuery=""
+        focusSearch=true
     }
     // Do not put token-bearing input into saved-instance-state or screen titles.
     var url by remember { mutableStateOf("") }
@@ -266,7 +273,12 @@ class MainActivity : ComponentActivity() {
                             query=when { inLive -> liveQuery; inCatalog -> catalogQuery; else -> query },
                             onQuery={ text ->
                                 val value=text.take(100)
-                                when { inLive -> liveQuery=value; inCatalog -> catalogQuery=value; else -> query=value }
+                                when {
+                                    inLive -> liveQuery=value
+                                    inCatalog -> catalogQuery=value
+                                    value.isEmpty() && searchMode -> clearSubmittedSearch()
+                                    else -> query=value
+                                }
                             },
                             searchMode=searchMode,
                             submit={
@@ -280,7 +292,7 @@ class MainActivity : ComponentActivity() {
                                 when {
                                     inLive -> liveQuery=""
                                     inCatalog -> browseQuery("")
-                                    else -> { query="";model.cancelSearch();submittedQuery="";focusSearch=true }
+                                    else -> clearSubmittedSearch()
                                 }
                             },
                             placeholder=when {
@@ -335,7 +347,7 @@ class MainActivity : ComponentActivity() {
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchOpen) "search" else "recommendations") {
                     when {
-                        searchMode -> key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::closeSearch,::openSubscriptions,onTop=resultScroll::reveal) }
+                        searchMode -> key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::closeSearch,::openSubscriptions,onTop=resultScroll::reveal,trialVisible=!inline) }
                         searchOpen && !inLive && !inCatalog -> Box(Modifier.fillMaxSize().testTag("searchLanding")) {
                             if(query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
                                 androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=PageGutter),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -347,7 +359,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         else -> DiscoverScreen(s,model,::openSubscriptions,::search,recommendations,catalogQuery,liveTab,liveQuery,
-                            onOpenSearch=::openSearch,showHeader=!searchOpen)
+                            onOpenSearch=::openSearch,showHeader=!searchOpen,trialVisible=!inline)
                     }
                 }
                 3 -> SettingsScreen(s,model,settingsPage,{settingsPage=it},{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},

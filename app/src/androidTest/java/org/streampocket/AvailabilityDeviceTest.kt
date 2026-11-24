@@ -19,6 +19,7 @@ class AvailabilityDeviceTest {
     private lateinit var model:AppModel
     private val details=CopyOnWriteArrayList<String>()
     private val playlistRequests=java.util.concurrent.atomic.AtomicInteger()
+    private val pendingRequests=java.util.concurrent.atomic.AtomicInteger()
     @Before fun setup() {
         server=MockWebServer().apply { start() }
         val base="http://probe.test:${server.port}"
@@ -33,12 +34,15 @@ class AvailabilityDeviceTest {
                         val id=url.queryParameter("ids")
                         if(id!=null) {
                             details+=id
-                            if(id=="slow") MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
+                            if(id=="lifecycle") MockResponse().setBody("""{"list":[{"vod_play_from":"高清${'$'}${'$'}${'$'}备用","vod_play_url":"第1集${'$'}$base/stream/master.m3u8${'$'}${'$'}${'$'}第1集${'$'}$base/pending.m3u8"}]}""")
+                            else if(id=="slow") MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
                             else MockResponse().setBody("""{"list":[{"vod_play_from":"主线路","vod_play_url":"第1集${'$'}$base/${if(id=="1") "bad-media.mp4" else "stream/master.m3u8"}"}]}""")
-                        } else if(url.queryParameter("wd")=="慢速") MockResponse().setBody("""{"list":[{"vod_id":"slow","vod_name":"慢速剧集"}]}""")
+                        } else if(url.queryParameter("wd")=="生命周期") MockResponse().setBody("""{"list":[{"vod_id":"lifecycle","vod_name":"生命周期"}]}""")
+                        else if(url.queryParameter("wd")=="慢速") MockResponse().setBody("""{"list":[{"vod_id":"slow","vod_name":"慢速剧集"}]}""")
                         else MockResponse().setBody("""{"list":[${(1..5).joinToString(",") { """{"vod_id":"$it","vod_name":"星河剧集"}""" }}]}""")
                     }
                     "/bad-media.mp4" -> MockResponse().setBody("<html>error</html>")
+                    "/pending.m3u8" -> { pendingRequests.incrementAndGet();MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE) }
                     "/stream/master.m3u8" -> { playlistRequests.incrementAndGet();MockResponse().setHeader("Content-Type","application/vnd.apple.mpegurl")
                         .setBody("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=500000\nchild.m3u8\n") }
                     "/stream/child.m3u8" -> MockResponse().setHeader("Content-Type","application/vnd.apple.mpegurl")
@@ -122,6 +126,37 @@ class AvailabilityDeviceTest {
         assertEquals("慢速",model.state.value.searchQuery)
         assertEquals(1,model.state.value.results.size)
         assertEquals(true,model.state.value.sourceAvailability[model.state.value.results.single().source.key])
+    }
+    @Test fun searchTrialsReleaseOnPauseAndPreviewThenDiscardWhenSearchCloses() {
+        ui.onNodeWithTag("openSearch").performClick()
+        ui.onNodeWithTag("searchInput").performTextInput("生命周期")
+        ui.onNodeWithTag("searchInput").performImeAction()
+        expandWork("lifecycle")
+        ui.waitUntil(15000) { pendingRequests.get()>0 && model.state.value.probeEpisodes.isNotEmpty() }
+        val verified=model.state.value.probeEpisodes
+        val before=playlistRequests.get()
+        val firstPending=pendingRequests.get()
+        ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.STARTED)
+        ui.waitUntil(5000) { model.activeProbeCalls()==0 && MediaCallOwner.active.get()==0 }
+        assertFalse(model.state.value.probeRunning)
+        assertEquals(verified,model.state.value.probeEpisodes)
+        ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        ui.waitUntil(10000) { pendingRequests.get()>firstPending }
+        val resumedPending=pendingRequests.get()
+        ui.onNodeWithTag("searchPoster:lifecycle").performScrollTo().performClick()
+        ui.onNodeWithContentDescription("关闭详情").assertIsDisplayed()
+        ui.waitUntil(5000) { model.activeProbeCalls()==0 && MediaCallOwner.active.get()==0 }
+        assertEquals(verified,model.state.value.probeEpisodes)
+        ui.onNodeWithContentDescription("关闭详情").performClick()
+        ui.waitUntil(10000) { pendingRequests.get()>resumedPending }
+        assertEquals("Resuming must not decode the known-good line again",before,playlistRequests.get())
+        ui.onNodeWithContentDescription("返回推荐").performClick()
+        ui.waitUntil(5000) { model.activeProbeCalls()==0 && MediaCallOwner.active.get()==0 }
+        val closed=model.state.value
+        assertTrue(closed.results.isEmpty() && closed.searchQuery.isEmpty())
+        assertTrue(closed.probeEpisodes.isEmpty() && closed.lineTrials.isEmpty() && closed.probes.isEmpty())
+        assertTrue(closed.probeLines.isEmpty() && closed.probeResolutions.isEmpty())
+        assertNull(closed.probeWork)
     }
     @Test fun newQueryCancelsOldProbeAndKeepsOnlyNewStatuses() {
         ui.onNodeWithTag("openSearch").performClick()

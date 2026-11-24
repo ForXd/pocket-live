@@ -59,16 +59,17 @@ class SwitchingDeviceTest {
                 finally { bitmap.recycle() }
             }
             capture("failure.png")
-            ui.onNodeWithText("换源").assertExists().performClick()
+            ui.onNode(hasText("换源") and hasAnyAncestor(hasTestTag("playbackError"))).assertExists().performClick()
             ui.onNodeWithText("备用线路").assertExists()
             capture("quick-switch.png")
             val failedSession=model.state.value.playback!!.sessionId
             instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
             ui.waitUntil(5000) { model.state.value.alternativeSession==null }
             assertEquals(failedSession,model.state.value.playback!!.sessionId)
-            ui.onNodeWithText("换源").performClick()
-            ui.onNodeWithText("备用线路").assertExists().performClick()
+            ui.onNode(hasText("换源") and hasAnyAncestor(hasTestTag("playbackError"))).performClick()
+            ui.waitUntil(15000) { model.state.value.alternatives.any { it.probeStatus == ProbeStatus.READY } }
             val before=PlaybackMetrics.frames
+            ui.onNodeWithText("备用线路").assertExists().performClick()
             ui.waitUntil(30000) { model.state.value.playback?.episode?.url=="$base/test.mp4" && PlaybackMetrics.frames>before }
             ui.runOnIdle { model.stopPlayback() }
             ui.waitUntil(10000) { PlaybackMetrics.created==PlaybackMetrics.released }
@@ -98,7 +99,7 @@ class SwitchingDeviceTest {
             ui.onNodeWithContentDescription("更多播放选项").performClick()
             ui.onNodeWithText("流畅优先").assertExists()
             ui.onNodeWithContentDescription("关闭").performClick()
-            ui.onNodeWithText("换源").assertExists()
+            ui.onNode(hasText("换源") and hasAnyAncestor(hasTestTag("playbackError"))).assertExists()
             ui.runOnIdle { model.stopPlayback() }
             ui.waitUntil(5000) { PlaybackMetrics.created==PlaybackMetrics.released && PlaybackMetrics.samplers==0 }
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }

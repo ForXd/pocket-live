@@ -22,38 +22,46 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
+internal typealias TrialPlayerCreated = (ExoPlayer, Surface, SurfaceTexture) -> Unit
+
 /** The caller limits simultaneous trials. Codec startup and teardown stay off the UI thread. */
 internal suspend fun runPlaybackTrial(context:Context,network:Network,episode:Episode,automaticAds:Boolean,
-    adPaths:Set<String>,smoothMode:Boolean):ProbeResult {
+    adPaths:Set<String>,smoothMode:Boolean,onPlayerCreated:TrialPlayerCreated?=null):ProbeResult {
     val failed=ProbeResult(ProbeStatus.FAILED)
     if(validUrl(episode.url)==null) return failed
     return try {
         withTimeoutOrNull(ProbePolicy.MEDIA_TIMEOUT_MS) {
             val item=playbackMediaItem(network,episode)
-            val worker=HandlerThread("PocketPlaybackTrial").apply { start() }
-            try {
-                withContext(Handler(worker.looper).asCoroutineDispatcher()) {
-                    playTrialMedia(context.applicationContext,network,episode,item,automaticAds,adPaths,smoothMode)
+            withContext(Dispatchers.IO) {
+                val worker=HandlerThread("PocketPlaybackTrial").apply { start() }
+                try {
+                    withContext(Handler(worker.looper).asCoroutineDispatcher()) {
+                        playTrialMedia(context.applicationContext,network,episode,item,automaticAds,adPaths,smoothMode,onPlayerCreated)
+                    }
+                } finally {
+                    worker.quitSafely()
+                    worker.join()
                 }
-            } finally { worker.quitSafely() }
+            }
         } ?: failed
     } catch(e:CancellationException) { throw e }
       catch(_:Exception) { currentCoroutineContext().ensureActive();failed }
 }
 
 private suspend fun playTrialMedia(context:Context,network:Network,episode:Episode,item:MediaItem,
-    automaticAds:Boolean,adPaths:Set<String>,smoothMode:Boolean):ProbeResult {
+    automaticAds:Boolean,adPaths:Set<String>,smoothMode:Boolean,onPlayerCreated:TrialPlayerCreated?):ProbeResult {
     val excluded=mutableSetOf<String>()
     while(true) {
         currentCoroutineContext().ensureActive()
         try {
-            return tryDecoder(context,network,episode,item,automaticAds,adPaths,smoothMode,excluded.toSet())
+            return tryDecoder(context,network,episode,item,automaticAds,adPaths,smoothMode,excluded.toSet(),onPlayerCreated)
         } catch(error:PlaybackException) {
             val failed=error.failedDecoderName()
             if(failed==null || excluded.size>=4 || !excluded.add(failed)) throw error
@@ -63,13 +71,16 @@ private suspend fun playTrialMedia(context:Context,network:Network,episode:Episo
 
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
 private suspend fun tryDecoder(context:Context,network:Network,episode:Episode,item:MediaItem,
-    automaticAds:Boolean,adPaths:Set<String>,smoothMode:Boolean,excluded:Set<String>):ProbeResult {
+    automaticAds:Boolean,adPaths:Set<String>,smoothMode:Boolean,excluded:Set<String>,
+    onPlayerCreated:TrialPlayerCreated?):ProbeResult {
     val completed=CompletableDeferred<ProbeResult>()
     val failed=ProbeResult(ProbeStatus.FAILED)
     val calls=MediaCallOwner(network.client)
     var player:ExoPlayer?=null
     var texture:SurfaceTexture?=null
     var surface:Surface?=null
+    var events:Player.Listener?=null
+    var outputObserver:PlaybackOutputObserver?=null
     try {
         val upstream=OkHttpDataSource.Factory(calls)
         val policy=PlaybackLoadPolicy()
@@ -100,20 +111,27 @@ private suspend fun tryDecoder(context:Context,network:Network,episode:Episode,i
             val resolution=if(video && size.width>0 && size.height>0) "${size.width}×${size.height}" else null
             return ProbeResult(ProbeStatus.READY,resolution,episode.copy(mimeType=mime),mime)
         }
-        p.addListener(object:Player.Listener {
+        onPlayerCreated?.invoke(p, surface, output)
+        events=object:Player.Listener {
             override fun onPlayerError(error:PlaybackException) { completed.completeExceptionally(error) }
             override fun onPlaybackStateChanged(playbackState:Int) {
                 if(playbackState==Player.STATE_ENDED) completed.complete(failed)
             }
-        })
-        p.addAnalyticsListener(PlaybackOutputObserver(p) { video -> completed.complete(success(video)) })
+        }.also(p::addListener)
+        outputObserver=PlaybackOutputObserver(p) { video -> completed.complete(success(video)) }.also(p::addAnalyticsListener)
         p.setMediaSource(source)
         p.prepare()
         p.play()
         return completed.await()
     } finally {
         try {
-            try { calls.close() } finally { player?.release() }
+            try {
+                calls.close()
+                player?.let { p ->
+                    events?.let(p::removeListener)
+                    outputObserver?.let(p::removeAnalyticsListener)
+                }
+            } finally { player?.release() }
         } finally {
             try { surface?.release() } finally { texture?.release() }
         }

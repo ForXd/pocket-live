@@ -5,6 +5,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -78,6 +79,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     }
     private var alternativesJob: Job? = null
     private var alternativesOwner=0L
+    private val alternativeTrialLane = Mutex()
     private var recommendJob: Job? = null
     private var recommendSuccessAt=0L
     fun discoveryForeground() {
@@ -145,6 +147,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     internal fun activeProbeCalls()=sourceTrials.get()
     private val probeCache=linkedMapOf<Pair<String,String>,Pair<Long,ProbeResult>>()
     private val completedTrials=mutableSetOf<String>()
+    private fun UiState.withoutSourceTrials()=copy(lineTrials=emptyMap(),probes=emptyMap(),
+        probeResolutions=emptyMap(),probeEpisodes=emptyMap(),probeLines=emptyMap())
     fun requestSourceProbe(work:String?,retry:Boolean=false) {
         if(sourceProbeWork==work && !retry) return
         cancelProbes();sourceProbeWork=work
@@ -160,7 +164,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         if(!active && catalog!=probeCatalog) return
         if(active && catalog!=probeCatalog) {
             cancelProbes();completedTrials.clear()
-            _state.update { it.copy(lineTrials=emptyMap(),probes=emptyMap(),probeResolutions=emptyMap(),probeEpisodes=emptyMap(),probeLines=emptyMap()) }
+            _state.update { it.withoutSourceTrials() }
         }
         probeCatalog=catalog;probeActive=active
         if(active) startProbes() else cancelProbes()
@@ -176,10 +180,10 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
             CmsParser.detail(probeNetwork.text(probeNetwork.api(video.source,"ids",video.id)),video)
         }
         reconcileTrialUrls(detail)
-        val seen=mutableSetOf<String>()
-        for(line in detail.lines) {
-            val episode=line.episodes.firstOrNull() ?: continue
-            if(!seen.add(episode.url)) continue
+        // Only a representative episode per line is needed while a decoder is running.
+        val candidates=detail.lines.mapNotNull { line -> line.episodes.firstOrNull()?.let { line.name to it } }
+            .distinctBy { it.second.url }
+        for((lineName,episode) in candidates) {
             val id=key to episode.url
             val prior=state.value.lineTrials[key]?.get(episode.url)
                 ?: probeCache[id]?.takeIf { System.currentTimeMillis()-it.first in 0..300_000L }?.second
@@ -192,7 +196,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                 ProbeResult(ProbeStatus.FAILED)
             }
             currentCoroutineContext().ensureActive()
-            val checked=result.copy(lineName=line.name,episode=result.episode ?: episode)
+            val checked=result.copy(lineName=lineName,episode=result.episode ?: episode)
             if(prior==null && checked.status==ProbeStatus.READY) rememberTrial(key,checked)
             _state.update { old ->
                 val known=old.lineTrials[key].orEmpty()+(episode.url to checked)
@@ -222,8 +226,12 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         val previous=snapshot.lineTrials[key].orEmpty()
         val pinned=snapshot.probeEpisodes[key]?.url
         if(previous.isEmpty() && pinned==null) return
-        val urls=detail.lines.flatMapTo(mutableSetOf()) { line -> line.episodes.map { it.url } }
-        val removed=(previous.keys+listOfNotNull(pinned))-urls
+        val removed=previous.keys.toMutableSet()
+        if(pinned!=null) removed.add(pinned)
+        for(line in detail.lines) {
+            for(episode in line.episodes) removed.remove(episode.url)
+            if(removed.isEmpty()) break
+        }
         if(detail.lines.any { it.episodes.firstOrNull()?.url !in previous }) completedTrials.remove(key)
         if(removed.isEmpty()) return
         removed.forEach { probeCache.remove(key to it) }
@@ -324,8 +332,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         cancelLive();_state.update { it.copy(liveSourceKey=null,liveChannels=emptyList(),liveError=null) }
         closeAlternatives(); cancelSearch(); cancelCatalog(); closeDetail(); clearCache(silent = true)
         _state.update { it.copy(catalogSource=null,catalogVideos=emptyList(),categories=emptyList(),catalogMore=false,catalogError=null) }
-        _state.update { it.copy(results=emptyList(),completed=0,total=0,failures=0,nonPublicDnsFailures=0,
-            lineTrials=emptyMap(),probes=emptyMap(),probeResolutions=emptyMap(),probeEpisodes=emptyMap(),probeLines=emptyMap()) }
+        _state.update { it.withoutSourceTrials().copy(results=emptyList(),completed=0,total=0,failures=0,nonPublicDnsFailures=0) }
     }
     fun setSearchHistory(enabled: Boolean) = change { saved ->
         saved.copy(searchHistoryEnabled=enabled, recentSearches=if(enabled) saved.recentSearches else emptyList())
@@ -432,13 +439,22 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
     }
     fun cancelImport(key: String) { importJobs[key]?.cancel() }
     fun cancelSearch() { sourceProbeWork=null;_state.update { it.copy(probeWork=null) };cancelProbes();searchJob?.cancel(); searchJob = null; _state.update { it.copy(searching = false) } }
+    fun dismissSearch() {
+        cancelSearch()
+        probeActive=false
+        probeCatalog=false
+        probeCache.clear()
+        completedTrials.clear()
+        _state.update { it.withoutSourceTrials().copy(results=emptyList(),searchQuery="",completed=0,total=0,
+            failures=0,nonPublicDnsFailures=0) }
+    }
     fun search(query: String) {
         cancelSearch();probeCatalog=false
         searchOrderPinned=false
         val q = query.trim().take(100); if(q.isEmpty()) return
         val sources = distinctSearchEndpoints(sourceHealth.ordered(state.value.saved.enabledSources(),QueryKind.SEARCH),network::actualSearchEndpoint)
         completedTrials.clear()
-        _state.update { it.copy(lineTrials=emptyMap(),probeEpisodes=emptyMap(),probeLines=emptyMap(),probes=emptyMap(),probeResolutions=emptyMap(), searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0, nonPublicDnsFailures=0) }
+        _state.update { it.withoutSourceTrials().copy(searchQuery = q, searchOrder = SearchOrder.RELEVANCE, results = emptyList(), searching = sources.isNotEmpty(), completed = 0, total = sources.size, failures = 0, nonPublicDnsFailures=0) }
         if (sources.isEmpty()) return message("请先添加订阅并启用至少一个源")
         searchJob = viewModelScope.launch {
             val merger = SearchResultMerger()
@@ -505,7 +521,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         val rawCategory=category.takeIf { sources.size==1 }
         if(more && (before.catalogLoading || !before.catalogMore || before.catalogSourceKeys!=sourceKeys || before.catalogCategory!=rawCategory || before.catalogQuery!=query || before.catalogGenres!=genres)) return
         cancelCatalog();val owner=catalogOwner
-        if(probeCatalog && !more) { cancelProbes();completedTrials.clear();_state.update { it.copy(lineTrials=emptyMap(),probes=emptyMap(),probeResolutions=emptyMap(),probeEpisodes=emptyMap(),probeLines=emptyMap()) } }
+        if(probeCatalog && !more) { completedTrials.clear();_state.update { it.withoutSourceTrials() } }
         if(!more) { catalogCursors.clear();sources.forEach { catalogCursors[it.key]=null } }
         val tasks=sources.filter { it.key in catalogCursors }.map { it to catalogCursors[it.key] }
         _state.update { it.copy(catalogSource=sources.first(),catalogSourceKeys=sourceKeys.toSet(),catalogCategory=rawCategory,catalogGenres=genres.toSet(),catalogQuery=query,
@@ -717,10 +733,16 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
             }
         }
     }
+    private fun UiState.tracksTrial(key:String):Boolean {
+        if(key in probes || key in lineTrials) return true
+        return if(probeCatalog) catalogQuery.isNotBlank() && catalogVideos.any { it.probeKey()==key }
+            else searchQuery.isNotBlank() && results.any { it.probeKey()==key }
+    }
     fun playbackConfirmed(sessionId:String) {
         val snapshot=state.value
         val playing=snapshot.playback?.takeIf { it.sessionId==sessionId && it.video.source.kind==SourceKind.VOD } ?: return
         val key=playing.video.probeKey()
+        if(!snapshot.tracksTrial(key)) return
         val previous=snapshot.lineTrials[key]?.get(playing.episode.url)
         val detail=snapshot.detail?.takeIf { it.video.probeKey()==key }
         val line=detail?.lines?.firstOrNull { line ->
@@ -741,6 +763,7 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         val key=failed.video.probeKey()
         val url=failed.episode.url
         probeCache.remove(key to url)
+        if(!snapshot.tracksTrial(key)) return
         val detail=snapshot.detail?.takeIf { it.video.probeKey()==key }
         if(detail!=null && detail.lines.none { line -> line.episodes.any { it.url==url } }) return
         _state.update { old ->
@@ -752,85 +775,109 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         }
     }
     fun smoothPlayback(enabled:Boolean) { _state.update { it.copy(smoothPlayback=enabled) } }
-    fun closeAlternatives() {
-        alternativesOwner++; alternativesJob?.cancel();alternativesJob=null
-        _state.update { it.copy(alternativeSession=null,alternatives=emptyList(),alternativesLoading=false,alternativesError=null) }
+    fun closeAlternatives(sessionId: String? = null) {
+        if (sessionId != null && state.value.alternativeSession != sessionId) return
+        alternativesOwner++
+        alternativesJob?.cancel()
+        alternativesJob = null
+        _state.update { it.copy(alternativeSession=null, alternatives=emptyList(), alternativesLoading=false, alternativesError=null) }
     }
-    fun openAlternatives(sessionId:String) {
+
+    fun openAlternatives(sessionId: String) {
+        val snapshot = state.value
+        val current = snapshot.playback?.takeIf { it.sessionId == sessionId && it.video.source.kind == SourceKind.VOD } ?: return
+        if (snapshot.alternativeSession == sessionId && snapshot.alternativesLoading) return
         pauseRelatedDiscovery()
-        val current=state.value.playback?.takeIf { it.sessionId==sessionId && it.video.source.kind==SourceKind.VOD } ?: return
-        closeAlternatives(); val owner=alternativesOwner
-        val snapshot=state.value
-        val detail=snapshot.detail?.takeIf { it.video.source.key==current.video.source.key && it.video.id==current.video.id }
-        val local=detail?.let { PlaybackAlternatives.from(it,current) }.orEmpty()
-        _state.update { it.copy(alternativeSession=sessionId,alternatives=emptyList(),alternativesLoading=true) }
-        fun active()=alternativesOwner==owner && state.value.playback?.sessionId==sessionId
-        alternativesJob=viewModelScope.launch {
-            var failures=0
+        closeAlternatives()
+        val owner = alternativesOwner
+        _state.update { it.copy(alternativeSession=sessionId, alternativesLoading=true) }
+        fun active() = alternativesOwner == owner && state.value.playback?.sessionId == sessionId
+        fun updateProbe(option: PlaybackAlternative, result: ProbeResult) {
+            if (!active()) return
+            _state.update { s -> s.copy(alternatives=s.alternatives.map {
+                if (it.episode.url == option.episode.url) it.copy(probeStatus=result.status, resolution=result.resolution,
+                    episode=result.episode ?: it.episode) else it
+            }.sortedBy { if (it.probeStatus == ProbeStatus.READY) 0 else 1 }) }
+        }
+
+        alternativesJob = viewModelScope.launch {
+            // The panel owns one consumer. Pending URLs never allocate a coroutine or a decoder.
+            val queue = Channel<PlaybackAlternative>(Channel.UNLIMITED)
+            val seen = mutableSetOf<String>()
+            var partial = false
             try {
-                supervisorScope {
-                        val probeSlots=Semaphore(1)
-                        val seen=mutableSetOf<String>()
-                        fun updateProbe(option:PlaybackAlternative,result:ProbeResult) {
-                            if(active()) _state.update { currentState -> currentState.copy(alternatives=currentState.alternatives.map {
-                                if(it.episode.url==option.episode.url) it.copy(probeStatus=result.status,resolution=result.resolution,episode=result.episode ?: it.episode) else it
-                            }.sortedBy { if(it.probeStatus==ProbeStatus.READY) 0 else 1 }) }
-                        }
-                        // Test the matching episode on each candidate service.
-                        fun add(options:List<PlaybackAlternative>) {
-                            if(!active()) return
-                            val additions=options.filter { seen.add(it.episode.url) }
-                            if(additions.isEmpty()) return
-                            _state.update { it.copy(alternatives=PlaybackAlternatives.merge(it.alternatives,additions)) }
-                            for(option in additions) {
-                                launch {
-                                    probeSlots.withPermit {
-                                        ensureActive()
-                                        updateProbe(option,ProbeResult(ProbeStatus.CHECKING))
-                                        alternativeTrials.incrementAndGet()
-                                        val result=try { trialEpisode(option.video,option.episode) }
-                                            catch(e:CancellationException) { throw e }
-                                            catch(_:Exception) { ProbeResult(ProbeStatus.FAILED) }
-                                            finally { alternativeTrials.decrementAndGet() }
-                                        ensureActive()
-                                        if(active()) updateProbe(option,result)
-                                    }
-                                }
+                coroutineScope {
+                    launch {
+                        // A rapidly reopened panel waits for the old worker's codec cleanup.
+                        alternativeTrialLane.withLock {
+                            for (option in queue) {
+                                ensureActive()
+                                updateProbe(option, ProbeResult(ProbeStatus.CHECKING))
+                                alternativeTrials.incrementAndGet()
+                                val result = try { trialEpisode(option.video, option.episode) }
+                                catch (e: CancellationException) { throw e }
+                                catch (_: Exception) { ProbeResult(ProbeStatus.FAILED) }
+                                finally { alternativeTrials.decrementAndGet() }
+                                ensureActive()
+                                updateProbe(option, result)
                             }
                         }
-                        add(local)
-                        if(detail==null) launch {
-                            try {
-                                val d=withContext(Dispatchers.Default) { CmsParser.detail(network.text(network.api(current.video.source,"ids",current.video.id)),current.video) }
-                                ensureActive();add(PlaybackAlternatives.from(d,current))
-                            } catch(e:CancellationException) { throw e } catch(_:Exception) { failures++ }
+                    }
+                    try {
+                        partial = discoverAlternatives(snapshot, current) { options ->
+                            if (!active()) return@discoverAlternatives
+                            val additions = options.filter { seen.add(it.episode.url) }
+                            if (additions.isNotEmpty()) {
+                                _state.update { it.copy(alternatives=PlaybackAlternatives.merge(it.alternatives, additions)) }
+                                additions.forEach { queue.trySend(it) }
+                            }
                         }
-                        val slots=Semaphore(3)
-                        distinctSearchEndpoints(sourceHealth.ordered(snapshot.saved.enabledSources(SourceKind.VOD),QueryKind.SEARCH),network::actualSearchEndpoint)
-                            .take(PlaybackAlternatives.MAX_SOURCES).forEach { source -> launch {
-                                slots.withPermit {
-                                    try {
-                                        withTimeout(12_000) {
-                                            val known=snapshot.results.filter { it.source.key==source.key && VideoGroups.playbackMatch(it,current.video) }
-                                            val videos=if(known.isNotEmpty()) known else searchRepository.search(source, current.video.title)
-                                            for(video in videos.filter { VideoGroups.playbackMatch(it,current.video) }
-                                                .filterNot { it.source.key==current.video.source.key && it.id==current.video.id }.take(2)) {
-                                                val d=withContext(Dispatchers.Default) { CmsParser.detail(network.text(network.api(source,"ids",video.id)),video) }
-                                                ensureActive();add(PlaybackAlternatives.from(d,current))
-                                            }
-                                        }
-                                    } catch(e:TimeoutCancellationException) { ensureActive();failures++ }
-                                    catch(e:CancellationException) { throw e }
-                                    catch(_:Exception) { failures++ }
-                                }
-                            } }
+                    } finally { queue.close() }
                 }
             } finally {
-                if(active()) _state.update { it.copy(alternatives=it.alternatives.map { option -> if(option.probeStatus==ProbeStatus.CHECKING) option.copy(probeStatus=ProbeStatus.UNCHECKED) else option },alternativesLoading=false,alternativesError=
-                    if(failures>0) "部分来源暂不可用，已保留可用结果" else null) }
+                queue.cancel()
+                if (active()) _state.update { it.copy(alternativesLoading=false,
+                    alternativesError=if (partial) "部分来源暂不可用，已保留可用结果" else null) }
             }
         }
     }
+
+    private suspend fun discoverAlternatives(snapshot: UiState, current: Playback, publish: (List<PlaybackAlternative>) -> Unit): Boolean {
+        var partial = false
+        supervisorScope {
+            suspend fun fetchDetail(video: Video): Detail = withContext(Dispatchers.Default) {
+                CmsParser.detail(network.text(network.api(video.source,"ids",video.id)),video)
+            }
+            val detail = snapshot.detail?.takeIf { it.video.probeKey() == current.video.probeKey() }
+            if (detail != null) publish(PlaybackAlternatives.from(detail, current))
+            else launch {
+                try { publish(PlaybackAlternatives.from(fetchDetail(current.video), current)) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { partial = true }
+            }
+            val slots = Semaphore(3)
+            val sources = distinctSearchEndpoints(sourceHealth.ordered(snapshot.saved.enabledSources(SourceKind.VOD), QueryKind.SEARCH),
+                network::actualSearchEndpoint).take(PlaybackAlternatives.MAX_SOURCES)
+            sources.forEach { source -> launch {
+                slots.withPermit {
+                    try {
+                        withTimeout(12_000) {
+                            val known = snapshot.results.filter { it.source.key == source.key && VideoGroups.playbackMatch(it, current.video) }
+                            val videos = known.ifEmpty { searchRepository.search(source, current.video.title) }
+                            for (video in videos.filter { VideoGroups.playbackMatch(it, current.video) }
+                                .filterNot { it.probeKey() == current.video.probeKey() }.take(2)) {
+                                publish(PlaybackAlternatives.from(fetchDetail(video), current))
+                            }
+                        }
+                    } catch (e: TimeoutCancellationException) { ensureActive(); partial = true }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { partial = true }
+                }
+            } }
+        }
+        return partial
+    }
+
     fun chooseAlternative(option:PlaybackAlternative,keepPosition:Boolean) {
         val snapshot=state.value
         val current=snapshot.playback ?: return

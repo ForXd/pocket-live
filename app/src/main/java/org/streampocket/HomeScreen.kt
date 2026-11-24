@@ -60,20 +60,19 @@ import androidx.compose.ui.unit.dp
     }
 }
 
-@Composable fun SearchResultsScreen(s:UiState,model:AppModel,query:String,compact:Boolean,back:()->Unit,subscriptions:()->Unit,onTop:()->Unit={}) {
+/** Keep completed results for Back while releasing the media trial when its list loses focus. */
+@Composable internal fun SourceTrialLifecycle(model:AppModel,visible:Boolean,catalog:Boolean=false) {
+    if(visible) androidx.lifecycle.compose.LifecycleResumeEffect(model,catalog) {
+        model.setSearchProbeActive(true,catalog)
+        onPauseOrDispose { model.setSearchProbeActive(false,catalog) }
+    }
+}
+
+@Composable fun SearchResultsScreen(s:UiState,model:AppModel,query:String,compact:Boolean,back:()->Unit,subscriptions:()->Unit,onTop:()->Unit={},trialVisible:Boolean=true) {
     var category by rememberSaveable(query) { mutableStateOf(Genre.ALL) }
 
     var showOthers by rememberSaveable(query) { mutableStateOf(false) }
-    val probeLifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(model,query,probeLifecycle) {
-        val observer=androidx.lifecycle.LifecycleEventObserver { _,event ->
-            if(event==androidx.lifecycle.Lifecycle.Event.ON_START) model.setSearchProbeActive(true)
-            if(event==androidx.lifecycle.Lifecycle.Event.ON_STOP) model.setSearchProbeActive(false)
-        }
-        probeLifecycle.addObserver(observer)
-        if(probeLifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) model.setSearchProbeActive(true)
-        onDispose { probeLifecycle.removeObserver(observer);model.setSearchProbeActive(false) }
-    }
+    SourceTrialLifecycle(model,trialVisible)
     var sortMenu by remember { mutableStateOf(false) }
     val presentation by androidx.compose.runtime.produceState(remember(query) { SearchPresentation(emptyList(),query,false) },s.results,query,showOthers) {
         value=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SearchPresentation(s.results,query,showOthers) }

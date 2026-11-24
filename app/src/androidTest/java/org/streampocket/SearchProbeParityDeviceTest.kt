@@ -76,6 +76,16 @@ class SearchProbeParityDeviceTest {
             assertTrue(model.state.value.catalogVideos.all { model.state.value.probes[it.probeKey()]==ProbeStatus.READY })
             main { model.cancelCatalog();model.setSearchProbeActive(false,catalog=true) }
             await { model.activeProbeCalls()==0 }
+            val historyVideo=model.state.value.catalogVideos.first()
+            main {
+                model.dismissSearch()
+                model.play(historyVideo,Episode("1","$base/history.mp4"))
+                val session=checkNotNull(model.state.value.playback).sessionId
+                model.playbackConfirmed(session)
+                model.playbackFailed(session)
+                model.stopPlayback()
+            }
+            assertTrue("Replaying a former result from history cannot repopulate a dismissed session",model.state.value.lineTrials.isEmpty())
         } finally { release.countDown();main {store.clear()};server.shutdown() }
     }
 }
