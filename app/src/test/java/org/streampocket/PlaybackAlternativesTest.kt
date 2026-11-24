@@ -11,10 +11,12 @@ class PlaybackAlternativesTest {
         assertTrue(PlaybackAlternatives.from(Detail(video.copy(title="剧集 第一季"),"",lines),current).isEmpty())
         assertFalse(PlaybackAlternatives.matches(current.episode,Episode("第12集","https://example.org/12")))
     }
-    @Test fun excludesCurrentAndDeduplicatesAndBounds() {
-        val lines=listOf(Line("same",listOf(current.episode)))+(1..100).map { Line("$it",listOf(Episode("第02集","https://example.org/$it"))) }
+    @Test fun verifiesEveryDistinctLineForTheCurrentEpisode() {
+        val expected=(1..100).map { "https://example.org/$it" }
+        val alternatives=expected.mapIndexed { index,url -> Line("线路$index",listOf(Episode("第02集",url))) }
+        val lines=listOf(Line("当前",listOf(current.episode)))+alternatives+alternatives.last().copy(name="同址别名")
         val options=PlaybackAlternatives.from(Detail(video,"",lines),current)
-        assertEquals(40,options.size);assertFalse(options.any { it.episode.url==current.episode.url })
+        assertEquals(expected,options.map { it.episode.url })
         assertEquals(options,PlaybackAlternatives.merge(options,options))
     }
     @Test fun labelsMustBeUnambiguous() {

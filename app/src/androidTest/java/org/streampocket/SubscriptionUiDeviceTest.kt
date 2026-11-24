@@ -1,6 +1,5 @@
 package org.streampocket
 
-import androidx.activity.compose.setContent
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -16,13 +15,17 @@ import java.net.InetAddress
 
 class SubscriptionUiDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
-    @Test fun groupsCollapseRestoreAndKeepManagementActions() {
+    @Test fun subscriptionDetailsRestorePositionAndKeepManagementActions() {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
         val sources=(1..40).map { Source("精选来源 $it","$base/api/$it") }
         val a=Subscription("group-a","我的影视订阅","$base/sub",System.currentTimeMillis(),sources)
         val b=Subscription("group-b","我的直播订阅","$base/live",System.currentTimeMillis(),listOf(Source("直播来源","$base/live.m3u",SourceKind.LIVE)))
-        runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=listOf(a,b),allowHttp=true)) }
+        val collections=listOf("光影经典","世界电影","城市剧场","纪录精选","亲子动画","音乐现场","自然探索","人文影像","体育频道","生活频道").mapIndexed { i,name ->
+            Subscription("collection-$i",name,"$base/sub/$i",a.updated,listOf(Source(name,"$base/api/collection-$i")))
+        }
+        val subscriptions=listOf(a)+collections+listOf(b)
+        runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=subscriptions,allowHttp=true)) }
         val subscriptionResponse=MockResponse().setBody("""{"name":"我的影视订阅","sources":[{"name":"精选来源 1","url":"$base/api/1"},{"name":"新增来源","url":"$base/new"}]}""")
         server.dispatcher=object:Dispatcher() { override fun dispatch(request:RecordedRequest)=if(request.path=="/sub") subscriptionResponse else MockResponse().setBody("{\"list\":[],\"subjects\":[]}") }
         val restoration=StateRestorationTester(ui)
@@ -32,7 +35,7 @@ class SubscriptionUiDeviceTest {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
                 override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
-                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
+                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
                 }
             })[AppModel::class.java]
         }
@@ -43,19 +46,44 @@ class SubscriptionUiDeviceTest {
             }
         }
         restoration.setContent { PocketTheme { Pocket(model) } }
-        fun scroll(tag:String)=ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasTestTag(tag))
+        val list=ui.onNodeWithTag("subscriptionsList")
+        val details=ui.onNodeWithTag("subscriptionSources")
+        val film=ui.onNodeWithTag("subscription:group-a")
+        val live=ui.onNodeWithTag("subscription:group-b")
+        val back=ui.onNodeWithContentDescription("返回订阅")
+        val firstSwitch=ui.onNodeWithContentDescription("启用或停用 精选来源 1")
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
             ui.onNodeWithTag("nav:1").performClick()
+            details.assertDoesNotExist()
             ui.onNodeWithText("精选来源 1").assertDoesNotExist()
-            captureUi(ui,"subscriptions-collapsed")
-            scroll("subscription:group-a")
-            ui.onNodeWithTag("subscription:group-a").performClick()
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasContentDescription("启用或停用 精选来源 1"))
-            ui.onNodeWithContentDescription("启用或停用 精选来源 1").performClick()
+            captureUi(ui,"subscriptions-list")
+            film.performClick()
+            list.assertDoesNotExist()
+            details.assertIsDisplayed()
+            firstSwitch.assertIsOn().performClick()
             ui.waitUntil(5000) { sources[0].key in model.state.value.saved.disabled }
-            captureUi(ui,"subscriptions-expanded")
+            firstSwitch.assertIsOff()
             ui.onNodeWithContentDescription("来源选项 精选来源 1").assertDoesNotExist()
+            captureUi(ui,"subscription-detail")
+            details.performScrollToNode(hasText("精选来源 40"))
+            ui.onNodeWithText("精选来源 40").assertIsDisplayed()
+            restoration.emulateSavedInstanceStateRestore()
+            ui.onNodeWithText("精选来源 40").assertIsDisplayed()
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            details.assertDoesNotExist()
+            film.assertIsDisplayed()
+
+            list.performScrollToKey("subscription:group-b")
+            val liveTop=live.assertIsDisplayed().getUnclippedBoundsInRoot().top
+            live.performClick()
+            list.assertDoesNotExist()
+            ui.onNodeWithText("直播来源").assertIsDisplayed()
+            ui.onNodeWithText("精选来源 1").assertDoesNotExist()
+            back.performClick()
+            details.assertDoesNotExist()
+            assertEquals("Return restores the tapped subscription",liveTop.value,live.assertIsDisplayed().getUnclippedBoundsInRoot().top.value,1f)
+
             ui.onNodeWithTag("nav:3").performClick()
             ui.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsSourceRules"))
             ui.onNodeWithTag("settingsSourceRules").performClick()
@@ -63,22 +91,8 @@ class SubscriptionUiDeviceTest {
             ui.onNodeWithTag("settingsRule:${sources[0].key}").performClick()
             ui.onNodeWithText("当前源的广告精确路径").assertIsDisplayed()
             ui.onNodeWithText("取消").performClick()
-            assertTrue(sources[0].key in model.state.value.saved.disabled)
             ui.onNodeWithTag("nav:1").performClick()
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("精选来源 40"))
-            ui.onNodeWithText("精选来源 40").assertIsDisplayed()
-            scroll("subscription:group-a")
-            ui.onNodeWithTag("subscription:group-a").performClick()
-            ui.onNodeWithText("精选来源 1").assertDoesNotExist()
-            assertTrue(sources[0].key in model.state.value.saved.disabled)
-            scroll("subscription:group-b")
-            ui.onNodeWithTag("subscription:group-b").performClick()
-            restoration.emulateSavedInstanceStateRestore()
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("直播来源"))
-            ui.onNodeWithText("直播来源").assertIsDisplayed()
-            scroll("subscription:group-a")
-            ui.onNodeWithTag("subscription:group-a").performClick()
-            ui.onNodeWithText("直播来源").assertDoesNotExist()
+            list.performScrollToKey("subscription:group-a")
             ui.onNodeWithTag("swipeSubscription:group-a").performTouchInput { swipeLeft() }
             val row = ui.onNodeWithTag("swipeSubscription:group-a").getUnclippedBoundsInRoot()
             val update = ui.onNodeWithContentDescription("更新订阅").getUnclippedBoundsInRoot()
@@ -90,20 +104,30 @@ class SubscriptionUiDeviceTest {
             ui.onNodeWithContentDescription("更新订阅").performClick()
             ui.waitUntil(15000) { model.state.value.saved.subscriptions.first().sources.size==2 }
             assertTrue(sources[0].key in model.state.value.saved.disabled)
-            ui.onNodeWithTag("subscriptionsList").performScrollToNode(hasText("新增来源"))
+            film.performClick()
+            details.performScrollToNode(hasText("新增来源"))
             ui.onNodeWithText("新增来源").assertIsDisplayed()
-            scroll("subscription:group-a")
-            ui.onNodeWithTag("subscription:group-a").performClick()
-            scroll("subscription:group-b")
+            firstSwitch.assertIsOff()
+            val firstRefresh=model.state.value.saved.subscriptions.first().updated
+            ui.onNodeWithContentDescription("订阅选项").performClick()
+            ui.onNodeWithText("更新订阅").performClick()
+            ui.waitUntil(15000) { model.state.value.saved.subscriptions.first().updated>firstRefresh && model.state.value.importing.isEmpty() }
+            details.assertIsDisplayed().performScrollToIndex(0)
+            ui.onNodeWithText("2 个源 · 已启用 1 个").assertIsDisplayed()
+            back.performClick()
+            list.performScrollToKey("subscription:group-b")
             ui.onNodeWithTag("swipeSubscription:group-b").performTouchInput { swipeLeft() }
             ui.onNodeWithContentDescription("删除订阅").performClick()
             ui.onNodeWithText("取消").performClick()
-            assertEquals(2,model.state.value.saved.subscriptions.size)
-            ui.onNodeWithTag("swipeSubscription:group-b").performTouchInput { swipeLeft() }
-            ui.onNodeWithContentDescription("删除订阅").performClick()
+            assertEquals(subscriptions.size,model.state.value.saved.subscriptions.size)
+            live.performClick()
+            ui.onNodeWithContentDescription("订阅选项").performClick()
+            ui.onNodeWithText("删除订阅").performClick()
             ui.onNodeWithText("删除",useUnmergedTree=true).performClick()
-            ui.waitUntil(5000) { model.state.value.saved.subscriptions.size==1 }
-            assertEquals("group-a",model.state.value.saved.subscriptions.single().id)
+            ui.waitUntil(5000) { model.state.value.saved.subscriptions.none { it.id==b.id } }
+            assertEquals(subscriptions.map { it.id }-b.id,model.state.value.saved.subscriptions.map { it.id })
+            list.assertIsDisplayed()
+            details.assertDoesNotExist()
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     }
 }

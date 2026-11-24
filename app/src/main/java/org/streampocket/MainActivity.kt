@@ -26,7 +26,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -163,11 +163,22 @@ class MainActivity : ComponentActivity() {
         }
     },confirmButton={GlassTextButton(enabled=jsonText.isNotBlank() && "new" !in s.importing,onClick={model.message(null);model.importJson(jsonText,onImported={jsonDialog=false;jsonText=""})}) { Text("导入") }},
         dismissButton={GlassTextButton(onClick={model.cancelImport("new");jsonDialog=false;jsonText=""}) { Text("取消") }})
-    var delete by remember { mutableStateOf<Subscription?>(null) }
-    var revealedSubscription by remember { mutableStateOf<String?>(null) }
-    var expandedSubscription by rememberSaveable { mutableStateOf<String?>(null) }
-    LaunchedEffect(s.loading,s.saved.subscriptions.map { it.id }) {
-        if(!s.loading && s.saved.subscriptions.none { it.id==expandedSubscription }) expandedSubscription=null
+    var deleteSubscriptionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var subscriptionId by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeSubscription = remember(subscriptionId, s.saved.subscriptions) {
+        s.saved.subscriptions.find { it.id == subscriptionId }
+    }
+    val subscriptionListState = rememberLazyListState()
+    val sourceListState = key(subscriptionId) { rememberLazyListState() }
+    LaunchedEffect(s.loading, subscriptionId, activeSubscription == null) {
+        if (!s.loading && activeSubscription == null) subscriptionId = null
+    }
+    fun openSubscriptions() {
+        subscriptionId = null
+        tab = 1
+    }
+    fun updateSubscription(sub: Subscription) {
+        if (sub.isLocalJson) chooseJson(sub) else model.importSubscription(sub.url, sub)
     }
     var ruleSource by remember { mutableStateOf<Source?>(null) }
     var ruleText by remember { mutableStateOf("") }
@@ -193,6 +204,7 @@ class MainActivity : ComponentActivity() {
         add(when { liveTab.value -> "live"; !recommendations.value -> "catalog"; else -> "tab:0" })
         if(searchOpen) add("search")
         if(tab!=0) add("tab:$tab")
+        if(tab==1 && activeSubscription!=null) add("subscription:${activeSubscription.id}")
         if(tab==3 && settingsPage!=null) add("settings:${settingsPage!!.name}")
         if(!inline && recommendation!=null) add("preview")
         if(!inline && !s.directPlayback && (s.detail!=null || s.detailLoading)) add("detail")
@@ -225,6 +237,7 @@ class MainActivity : ComponentActivity() {
     CardBackHandler(!inline && (s.detail != null || s.detailLoading || searchOpen || tab!=0)) {
         when {
             s.detail!=null || s.detailLoading -> model.closeDetail()
+            tab==1 && activeSubscription!=null -> subscriptionId=null
             tab==3 && settingsPage!=null -> settingsPage=null
             tab!=0 -> tab=0
             else -> closeSearch()
@@ -316,13 +329,13 @@ class MainActivity : ComponentActivity() {
                     else if(loadingVideo != null) PendingDetail(loadingVideo,model) { motion.commit(model::closeDetail) }
                 }
                 if(wide && searchMode) Row(Modifier.fillMaxSize()) {
-                    Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::closeSearch,{tab=1}) }
+                    Box(Modifier.weight(.38f)) { SearchResultsScreen(s,model,submittedQuery,compact,::closeSearch,::openSubscriptions) }
                     Box(Modifier.weight(.62f)) { detailPane() }
                 } else detailPane()
             } else when(tab) {
                 0 -> homeState.SaveableStateProvider(if(searchOpen) "search" else "recommendations") {
                     when {
-                        searchMode -> key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::closeSearch,{tab=1},onTop=resultScroll::reveal) }
+                        searchMode -> key(submittedQuery) { SearchResultsScreen(s,model,submittedQuery,compact,::closeSearch,::openSubscriptions,onTop=resultScroll::reveal) }
                         searchOpen && !inLive && !inCatalog -> Box(Modifier.fillMaxSize().testTag("searchLanding")) {
                             if(query.isBlank() && s.saved.searchHistoryEnabled && s.saved.recentSearches.isNotEmpty()) {
                                 androidx.compose.foundation.lazy.LazyRow(contentPadding=PaddingValues(horizontal=PageGutter),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -333,47 +346,21 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                        else -> DiscoverScreen(s,model,{tab=1},::search,recommendations,catalogQuery,liveTab,liveQuery,
+                        else -> DiscoverScreen(s,model,::openSubscriptions,::search,recommendations,catalogQuery,liveTab,liveQuery,
                             onOpenSearch=::openSearch,showHeader=!searchOpen)
                     }
                 }
                 3 -> SettingsScreen(s,model,settingsPage,{settingsPage=it},{appearanceOpen=true},{updatesOpen=true;model.checkUpdates(force=true)},
                     { source -> ruleSource=source;ruleText=s.saved.adRules[source.key].orEmpty().joinToString("\n") })
-                1 -> Row(Modifier.fillMaxSize()) {
-                    LazyColumn(modifier=Modifier.weight(if(wide) .4f else 1f).fillMaxHeight().testTag("subscriptionsList"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    item { PageHeading("订阅",inset=0.dp) {
-                        GlassIconButton(onClick={addingSubscription=true}) { Icon(Icons.Default.Add,"添加订阅") }
-                    } }
-                    item { Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                        Text("我的订阅",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                        GlassButton(onClick={exportOpen=true}) { Text("分享片源") }
-                    } }
-                    if(s.saved.subscriptions.isEmpty()) item { EmptyPanel("还没有订阅","添加订阅后，在首页搜索或浏览内容。",R.drawable.ic_library) }
-                    s.saved.subscriptions.forEach { sub ->
-                        item(key="subscription:${sub.id}") {
-                            SubscriptionHeader(sub,expandedSubscription==sub.id,sub.sources.count { it.key !in s.saved.disabled },sub.id in s.importing,
-                                revealed=revealedSubscription==sub.id,onReveal={revealedSubscription=if(it) sub.id else null},
-                                onExpand={revealedSubscription=null;expandedSubscription=if(expandedSubscription==sub.id) null else sub.id},
-                                onUpdate={if(sub.isLocalJson) chooseJson(sub) else model.importSubscription(sub.url,sub)},onCancel={model.cancelImport(sub.id)},onDelete={delete=sub})
-                        }
-                        // Keep source rows lazy: even a 300-source subscription composes only the viewport.
-                        if(!wide && expandedSubscription==sub.id) items(sub.sources.sortedBy { when(s.sourceAvailability[it.key]) { true->0;null->1;false->2 } },key={"source:${sub.id}:${it.key}"}) { source ->
-                            SubscriptionSourceRow(source,source.key !in s.saved.disabled,onToggle={model.toggle(source)},availability=s.sourceAvailability[source.key])
-                        }
-                    }
-
-                }
-                if(wide) {
-                    val active=s.saved.subscriptions.find { it.id==expandedSubscription }
-                    LazyColumn(Modifier.weight(.6f).fillMaxHeight().testTag("subscriptionSources"),contentPadding=PaddingValues(24.dp)) {
-                        item { Text(active?.name ?: "选择订阅",style=MaterialTheme.typography.headlineSmall,modifier=Modifier.padding(bottom=24.dp)) }
-                        if(active==null) item { Text("从左侧选择订阅，查看与管理来源。",color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                        else items(active.sources.sortedBy { when(s.sourceAvailability[it.key]) { true->0;null->1;false->2 } },key={it.key}) { source ->
-                            SubscriptionSourceRow(source,source.key !in s.saved.disabled,onToggle={model.toggle(source)},availability=s.sourceAvailability[source.key])
-                            ContentDivider()
-                        }
-                    }
-                }
+                1 -> if (activeSubscription == null) {
+                    SubscriptionList(s, subscriptionListState, onOpen = { subscriptionId = it.id },
+                        onAdd = { addingSubscription = true }, onExport = { exportOpen = true },
+                        onUpdate = ::updateSubscription, onCancel = model::cancelImport, onDelete = { deleteSubscriptionId = it.id })
+                } else {
+                    SubscriptionDetail(activeSubscription, s, sourceListState,
+                        onBack = { motion.commit { subscriptionId = null } },
+                        onUpdate = { updateSubscription(activeSubscription) }, onCancel = { model.cancelImport(activeSubscription.id) },
+                        onDelete = { deleteSubscriptionId = activeSubscription.id }, onToggle = model::toggle)
                 }
                 2 -> historyState.SaveableStateProvider("history") { HistoryScreen(s.saved.history,model::resume,model::removeHistoryGroup,model::clearHistory,model,historySearch) }
             }
@@ -399,6 +386,16 @@ class MainActivity : ComponentActivity() {
     } // Poster expansion
     ruleSource?.let { source -> GlassAlertDialog(dismissOnOutside=false,onDismissRequest={ruleSource=null},title={Text("当前源的广告精确路径")},text={Column(Modifier.verticalScroll(rememberScrollState())) { Text("每行一个完整路径，不填域名或查询参数。补充自动识别规则；请仅添加你确认的广告路径。")
         OutlinedTextField(shape=MaterialTheme.shapes.medium,value=ruleText,onValueChange={ruleText=it.take(16416)},minLines=3,maxLines=7) }},confirmButton={GlassTextButton(onClick={model.adPaths(source,ruleText);ruleSource=null}) { Text("保存") }},dismissButton={GlassTextButton(onClick={ruleSource=null}) { Text("取消") }}) }
-    delete?.let { sub -> GlassAlertDialog(onDismissRequest={delete=null},title={Text("删除此订阅？")},text={Text("移除该订阅的源。其他订阅和历史记录保留。")},confirmButton={GlassTextButton(onClick={model.delete(sub.id);delete=null}){Text("删除")}},dismissButton={GlassTextButton(onClick={delete=null}){Text("取消")}}) }
+    deleteSubscriptionId?.let { id ->
+        val target = s.saved.subscriptions.find { it.id == id }
+        if (target != null) {
+            GlassAlertDialog(onDismissRequest = { deleteSubscriptionId = null }, title = { Text("删除此订阅？") },
+                text = { Text("将移除「${target.name}」及其来源。") },
+                confirmButton = { GlassTextButton(onClick = { model.delete(id); deleteSubscriptionId = null }) { Text("删除") } },
+                dismissButton = { GlassTextButton(onClick = { deleteSubscriptionId = null }) { Text("取消") } })
+        } else if (!s.loading) {
+            LaunchedEffect(id) { deleteSubscriptionId = null }
+        }
+    }
     } // CardRouteHost
 }

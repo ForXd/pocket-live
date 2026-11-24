@@ -106,7 +106,7 @@ class AvailabilityDeviceTest {
         ui.onNodeWithText("资源测试").performClick()
         ui.onNodeWithText("● 最近搜索成功",useUnmergedTree=true).assertIsDisplayed()
         ui.onNodeWithText("● 最近搜索失败",useUnmergedTree=true).assertIsDisplayed()
-        ui.onNodeWithText("● 待验证",useUnmergedTree=true).assertIsDisplayed()
+        ui.onNodeWithText("暂无搜索记录",useUnmergedTree=true).assertIsDisplayed()
         assertTrue(ui.onNodeWithText("星河片库",useUnmergedTree=true).getUnclippedBoundsInRoot().top<ui.onNodeWithText("失败片库",useUnmergedTree=true).getUnclippedBoundsInRoot().top)
         captureUi(ui,"source-health")
     }

@@ -202,8 +202,19 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 }
 
 @Composable internal fun PocketSwitch(checked: Boolean) {
-    Switch(checked=checked,onCheckedChange=null,colors=SwitchDefaults.colors(
-        checkedTrackColor=MaterialTheme.colorScheme.tertiary,checkedThumbColor=MaterialTheme.colorScheme.onTertiary))
+    val colors = MaterialTheme.colorScheme
+    Switch(
+        checked = checked,
+        onCheckedChange = null,
+        colors = SwitchDefaults.colors(
+            checkedTrackColor = colors.primary,
+            checkedThumbColor = colors.surfaceVariant,
+            checkedBorderColor = Color.Transparent,
+            uncheckedTrackColor = colors.surfaceVariant,
+            uncheckedThumbColor = colors.outline,
+            uncheckedBorderColor = colors.outline,
+        ),
+    )
 }
 
 @Composable internal fun BackHeading(title:String, backLabel:String, back:()->Unit,
