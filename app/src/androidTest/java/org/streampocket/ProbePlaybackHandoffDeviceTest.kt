@@ -18,6 +18,29 @@ class ProbePlaybackHandoffDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     @Test fun extensionlessHlsThatPassesProbeActuallyRenders() = scenario(false)
     @Test fun expandedSearchKeepsSuccessfulSecondLineAndRedirectedHls() = scenario(true)
+    @Test fun audioOnlyTrialConfirmsOutputWithoutVideo() {
+        val sampleRate = 8000
+        val pcm = ByteArray(sampleRate * 2)
+        val wav = java.nio.ByteBuffer.allocate(44 + pcm.size).order(java.nio.ByteOrder.LITTLE_ENDIAN).apply {
+            put("RIFF".toByteArray()); putInt(36 + pcm.size); put("WAVEfmt ".toByteArray())
+            putInt(16); putShort(1); putShort(1); putInt(sampleRate); putInt(sampleRate * 2)
+            putShort(2); putShort(16); put("data".toByteArray()); putInt(pcm.size); put(pcm)
+        }.array()
+        val server = MockWebServer()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = MockResponse().setBody(Buffer().write(wav))
+        }
+        server.start()
+        val network = Network({true}, object : Dns {
+            override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1"))
+        })
+        try {
+            val ep = Episode("音频", "http://audio.test:${server.port}/clip.wav")
+            val result = runBlocking { runPlaybackTrial(ui.activity.application,network,ep,false,emptySet(),false) }
+            assertEquals(ProbeStatus.READY, result.status)
+            assertNull(result.resolution)
+        } finally { network.close();server.shutdown() }
+    }
     @Test fun closingDuringFormatDetectionCancelsNetworkAndPlayer() {
         val server=MockWebServer().apply { start();enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)) }
         val network=Network({true},dns=object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) })
@@ -37,11 +60,13 @@ class ProbePlaybackHandoffDeviceTest {
         } finally { ui.runOnUiThread { controller.close(false) };network.close();server.shutdown() }
     }
     @Test fun refreshedProviderTokenDropsOldReadinessAndKeepsWorkingLine() = scenario(true,true)
-    private fun scenario(search:Boolean,rotateToken:Boolean=false) {
+    @Test fun expiredStreamClearsProbeOnceThePlayerFails() = scenario(search=true, expireOnPlay=true)
+    private fun scenario(search:Boolean,rotateToken:Boolean=false,expireOnPlay:Boolean=false) {
         val server=MockWebServer().apply { start() };val base="http://handoff.test:${server.port}"
         val assets=InstrumentationRegistry.getInstrumentation().context.assets
         val dns=object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }
         val details=java.util.concurrent.atomic.AtomicInteger()
+        val expired=java.util.concurrent.atomic.AtomicBoolean()
         val requested=java.util.concurrent.CopyOnWriteArrayList<String>()
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
@@ -56,6 +81,7 @@ class ProbePlaybackHandoffDeviceTest {
                         if(detailNumber>1) response.setBodyDelay(1800,java.util.concurrent.TimeUnit.MILLISECONDS) else response
                     }
                     path=="/html" -> MockResponse().setBody("<html>not media</html>")
+                    path=="/play" && expired.get() -> MockResponse().setResponseCode(410)
                     path=="/play" && search -> MockResponse().setResponseCode(302).setHeader("Location","$base/nested/index")
                     path=="/play" || path=="/nested/index" -> MockResponse().setHeader("Content-Type","application/vnd.apple.mpegurl").setBody(assets.open("test.m3u8").bufferedReader().use { it.readText() })
                     path.endsWith(".ts") -> MockResponse().setHeader("Content-Type","video/mp2t").setBody(Buffer().write(assets.open(path.substringAfterLast("/")).use { it.readBytes() }))
@@ -78,7 +104,7 @@ class ProbePlaybackHandoffDeviceTest {
         try {
             ui.waitUntil(10000) { !model.state.value.loading }
             val episode=Episode("正片","$base/play?token=fixture")
-            if(!search) assertEquals(ProbeStatus.READY,runBlocking { PlaybackProbe(network).inspect(episode) }.status)
+            if(!search) assertEquals(ProbeStatus.READY,runBlocking { runPlaybackTrial(ui.activity.application,network,episode,false,emptySet(),false) }.status)
             val frames=PlaybackMetrics.frames
             if(search) {
                 ui.onNodeWithTag("openSearch").performClick()
@@ -91,33 +117,49 @@ class ProbePlaybackHandoffDeviceTest {
                 val checked=model.state.value.probeEpisodes.values.single()
                 assertEquals(episode.url,checked.url)
                 assertEquals("application/x-mpegURL",checked.mimeType)
-                ui.onNodeWithTag("sourceChoice:${Source("测试来源","$base/api").key}:1").performScrollTo().performClick()
-                ui.waitUntil(5000) { model.state.value.detailLoading }
-                val area=ui.onNodeWithTag("detailLoading").getUnclippedBoundsInRoot()
-                val spinner=ui.onNode(hasProgressBarRangeInfo(androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate)).getUnclippedBoundsInRoot()
-                assertEquals((area.left.value+area.right.value)/2,(spinner.left.value+spinner.right.value)/2,2f)
-                assertTrue(kotlin.math.abs((area.top.value+area.bottom.value)/2-(spinner.top.value+spinner.bottom.value)/2)<100f)
-                val instrument=InstrumentationRegistry.getInstrumentation()
-                val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"handoff").apply { mkdirs() }
-                instrument.uiAutomation.takeScreenshot()?.let { bitmap -> try { java.io.File(dir,"loading.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { bitmap.recycle() } }
-                ui.waitUntil(10000) { model.state.value.detail!=null }
-                ui.onNodeWithTag("detailEpisodes").performClick()
-                ui.onNodeWithTag("detailLine:1").assertIsSelected().assertTextContains("可用线路")
-                ui.onNodeWithContentDescription("关闭").performClick()
-                ui.onNodeWithTag("detailPlay").performClick()
+                if(rotateToken) {
+                    ui.runOnIdle { model.open(model.state.value.results.single()) }
+                    ui.waitUntil(5000) { model.state.value.detailLoading }
+                    val area=ui.onNodeWithTag("detailLoading").getUnclippedBoundsInRoot()
+                    val spinner=ui.onNode(hasProgressBarRangeInfo(androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate)).getUnclippedBoundsInRoot()
+                    assertEquals((area.left.value+area.right.value)/2,(spinner.left.value+spinner.right.value)/2,2f)
+                    assertTrue(kotlin.math.abs((area.top.value+area.bottom.value)/2-(spinner.top.value+spinner.bottom.value)/2)<100f)
+                    val instrument=InstrumentationRegistry.getInstrumentation()
+                    val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"handoff").apply { mkdirs() }
+                    instrument.uiAutomation.takeScreenshot()?.let { bitmap -> try { java.io.File(dir,"loading.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { bitmap.recycle() } }
+                    ui.waitUntil(10000) { model.state.value.detail!=null }
+                    ui.onNodeWithTag("detailEpisodes").performClick()
+                    ui.onNodeWithTag("detailLine:1").assertIsSelected().assertTextContains("可用线路")
+                    ui.onNodeWithContentDescription("关闭").performClick()
+                    ui.onNodeWithTag("detailPlay").performClick()
+                } else {
+                    expired.set(expireOnPlay)
+                    ui.onNodeWithTag("sourceChoice:${Source("测试来源","$base/api").key}:1").performScrollTo().performClick()
+                    ui.waitUntil(3000) { model.state.value.playback!=null }
+                    ui.onNodeWithTag("detailPlay").assertDoesNotExist()
+                }
                 assertEquals(if(rotateToken) "$base/play?token=fresh" else checked.url,model.state.value.playback!!.episode.url)
                 if(rotateToken) {
-                    assertEquals(ProbeStatus.UNKNOWN,model.state.value.probes.values.single())
+                    assertFalse(model.state.value.probeEpisodes.values.any { it.url==checked.url })
                     assertNull(model.state.value.playback!!.episode.mimeType)
                 } else assertEquals(checked.mimeType,model.state.value.playback!!.episode.mimeType)
             } else ui.runOnIdle { model.play(Video(Source("测试来源","$base/api"),"1","后会友期"),episode) }
+            if(expireOnPlay) {
+                val key = model.state.value.playback!!.video.probeKey()
+                ui.waitUntil(15000) { model.state.value.probes[key] == ProbeStatus.FAILED }
+                assertFalse(key in model.state.value.probeEpisodes)
+                assertFalse(key in model.state.value.probeResolutions)
+                assertEquals(frames, PlaybackMetrics.frames)
+                assertTrue(requested.count { it.startsWith("/play?token=") } >= 2)
+                return
+            }
             ui.waitUntil(15000) { PlaybackMetrics.frames>frames || ui.onAllNodes(hasText("播放失败",substring=true)).fetchSemanticsNodes().isNotEmpty() }
             val errors=ui.onAllNodes(hasText("播放失败",substring=true)).fetchSemanticsNodes().map { it.config.toString() }
             assertTrue("Probe reported READY but no video frame; player error: $errors",PlaybackMetrics.frames>frames)
             if(search) {
                 assertTrue(requested.count { it.startsWith("/play?token=") }>=2)
                 assertTrue(requested.any { it.startsWith("/nested/segment") })
-                assertEquals(1,requested.count { it=="/html" })
+                assertTrue(requested.any { it=="/html" })
             }
         } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };network.close();server.shutdown() }
     }

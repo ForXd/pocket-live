@@ -165,6 +165,26 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         fullscreenLayout=enabled
         findViewById<View>(androidx.media3.ui.R.id.exo_controls_background).setBackgroundColor(if(enabled) android.graphics.Color.TRANSPARENT else 0x80000000.toInt())
     }
+    // Media3 places this full-width layer above the movie and behind its native controls.
+    private val topShade=0xd6000000.toInt()
+    private val fullscreenShading by lazy {
+        android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(topShade,0xa3000000.toInt(),0x30000000,0,0,0x30000000,0xa3000000.toInt(),topShade))
+    }
+    private val fullscreenRecoveryShading by lazy {
+        android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(topShade,0xa3000000.toInt(),0x30000000,0,0,0,0,0))
+    }
+    internal fun setFullscreenControlShading(showHeader:Boolean,showTransport:Boolean) {
+        val layer=overlayFrameLayout ?: return
+        val shade=when {
+            showTransport -> fullscreenShading
+            showHeader -> fullscreenRecoveryShading
+            else -> null
+        }
+        if(layer.background!==shade) layer.background=shade
+    }
+
     override fun dispatchTouchEvent(event:MotionEvent):Boolean {
         if(!gesturesEnabled) return super.dispatchTouchEvent(event)
         if(event.actionMasked==MotionEvent.ACTION_DOWN) {

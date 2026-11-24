@@ -18,6 +18,7 @@ class AvailabilityDeviceTest {
     private lateinit var server:MockWebServer
     private lateinit var model:AppModel
     private val details=CopyOnWriteArrayList<String>()
+    private val playlistRequests=java.util.concurrent.atomic.AtomicInteger()
     @Before fun setup() {
         server=MockWebServer().apply { start() }
         val base="http://probe.test:${server.port}"
@@ -33,15 +34,17 @@ class AvailabilityDeviceTest {
                         if(id!=null) {
                             details+=id
                             if(id=="slow") MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
-                            else MockResponse().setBody("""{"list":[{"vod_play_from":"主线路","vod_play_url":"第1集${'$'}$base/${if(id=="1") "bad-media" else "redirect"}"}]}""")
+                            else MockResponse().setBody("""{"list":[{"vod_play_from":"主线路","vod_play_url":"第1集${'$'}$base/${if(id=="1") "bad-media.mp4" else "stream/master.m3u8"}"}]}""")
                         } else if(url.queryParameter("wd")=="慢速") MockResponse().setBody("""{"list":[{"vod_id":"slow","vod_name":"慢速剧集"}]}""")
                         else MockResponse().setBody("""{"list":[${(1..5).joinToString(",") { """{"vod_id":"$it","vod_name":"星河剧集"}""" }}]}""")
                     }
-                    "/bad-media" -> MockResponse().setBody("<html>error</html>")
-                    "/redirect" -> MockResponse().setResponseCode(302).setHeader("Location","/stream/master.m3u8")
-                    "/stream/master.m3u8" -> MockResponse().setBody("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=10000,RESOLUTION=1920x1080\nchild.m3u8\n")
-                    "/stream/child.m3u8" -> MockResponse().setBody("#EXTM3U\n#EXTINF:4,\nsegment.ts\n#EXT-X-ENDLIST\n")
-                    "/stream/segment.ts" -> { val b=ByteArray(564);b[0]=0x47;b[188]=0x47;b[376]=0x47;MockResponse().setBody(okio.Buffer().write(b)) }
+                    "/bad-media.mp4" -> MockResponse().setBody("<html>error</html>")
+                    "/stream/master.m3u8" -> { playlistRequests.incrementAndGet();MockResponse().setHeader("Content-Type","application/vnd.apple.mpegurl")
+                        .setBody("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=500000\nchild.m3u8\n") }
+                    "/stream/child.m3u8" -> MockResponse().setHeader("Content-Type","application/vnd.apple.mpegurl")
+                        .setBody(okio.Buffer().write(mediaFixtureBytes("test.m3u8")))
+                    in (0..7).map { "/stream/segment0$it.ts" } -> MockResponse().setHeader("Content-Type","video/mp2t")
+                        .setBody(okio.Buffer().write(mediaFixtureBytes(url.encodedPath.substringAfterLast('/'))))
                     else -> MockResponse().setResponseCode(404)
                 }
             }
@@ -64,23 +67,24 @@ class AvailabilityDeviceTest {
         ui.onNodeWithTag("searchVideo:$id").performScrollTo().performClick()
     }
     @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
-    @Test fun expandedWorkFindsOneThenStopsAndShowsHealthWithoutPlayers() {
-        val created=PlaybackMetrics.created
+    @Test fun expandedWorkChecksEveryCandidateAndKeepsSourceHealthSeparate() {
         ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("星河")
         ui.onNodeWithTag("searchInput").performImeAction()
         expandWork("1")
-        ui.waitUntil(15000) { model.state.value.probes.values.count { it==ProbeStatus.READY }==1 && !model.state.value.probeRunning && !model.state.value.searching }
-        assertTrue(details.size in 1..4)
+        ui.waitUntil(45000) { model.state.value.probes.values.count { it==ProbeStatus.READY }==4 && !model.state.value.probeRunning && !model.state.value.searching }
+        assertEquals(setOf("1","2","3","4","5"),details.toSet())
+        assertEquals(1,model.state.value.probes.values.count { it==ProbeStatus.FAILED })
 
         assertEquals(5,model.state.value.results.size)
         assertEquals(3,model.state.value.total)
         assertEquals(2,model.state.value.failures)
-        assertEquals("1920×1080",model.state.value.probeResolutions[model.state.value.results.first { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.probeKey()])
-        assertEquals(created,PlaybackMetrics.created)
         val first=model.state.value.results.first { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.id
-        ui.onNodeWithTag("probe:$first",useUnmergedTree=true).assertTextEquals("媒体可用")
-        ui.onNodeWithTag("probeResolution:$first",useUnmergedTree=true).assertTextEquals("播放清单 · 1920×1080")
+        ui.onNodeWithTag("probe:$first",useUnmergedTree=true).assertTextEquals("可播放")
+        val family=VideoGroups.familyKey(model.state.value.results.first())
+        val sourceList=hasScrollAction() and hasAnyAncestor(hasTestTag("searchGroup:$family"))
+        ui.onNode(sourceList).performScrollToIndex(4)
+        ui.onNodeWithTag("probe:1",useUnmergedTree=true).assertTextEquals("不可播放")
         captureUi(ui,"search-probes")
         if(androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("uxReview")=="true") {
             val done=java.io.File(ui.activity.filesDir,"availability-review-done");done.delete()
@@ -91,12 +95,12 @@ class AvailabilityDeviceTest {
             return
         }
 
-        val readyIds=model.state.value.results.filter { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.map { it.id }
-        val before=readyIds.associateWith { id->details.count { it==id } }
+        val before=playlistRequests.get()
+        assertTrue(before>0)
         ui.onNodeWithContentDescription("开始搜索").performClick()
         expandWork("1")
-        ui.waitUntil(10000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==1 }
-        readyIds.forEach { id->assertEquals("Successful probes are reused",before[id],details.count { it==id }) }
+        ui.waitUntil(45000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==4 }
+        assertEquals("Successful trials reuse verified media",before,playlistRequests.get())
 
         ui.onNodeWithTag("nav:1").performClick()
         ui.onNodeWithText("资源测试").performClick()
@@ -128,7 +132,7 @@ class AvailabilityDeviceTest {
         ui.onNodeWithTag("searchInput").performTextReplacement("星河")
         ui.onNodeWithTag("searchInput").performImeAction()
         expandWork("1")
-        ui.waitUntil(15000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==1 }
+        ui.waitUntil(45000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==4 }
         assertEquals("星河",model.state.value.searchQuery)
         assertTrue(model.state.value.probes.keys.none { it.endsWith(":slow") })
 

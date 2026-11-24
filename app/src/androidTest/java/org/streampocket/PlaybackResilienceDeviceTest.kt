@@ -149,8 +149,8 @@ class PlaybackResilienceDeviceTest {
                 val session=model.state.value.playback!!.sessionId
                 val count=slowRequests.get()
                 ui.runOnIdle { model.openAlternatives(session) }
-                ui.waitUntil(15000) { model.state.value.alternatives.isNotEmpty() && slowRequests.get()>count }
-                val option=model.state.value.alternatives.first()
+                ui.waitUntil(15000) { model.state.value.alternatives.any { it.probeStatus==ProbeStatus.READY } && slowRequests.get()>count }
+                val option=model.state.value.alternatives.first { it.probeStatus==ProbeStatus.READY }
                 val before=PlaybackMetrics.frames
                 ui.runOnIdle { model.chooseAlternative(option,true);model.chooseAlternative(option,true) }
                 ui.waitUntil(15000) { model.state.value.playback!!.sessionId!=session && PlaybackMetrics.frames>before }

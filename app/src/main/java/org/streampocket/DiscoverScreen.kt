@@ -494,7 +494,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @Composable private fun PosterGridCard(video:Video,model:AppModel,modifier:Modifier,prefix:String,probe:ProbeStatus?=null,showProbe:Boolean=false,onClick:()->Unit) {
     val anchor = rememberPosterAnchor(video, model)
-    DiscoveryCard(onClick={ anchor.open(video, onClick) },modifier=modifier.fillMaxWidth()) {
+    DiscoveryCard(onClick={ if(!showProbe || !model.playVerifiedSource(video)) anchor.open(video, onClick) },modifier=modifier.fillMaxWidth()) {
         Box(anchor.modifier) {
             Poster(video,model,Modifier.fillMaxWidth().aspectRatio(2f / 3f).testTag("${prefix}Poster:${video.id}"),shape=RectangleShape,containerColor=MaterialTheme.colorScheme.surfaceContainer,contentScale=ContentScale.Crop)
             RecommendationRating(video,Modifier.align(Alignment.TopEnd).padding(8.dp),prefix)

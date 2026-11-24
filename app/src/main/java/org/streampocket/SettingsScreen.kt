@@ -4,16 +4,12 @@ package org.streampocket
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
@@ -69,12 +65,12 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
             SettingsEntry("应用更新",when {
             transfer.phase==UpdatePhase.DOWNLOADING -> "正在下载 · ${transfer.received/1024} KiB"
             transfer.phase==UpdatePhase.VERIFYING -> "正在校验安装包"
-            transfer.phase==UpdatePhase.READY -> "安装包已就绪 · 点击安装"
-            transfer.phase==UpdatePhase.ERROR -> "下载未完成 · 点击重试"
+            transfer.phase==UpdatePhase.READY -> "可安装更新"
+            transfer.phase==UpdatePhase.ERROR -> "下载未完成"
             s.updateChecking -> "正在检查更新…"
-            s.appRelease!=null -> "有新版 · 点击查看与安装"
-            s.updateError!=null -> "检查失败 · 点击重试"
-            else -> "当前版本 ${BuildConfig.VERSION_NAME} · 检查更新"
+            s.appRelease!=null -> "新版 ${s.appRelease.version}"
+            s.updateError!=null -> "检查失败"
+            else -> "当前版本 ${BuildConfig.VERSION_NAME}"
         },updates,"settingsUpdates",grouped=true) } }
         item { Text("偏好与数据",style=MaterialTheme.typography.titleLarge) }
         item(key="searchHistory") {
@@ -94,23 +90,13 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
                 }
             }
         }
-        item { Text("Pocket Live · AGPL-3.0-or-later\n参考 LibreTV deb72fa01f；完整源码和许可证随项目提供。",style=MaterialTheme.typography.bodySmall) }
     }
 }
-@Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,expanded:Boolean?=null,grouped:Boolean=false) {
+@Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,grouped:Boolean=false) {
     val row: @Composable () -> Unit = {
-        Surface(onClick=action,color=androidx.compose.ui.graphics.Color.Transparent,
-        modifier=Modifier.fillMaxWidth().heightIn(min=72.dp).testTag(tag).semantics { contentDescription=title }) {
-        Column {
-            Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                    Text(title,style=MaterialTheme.typography.titleMedium)
-                    Text(summary.replace(" · ","，"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(if(expanded==null) Icons.AutoMirrored.Filled.KeyboardArrowRight else if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        PreferenceRow(title,summary,action,Modifier.testTag(tag).semantics { contentDescription=title }) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
     }
     if(grouped) row() else ContentCard(Modifier.fillMaxWidth()) { row() }
 }

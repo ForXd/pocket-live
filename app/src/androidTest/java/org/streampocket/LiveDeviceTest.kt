@@ -75,6 +75,19 @@ class LiveDeviceTest {
             ui.onNodeWithTag("liveChannel:新闻频道").performClick()
             ui.waitUntil(30000) { PlaybackMetrics.frames>frames }
             assertEquals(SourceKind.LIVE,model.state.value.playback?.video?.source?.kind)
+            fun revealControl(description:String) {
+                if(ui.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isEmpty()) {
+                    ui.onNodeWithTag("videoViewport").performTouchInput { click(center) }
+                }
+                ui.waitUntil(5000) { ui.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty() }
+            }
+            revealControl("横屏全屏")
+            ui.onNodeWithContentDescription("横屏全屏").performClick()
+            ui.waitUntil(5000) { ui.activity.window.decorView.width>ui.activity.window.decorView.height }
+            revealControl("退出全屏")
+            ui.onNodeWithTag("fullscreenTitle").assertTextEquals("新闻频道").assertIsDisplayed()
+            ui.onNodeWithText("选集").assertDoesNotExist()
+            ui.onNodeWithContentDescription("退出全屏").performClick()
             ui.onNodeWithContentDescription("返回频道").performClick()
             ui.waitUntil(15000) { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released && PlaybackMetrics.samplers==0 && MediaCallOwner.active.get()==0 }
             ui.onNodeWithTag("liveChannel:新闻频道").assertIsDisplayed()

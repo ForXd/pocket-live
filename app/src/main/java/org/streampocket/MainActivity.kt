@@ -195,7 +195,7 @@ class MainActivity : ComponentActivity() {
         if(tab!=0) add("tab:$tab")
         if(tab==3 && settingsPage!=null) add("settings:${settingsPage!!.name}")
         if(!inline && recommendation!=null) add("preview")
-        if(!inline && (s.detail!=null || s.detailLoading)) add("detail")
+        if(!inline && !s.directPlayback && (s.detail!=null || s.detailLoading)) add("detail")
         if(playback!=null) add("playback")
     }
     CardRouteHost(routes, canCaptureParent=recommendation==null) {

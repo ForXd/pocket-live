@@ -16,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable internal fun SubscriptionHeader(sub:Subscription,expanded:Boolean,enabledCount:Int,importing:Boolean,revealed:Boolean,onReveal:(Boolean)->Unit,onExpand:()->Unit,onUpdate:()->Unit,onCancel:()->Unit,onDelete:()->Unit) {
@@ -25,28 +24,23 @@ import androidx.compose.ui.unit.dp
         SwipeTile(onClick={onReveal(false);onUpdate()},enabled=!importing) { Icon(Icons.Default.Refresh,updateLabel) }
         SwipeTile(onClick={onReveal(false);onDelete()},destructive=true) { Icon(Icons.Default.Delete,"删除订阅") }
     }) {
-    ContentCard(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(4.dp),verticalAlignment=Alignment.CenterVertically) {
-            GlassTextButton(onClick=onExpand,modifier=Modifier.weight(1f).heightIn(min=80.dp).testTag("subscription:${sub.id}").semantics { stateDescription=if(expanded) "已展开" else "已收起" },shape=MaterialTheme.shapes.medium,contentPadding=PaddingValues(12.dp)) {
-                Surface(shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surfaceContainerHigh) { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_library),null,Modifier.padding(10.dp).size(22.dp)) }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Text(sub.name,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    Text("${if(sub.isLocalJson) "本地 JSON · " else ""}${sub.sources.size} 个源 · 已启用 $enabledCount 个",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,if(expanded) "收起来源" else "展开来源",Modifier.size(20.dp))
+        ContentCard(Modifier.fillMaxWidth()) {
+            val summary = "${if(sub.isLocalJson) "本地 JSON · " else ""}${sub.sources.size} 个源 · 已启用 $enabledCount 个"
+            PreferenceRow(sub.name,summary,onExpand,Modifier.testTag("subscription:${sub.id}")
+                .semantics { stateDescription=if(expanded) "已展开" else "已收起" }) {
+                Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    if(expanded) "收起来源" else "展开来源",Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
-        if(expanded || importing) {
-            ContentDivider(Modifier.padding(horizontal=16.dp))
-            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                Text(if(importing) "正在更新订阅…" else "更新于 ${historyTime(sub.updated)}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                if(importing) GlassTextButton(onClick=onCancel) { Text("取消") }
+            if(expanded || importing) {
+                ContentDivider(Modifier.padding(horizontal=16.dp))
+                Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Text(if(importing) "正在更新订阅…" else "更新于 ${historyTime(sub.updated)}",Modifier.weight(1f),
+                        style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    if(importing) GlassTextButton(onClick=onCancel) { Text("取消") }
+                }
             }
         }
     }
-}
-
 }
 
 @Composable internal fun SubscriptionSourceRow(source:Source,enabled:Boolean,onToggle:()->Unit,onRules:(()->Unit)?=null,availability:Boolean?=null) {

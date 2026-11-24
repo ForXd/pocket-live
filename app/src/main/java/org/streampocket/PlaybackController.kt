@@ -31,6 +31,7 @@ class PlaybackController(
     private val health:(PlaybackHealth)->Unit = {},
     private var smoothMode:Boolean = false,
     private val durationChanged:(Long)->Unit = {},
+    private val playbackConfirmed:()->Unit = {},
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var mediaCalls:MediaCallOwner?=null
@@ -41,6 +42,7 @@ class PlaybackController(
     private var player: ExoPlayer? = null
     private var view: PlayerView? = null
     private var listener: Player.Listener? = null
+    private var outputObserver:PlaybackOutputObserver?=null
     private var liveMedia = session.video.source.kind == SourceKind.LIVE
     private var position = resumePosition(liveMedia,session.position)
     @Volatile private var hlsEdit=HlsEdit("")
@@ -94,45 +96,17 @@ class PlaybackController(
             val rejected=excludedDecoders.toSet() // Codec selection runs on the playback thread.
             val diagnosticOwner=++PlaybackMetrics.nextDiagnosticOwner
             val reportCleanup=cleanupFailed // AppModel-only callback, never retain the screen/controller.
-            val renderers=object:DefaultRenderersFactory(context.applicationContext) {
-                override fun createRenderers(eventHandler:android.os.Handler,videoListener:androidx.media3.exoplayer.video.VideoRendererEventListener,audioListener:androidx.media3.exoplayer.audio.AudioRendererEventListener,textOutput:androidx.media3.exoplayer.text.TextOutput,metadataOutput:androidx.media3.exoplayer.metadata.MetadataOutput):Array<Renderer> {
-                    val delegates=super.createRenderers(eventHandler,videoListener,audioListener,textOutput,metadataOutput)
-                    val inject:(Renderer)->Unit = { renderer ->
-                        if(BuildConfig.DEBUG && renderer.trackType==C.TRACK_TYPE_VIDEO && ReleaseFaultInjection.pending.compareAndSet(true,false)) {
-                            ReleaseFaultInjection.triggered.incrementAndGet()
-                            ReleaseFaultInjection.videoState=renderer.state
-                            ReleaseFaultInjection.audioState=delegates.firstOrNull { it.trackType==C.TRACK_TYPE_AUDIO }?.state ?: -1
-                            PlaybackMetrics.recordRelease("injected-video-disable videoState=${ReleaseFaultInjection.videoState} audioState=${ReleaseFaultInjection.audioState}")
-                            throw InjectedVideoDisableFailure()
-                        }
-                    }
-                    if(BuildConfig.DEBUG && ReleaseFaultInjection.useOriginalRelease) return delegates.map { delegate ->
-                        object:ForwardingRenderer(delegate) { override fun disable() { super.disable();inject(delegate) } }
-                    }.toTypedArray()
-                    return RendererReleaseGroup(delegates,inject) { failure ->
-                        PlaybackMetrics.cleanupFailures++
-                        PlaybackMetrics.recordRelease("renderer-cleanup-failure class=${failure.javaClass.name} suppressed=${failure.suppressed.size}")
-                        androidx.media3.common.util.Log.e("RendererCleanup","Final renderer cleanup failed",failure)
-                        // Report explicitly, but allow Media3 to finish load-control/track-selector/
-                        // audio-focus cleanup after the renderer loop. Do not retain Throwable.
-                        android.os.Handler(android.os.Looper.getMainLooper()).post { reportCleanup("播放器资源清理出现异常，请重新打开播放") }
-                    }.wrapped
-                }
-                override fun buildAudioSink(context:Context,enableFloatOutput:Boolean,enableAudioTrackPlaybackParams:Boolean):androidx.media3.exoplayer.audio.AudioSink? {
-                    val sink=super.buildAudioSink(context,enableFloatOutput,enableAudioTrackPlaybackParams) ?: return null
-                    return if(BuildConfig.DEBUG && PlaybackMetrics.diagnosticEnabled) DiagnosticAudioSink(sink,diagnosticOwner) else sink
-                }
-            }.setEnableDecoderFallback(true)
-                .setMediaCodecSelector { mime,secure,tunnel ->
-                    androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(mime,secure,tunnel)
-                        .filterNot { it.name in rejected }
-                }
+            val renderers=playbackRenderers(context,rejected,diagnosticOwner) { failure ->
+                PlaybackMetrics.cleanupFailures++
+                PlaybackMetrics.recordRelease("renderer-cleanup-failure class=${failure.javaClass.name} suppressed=${failure.suppressed.size}")
+                androidx.media3.common.util.Log.e("RendererCleanup","Final renderer cleanup failed",failure)
+                android.os.Handler(android.os.Looper.getMainLooper()).post { reportCleanup("播放器资源清理出现异常，请重新打开播放") }
+            }
             // API32+ Spatializer listeners retained a released player in the API37 heap.
             // This phone player does not offer spatial audio: prefer stereo without registering
             // the dynamic spatializer listener. Keep the default fallback for multichannel-only media.
             val tracks=if(BuildConfig.DEBUG && PlaybackMetrics.diagnosticEnabled) DiagnosticTrackSelector(context.applicationContext,diagnosticOwner) else DefaultTrackSelector(context.applicationContext)
-            if(android.os.Build.VERSION.SDK_INT>=32) tracks.parameters=tracks.buildUponParameters()
-                .setConstrainAudioChannelCountToDeviceCapabilities(false).setMaxAudioChannelCount(2).build()
+            tracks.configurePlaybackChannels()
             val p = ExoPlayer.Builder(context.applicationContext,renderers).setTrackSelector(tracks)
                 .setLoadControl(load).setMediaSourceFactory(factory).build()
             player = p // Transfer ownership before any operation that can fail.
@@ -162,10 +136,7 @@ class PlaybackController(
                 override fun onPlayerError(error: PlaybackException) {
                     if(player!==p || closed) return
                     PlaybackMetrics.errorDiagnostic=playbackErrorDiagnostic(error)
-                    failedDecoder=if(error.errorCode==PlaybackException.ERROR_CODE_DECODING_FAILED)
-                        generateSequence(error as Throwable?) { it.cause }.take(6)
-                            .filterIsInstance<androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException>()
-                            .firstOrNull()?.codecInfo?.name else null
+                    failedDecoder=error.failedDecoderName()
                     if(failedDecoder!=null && excludedDecoders.size<4) {
                         val shouldPlay=p.playWhenReady
                         recovery?.cancel()
@@ -183,6 +154,9 @@ class PlaybackController(
                 }
             }
             listener=events; p.addListener(events)
+            outputObserver=PlaybackOutputObserver(p) {
+                if(player===p && !closed) playbackConfirmed()
+            }.also(p::addAnalyticsListener)
             p.setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
                 .setSpatializationBehavior(C.SPATIALIZATION_BEHAVIOR_NEVER).build(),true)
             p.setHandleAudioBecomingNoisy(true)
@@ -190,24 +164,11 @@ class PlaybackController(
             p.playWhenReady=autoStart;autoStart=false
             preparation=scope.launch {
             try {
-            val inferred=androidx.media3.common.util.Util.inferContentType(session.episode.url.toUri())
-            val mime=session.episode.mimeType ?: if(inferred==C.CONTENT_TYPE_OTHER && !session.episode.url.toUri().path.orEmpty().endsWith(".mp4",ignoreCase=true)) {
-                try { withTimeout(5_000) { PlaybackProbe(network).mediaType(session.episode.url) } }
-                catch(e:TimeoutCancellationException) { null }
-                catch(e:CancellationException) { throw e }
-                catch(_:Exception) { null }
-            } else null
+            val item=playbackMediaItem(network,session.episode)
             ensureActive()
             if(closed || player!==p) return@launch
-            val item=MediaItem.Builder().setUri(session.episode.url).setMimeType(mime).build()
-            if(mime==MimeTypes.APPLICATION_M3U8 || inferred==C.CONTENT_TYPE_HLS) {
-                val parser=if((automaticAds || adPaths.isNotEmpty()) && !liveMedia)
-                    SafeHlsParserFactory(session.episode.url,adPaths,automaticAds) { hlsEdit=it }
-                    else androidx.media3.exoplayer.hls.playlist.DefaultHlsPlaylistParserFactory()
-                val hls=androidx.media3.exoplayer.hls.HlsMediaSource.Factory(dataSource).setLoadErrorHandlingPolicy(loadPolicy)
-                    .setPlaylistParserFactory(prefetch.parser(parser))
-                p.setMediaSource(hls.createMediaSource(item))
-            } else p.setMediaItem(item)
+            p.setMediaSource(playbackMediaSource(item,factory,dataSource,loadPolicy,automaticAds && !liveMedia,
+                if(liveMedia) emptySet() else adPaths,prefetch) { hlsEdit=it })
             if(liveMedia) p.seekToDefaultPosition() else p.seekTo(position)
             prefetch.setActive(p.playWhenReady)
             p.prepare()
@@ -254,9 +215,7 @@ class PlaybackController(
     fun setSmoothMode(enabled:Boolean) {
         smoothMode=enabled
         val p=player ?: return
-        p.trackSelectionParameters=p.trackSelectionParameters.buildUpon()
-            .setMaxVideoSize(if(enabled) 1280 else Int.MAX_VALUE,if(enabled) 720 else Int.MAX_VALUE)
-            .setMaxVideoBitrate(if(enabled) 2_000_000 else Int.MAX_VALUE).build()
+        p.configurePlaybackVideo(enabled)
     }
     fun seekRelative(delta:Long):String {
         val p=player ?: return "当前不可跳转"
@@ -267,6 +226,7 @@ class PlaybackController(
     }
     fun retry() {
         if(closed) return
+        outputObserver?.reset()
         val decoder=failedDecoder
         if(decoder!=null && excludedDecoders.size<4) {
             recoverDecoder(true)
@@ -310,6 +270,7 @@ class PlaybackController(
             try {
                 if(p != null) {
                     listener?.let(p::removeListener)
+                    outputObserver?.let(p::removeAnalyticsListener)
                     try { p.clearVideoSurface() } finally {
                         val releaseStart=android.os.SystemClock.elapsedRealtime()
                         val releaseObserver=object:Player.Listener {
@@ -329,12 +290,83 @@ class PlaybackController(
                         }
                     }
                 }
-            } finally { listener=null; playing(false) }
+            } finally { listener=null; outputObserver=null; playing(false) }
         }
     }
     fun close(rotating: Boolean) {
         try { stop(rotating) } finally { closed=true; view=null;failedDecoder=null;excludedDecoders.clear();scope.cancel() }
     }
+}
+
+@androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
+internal fun playbackRenderers(context:Context,rejected:Set<String> = emptySet(),diagnosticOwner:Long?=null,
+    onCleanupFailure:(RuntimeException)->Unit):DefaultRenderersFactory {
+    return object:DefaultRenderersFactory(context.applicationContext) {
+        override fun createRenderers(eventHandler:android.os.Handler,videoListener:androidx.media3.exoplayer.video.VideoRendererEventListener,audioListener:androidx.media3.exoplayer.audio.AudioRendererEventListener,textOutput:androidx.media3.exoplayer.text.TextOutput,metadataOutput:androidx.media3.exoplayer.metadata.MetadataOutput):Array<Renderer> {
+            val delegates=super.createRenderers(eventHandler,videoListener,audioListener,textOutput,metadataOutput)
+            val inject:(Renderer)->Unit = { renderer ->
+                if(diagnosticOwner!=null && BuildConfig.DEBUG && renderer.trackType==C.TRACK_TYPE_VIDEO && ReleaseFaultInjection.pending.compareAndSet(true,false)) {
+                    ReleaseFaultInjection.triggered.incrementAndGet()
+                    ReleaseFaultInjection.videoState=renderer.state
+                    ReleaseFaultInjection.audioState=delegates.firstOrNull { it.trackType==C.TRACK_TYPE_AUDIO }?.state ?: -1
+                    PlaybackMetrics.recordRelease("injected-video-disable videoState=${ReleaseFaultInjection.videoState} audioState=${ReleaseFaultInjection.audioState}")
+                    throw InjectedVideoDisableFailure()
+                }
+            }
+            if(diagnosticOwner!=null && BuildConfig.DEBUG && ReleaseFaultInjection.useOriginalRelease) return delegates.map { delegate ->
+                object:ForwardingRenderer(delegate) { override fun disable() { super.disable();inject(delegate) } }
+            }.toTypedArray()
+            return RendererReleaseGroup(delegates,if(diagnosticOwner==null) null else inject,onCleanupFailure).wrapped
+        }
+        override fun buildAudioSink(context:Context,enableFloatOutput:Boolean,enableAudioTrackPlaybackParams:Boolean):androidx.media3.exoplayer.audio.AudioSink? {
+            val sink=super.buildAudioSink(context,enableFloatOutput,enableAudioTrackPlaybackParams) ?: return null
+            return if(diagnosticOwner!=null && BuildConfig.DEBUG && PlaybackMetrics.diagnosticEnabled) DiagnosticAudioSink(sink,diagnosticOwner) else sink
+        }
+    }.setEnableDecoderFallback(true)
+        .setMediaCodecSelector { mime,secure,tunnel ->
+            androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(mime,secure,tunnel)
+                .filterNot { it.name in rejected }
+        }
+}
+
+/** A probed HLS URL can be extensionless. Use the same source selection for trial and playback. */
+@androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
+internal suspend fun playbackMediaItem(network:Network,episode:Episode):MediaItem {
+    val uri=episode.url.toUri()
+    val inferred=androidx.media3.common.util.Util.inferContentType(uri)
+    val mime=episode.mimeType ?: when {
+        inferred==C.CONTENT_TYPE_HLS -> MimeTypes.APPLICATION_M3U8
+        inferred!=C.CONTENT_TYPE_OTHER || uri.path.orEmpty().endsWith(".mp4",true) -> null
+        else -> try { withTimeoutOrNull(5_000) { PlaybackProbe(network).mediaType(episode.url) } }
+            catch(e:CancellationException) { throw e }
+            catch(_:Exception) { null }
+    }
+    return MediaItem.Builder().setUri(uri).setMimeType(mime).build()
+}
+
+@androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
+internal fun playbackMediaSource(item:MediaItem,factory:DefaultMediaSourceFactory,dataSource:androidx.media3.datasource.DataSource.Factory,
+    loadPolicy:PlaybackLoadPolicy,automaticAds:Boolean,adPaths:Set<String>,prefetch:HlsLookAhead?=null,
+    edited:(HlsEdit)->Unit={}):androidx.media3.exoplayer.source.MediaSource {
+    val media=checkNotNull(item.localConfiguration)
+    if(media.mimeType!=MimeTypes.APPLICATION_M3U8 && androidx.media3.common.util.Util.inferContentType(media.uri)!=C.CONTENT_TYPE_HLS)
+        return factory.createMediaSource(item)
+    val parser=if(automaticAds || adPaths.isNotEmpty()) SafeHlsParserFactory(media.uri.toString(),adPaths,automaticAds,edited)
+        else androidx.media3.exoplayer.hls.playlist.DefaultHlsPlaylistParserFactory()
+    return androidx.media3.exoplayer.hls.HlsMediaSource.Factory(dataSource).setLoadErrorHandlingPolicy(loadPolicy)
+        .setPlaylistParserFactory(prefetch?.parser(parser) ?: parser).createMediaSource(item)
+}
+
+@androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
+internal fun DefaultTrackSelector.configurePlaybackChannels() {
+    if(android.os.Build.VERSION.SDK_INT>=32) parameters=buildUponParameters()
+        .setConstrainAudioChannelCountToDeviceCapabilities(false).setMaxAudioChannelCount(2).build()
+}
+
+internal fun ExoPlayer.configurePlaybackVideo(smooth:Boolean) {
+    trackSelectionParameters=trackSelectionParameters.buildUpon()
+        .setMaxVideoSize(if(smooth) 1280 else Int.MAX_VALUE,if(smooth) 720 else Int.MAX_VALUE)
+        .setMaxVideoBitrate(if(smooth) 2_000_000 else Int.MAX_VALUE).build()
 }
 
 /** Bounded counters, no object references, URLs, logs or durable storage. */
@@ -396,6 +428,14 @@ internal class DiagnosticAudioSink(sink:androidx.media3.exoplayer.audio.AudioSin
 }
 
 /** Bounded technical fields only: no exception objects, URLs, headers or arbitrary messages. */
+@androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
+internal fun PlaybackException.failedDecoderName():String? =
+    if(errorCode==PlaybackException.ERROR_CODE_DECODING_FAILED)
+        generateSequence(this as Throwable?) { it.cause }.take(6)
+            .filterIsInstance<androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException>()
+            .firstOrNull()?.codecInfo?.name
+    else null
+
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 internal fun playbackErrorDiagnostic(error: PlaybackException): String {
     val format=(error as? ExoPlaybackException)?.rendererFormat

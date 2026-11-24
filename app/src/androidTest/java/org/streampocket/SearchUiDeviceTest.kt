@@ -125,7 +125,7 @@ class SearchUiDeviceTest {
             ui.onNodeWithTag("searchVideo:series").assertExists()
             capture("02-mystery")
             ui.onNodeWithTag("searchVideo:series").performClick()
-            ui.onNodeWithTag("sourceChoice:${source.key}:series").performScrollTo().performClick()
+            ui.onNodeWithTag("searchPoster:series").performScrollTo().performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
             ui.onNodeWithContentDescription("关闭详情",useUnmergedTree=true).performClick()
             ui.onNodeWithTag("searchCategory:MYSTERY").assertIsSelected()

@@ -185,9 +185,7 @@ class HomeBrowseDeviceTest {
         val initialSearch=requests.first { it.contains("wd=") }
         val searches=requests.count { it==initialSearch }
         repeat(3) {
-            val choice=hasTestTag("sourceChoice:"+model.state.value.results.first { it.id=="12" }.source.key+":12")
-            if(ui.onAllNodes(choice).fetchSemanticsNodes().isEmpty()) anchor.performClick()
-            ui.onNode(choice).performClick()
+            ui.onNodeWithTag("searchPoster:12").performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
             ui.onNodeWithTag("detailPlay").performClick()
             ui.waitUntil(10000) { model.state.value.playback!=null && PlaybackMetrics.created-PlaybackMetrics.released==1L }

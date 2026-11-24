@@ -28,26 +28,28 @@ import androidx.compose.ui.unit.dp
 }
 
 /** Shared source rows for search/detail and player; availability never inferred from metadata. */
-@Composable fun SourceChoices(videos:List<Video>,selected:Video?,probes:Map<String,ProbeStatus>,resolutions:Map<String,String>,choose:(Video)->Unit,limit:Int=Int.MAX_VALUE,rowInset:androidx.compose.ui.unit.Dp=12.dp) {
+@Composable fun SourceChoices(videos:List<Video>,selected:Video?,probes:Map<String,ProbeStatus>,resolutions:Map<String,String>,choose:(Video)->Unit,limit:Int=Int.MAX_VALUE,rowInset:androidx.compose.ui.unit.Dp=12.dp,verifiedOnly:Boolean=false,playbackLabel:(Video)->String?={null}) {
     if(videos.size>3 && limit>3) {
         androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max=280.dp)) {
-            items(videos.take(limit),key={it.probeKey()}) { video -> SourceChoices(listOf(video),selected,probes,resolutions,choose,1,rowInset) }
+            items(videos.take(limit),key={it.probeKey()}) { video -> SourceChoices(listOf(video),selected,probes,resolutions,choose,1,rowInset,verifiedOnly,playbackLabel) }
         }
         return
     }
     videos.take(limit).forEach { video ->
-        Surface(onClick={choose(video)},color=if(selected?.probeKey()==video.probeKey()) glassFill(true) else androidx.compose.ui.graphics.Color.Transparent,
+        val enabled=!verifiedOnly || probes[video.probeKey()]==ProbeStatus.READY
+        Surface(onClick={choose(video)},enabled=enabled,color=if(selected?.probeKey()==video.probeKey()) glassFill(true) else androidx.compose.ui.graphics.Color.Transparent,
             shape=MaterialTheme.shapes.small,modifier=Modifier.fillMaxWidth().testTag("sourceChoice:${video.source.key}:${video.id}")) {
             Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=rowInset,vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
                     Text(video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    val label=if(selected?.probeKey()==video.probeKey()) "当前来源" else video.subtitle
-                    if(probes[video.probeKey()]==ProbeStatus.READY) Text(resolutions[video.probeKey()]?.let { "播放清单 · $it" } ?: "清晰度未确认",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeResolution:${video.id}"))
+                    val label=if(selected?.probeKey()==video.probeKey()) "当前来源" else playbackLabel(video) ?: video.subtitle
+                    val resolution=resolutions[video.probeKey()]
+                    if(probes[video.probeKey()]==ProbeStatus.READY && resolution!=null) Text("实测 · $resolution",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("probeResolution:${video.id}"))
                     else if(video.quality.evidence!=QualityEvidence.UNKNOWN) QualityBadge(video.quality,lastPlayback=true)
                     if(label.isNotEmpty()) Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
                 }
                 MediaProbeIndicator(probes[video.probeKey()],textModifier=Modifier.testTag("probe:${video.id}"))
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(enabled) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

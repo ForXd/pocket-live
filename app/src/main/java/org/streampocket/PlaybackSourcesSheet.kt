@@ -51,16 +51,17 @@ import androidx.compose.ui.unit.dp
                     }
                     SourceDivider()
                 }
-                if (loading) item { LoadingStatus("正在检测可播放资源…", Modifier.padding(vertical = 8.dp)) }
+                if (loading) item { LoadingStatus("正在自动试播同集来源…", Modifier.padding(vertical = 8.dp)) }
                 items(alternatives, key = { it.episode.url }) { option ->
                     val sameSource = option.video.source.key == playback.video.source.key
                     val title = if (sameSource) option.line.ifBlank { option.video.source.name } else option.video.source.name
                     val detail = listOfNotNull(option.line.takeIf { !sameSource && it.isNotBlank() }, option.episode.name,
                         option.resolution ?: option.episode.quality.takeUnless { it.evidence == QualityEvidence.UNKNOWN }?.label).joinToString(" · ")
-                    SourceRow(title, detail, Modifier.testTag("alternative:${option.episode.url}").clickable(role = Role.Button) { select(option) }) {
-                        Text(if (option.probeStatus == ProbeStatus.READY) "已探测" else option.probeStatus.label,
+                    val selectable = option.probeStatus == ProbeStatus.READY
+                    SourceRow(title, detail, Modifier.testTag("alternative:${option.episode.url}").clickable(enabled = selectable, role = Role.Button) { select(option) }) {
+                        if(option.probeStatus!=ProbeStatus.UNCHECKED) Text(option.probeStatus.label,
                             style = MaterialTheme.typography.labelSmall, color = if (option.probeStatus == ProbeStatus.READY) accent else secondary)
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(16.dp), tint = secondary)
+                        if(selectable) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(16.dp), tint = secondary)
                     }
                 }
                 item {

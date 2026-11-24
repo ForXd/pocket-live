@@ -62,13 +62,13 @@ class PlayerLayoutDeviceTest {
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { player!!.pause();controllerShowTimeoutMs=0;showController() } }
             if(probeCapture) {
                 ui.runOnIdle { model.openAlternatives(model.state.value.playback!!.sessionId) }
-                ui.waitUntil(10000) { !model.state.value.alternativesLoading && model.state.value.alternatives.count { it.probeStatus==ProbeStatus.READY }==2 }
+                ui.waitUntil(30000) { !model.state.value.alternativesLoading && model.state.value.alternatives.size==2 && model.state.value.alternatives.all { it.probeStatus==ProbeStatus.READY } }
                 ui.onNodeWithTag("playingSource").assertExists()
                 captureUi(ui,"player-alternatives-verified")
                 val target=model.state.value.alternatives.last()
                 val row=hasTestTag("alternative:${target.episode.url}")
                 ui.onNodeWithTag("playbackAlternatives").performScrollToNode(row)
-                ui.onNode(row).assertTextContains("已探测")
+                ui.onNode(row).assertTextContains("可播放")
                 captureUi(ui,"player-alternatives-scrolled")
                 val frames=PlaybackMetrics.frames
                 ui.onNode(row).performClick()
@@ -149,6 +149,24 @@ class PlayerLayoutDeviceTest {
             ui.waitUntil(5000) { ui.activity.window.decorView.width>ui.activity.window.decorView.height }
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
+            ui.onNodeWithTag("fullscreenTitle").assertTextEquals("第1集 · 星河漫游").assertIsDisplayed()
+            ui.runOnIdle {
+                val pv=view(ui.activity.window.decorView)!!
+                val layer=checkNotNull(pv.overlayFrameLayout)
+                assertEquals(pv.width,layer.width)
+                val shade=checkNotNull(layer.background?.constantState?.newDrawable())
+                val pixels=android.graphics.Bitmap.createBitmap(1,100,android.graphics.Bitmap.Config.ARGB_8888)
+                shade.setBounds(0,0,1,100)
+                shade.draw(android.graphics.Canvas(pixels))
+                fun alphaAt(y:Int)=android.graphics.Color.alpha(pixels.getPixel(0,y))
+                assertTrue("Top controls have a shaded background",alphaAt(5)>128)
+                assertEquals("Video center keeps its brightness",0,alphaAt(50))
+                assertTrue("The native timeline has a shaded background",alphaAt(95)>128)
+                pixels.recycle()
+                pv.hideController()
+            }
+            ui.onNodeWithTag("fullscreenTitle").assertDoesNotExist()
+            ui.runOnIdle { assertNull(view(ui.activity.window.decorView)!!.overlayFrameLayout?.background) }
             val initialBrightness=ui.activity.window.attributes.screenBrightness
             ui.runOnIdle {
                 val pv=view(ui.activity.window.decorView)!!
@@ -191,7 +209,7 @@ class PlayerLayoutDeviceTest {
             ui.onNodeWithContentDescription("关闭").performClick()
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
             ui.onNodeWithText("换源").performClick()
-            ui.waitUntil(10000) { !model.state.value.alternativesLoading && model.state.value.alternatives.count { it.probeStatus==ProbeStatus.READY }==2 }
+            ui.waitUntil(30000) { !model.state.value.alternativesLoading && model.state.value.alternatives.size==2 && model.state.value.alternatives.all { it.probeStatus==ProbeStatus.READY } }
             captureUi(ui,"player-fullscreen-alternatives")
             ui.onNodeWithContentDescription("关闭").performClick()
             ui.runOnIdle { view(ui.activity.window.decorView)!!.apply { controllerShowTimeoutMs=0;showController() } }
@@ -245,6 +263,7 @@ class PlayerLayoutDeviceTest {
                 ui.runOnUiThread { view(ui.activity.window.decorView)?.apply { player?.pause();controllerShowTimeoutMs=0;showController() } }
                 ui.onAllNodesWithContentDescription("上一集").fetchSemanticsNodes().isNotEmpty()
             }
+            ui.onNodeWithTag("fullscreenTitle").assertTextEquals("第500集 · 星河漫游").assertIsDisplayed()
             ui.onNodeWithText("选集").performClick()
             ui.onNodeWithText("第500集").assertIsDisplayed()
             ui.onNodeWithContentDescription("关闭").performClick()

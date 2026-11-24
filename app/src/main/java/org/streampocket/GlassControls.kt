@@ -89,13 +89,14 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 
 /** Color supplements an explicit label, so availability is never conveyed by color alone. */
 @Composable internal fun MediaProbeIndicator(status:ProbeStatus?,modifier:Modifier=Modifier,textModifier:Modifier=Modifier) {
+    if(status==null || status==ProbeStatus.UNCHECKED) return
     val ready=status==ProbeStatus.READY
     val green=if(MaterialTheme.colorScheme.surface.luminance()<.5f) Color(0xff99d6ad) else Color(0xff236b3d)
     val foreground=if(ready) green else MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier.background(if(ready) green.copy(alpha=.10f) else Color.Transparent,MaterialTheme.shapes.small).padding(horizontal=8.dp,vertical=4.dp),
         verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
         if(ready) Box(Modifier.size(6.dp).background(green,androidx.compose.foundation.shape.CircleShape))
-        Text(status?.label ?: "未探测",textModifier,style=MaterialTheme.typography.labelMedium,color=foreground)
+        Text(status.label,textModifier,style=MaterialTheme.typography.labelMedium,color=foreground)
     }
 }
 

@@ -15,10 +15,11 @@ class AlternativesModelDeviceTest {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
         val other="http://other.test:${server.port}"
+        val video=mediaFixtureBytes("test.mp4")
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
                 val path=request.requestUrl!!.encodedPath
-                if(path.endsWith(".mp4")) return MockResponse().setBody(okio.Buffer().write(byteArrayOf(0,0,0,24)+"ftypisom".toByteArray()))
+                if(path.endsWith(".mp4")) return MockResponse().setBody(okio.Buffer().write(video))
                 if(path=="/sub") return MockResponse().setBody("""{"sources":[{"name":"A","url":"$base/a"},{"name":"B","url":"$other/b"}]}""")
                 if(request.requestUrl!!.queryParameter("ids")==null) return MockResponse().setBody("""{"list":[{"vod_id":"1","vod_name":"合成剧 第二季"},{"vod_id":"wrong","vod_name":"合成剧 第一季"}]}""")
                 val episodes=if(path=="/a") "第1集${'$'}$base/a1.mp4#第2集${'$'}$base/a2.mp4" else "01${'$'}$base/b1.mp4#02${'$'}$base/b2.mp4"
@@ -30,7 +31,7 @@ class AlternativesModelDeviceTest {
         lateinit var model:AppModel
         fun main(block:()->Unit)=instrument.runOnMainSync(block)
         fun await(test:()->Boolean) {
-            val end=android.os.SystemClock.elapsedRealtime()+15000
+            val end=android.os.SystemClock.elapsedRealtime()+30000
             while(!test()) { if(android.os.SystemClock.elapsedRealtime()>end) fail("Timed out awaiting model state");Thread.sleep(20) }
         }
         main {

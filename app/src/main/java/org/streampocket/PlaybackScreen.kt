@@ -28,8 +28,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.platform.testTag
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -42,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.isVisible
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -60,10 +59,10 @@ internal data class PlayerUiState(
     val alternativeSession:String?, val alternatives:List<PlaybackAlternative>, val alternativesLoading:Boolean,
     val alternativesError:String?, val smoothPlayback:Boolean, val saved:Saved,
     val relatedVideos:List<Video>, val relatedLoading:Boolean, val relatedError:String?,
-    val probes:Map<String,ProbeStatus>, val probeResolutions:Map<String,String>
+    val probes:Map<String,ProbeStatus>, val probeResolutions:Map<String,String>, val directPlayback:Boolean
 )
 internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailError,alternativeSession,alternatives,
-    alternativesLoading,alternativesError,smoothPlayback,saved,relatedVideos,relatedLoading,relatedError,probes,probeResolutions)
+    alternativesLoading,alternativesError,smoothPlayback,saved,relatedVideos,relatedLoading,relatedError,probes,probeResolutions,directPlayback)
 
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @OptIn(ExperimentalLayoutApi::class)
@@ -127,11 +126,12 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
             intent={ model.playbackIntent(playback.sessionId,it) },
             playing={ if(it) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) },
-            failed={ error=it },cleanupFailed=model::message,
+            failed={ error=it;model.playbackFailed(playback.sessionId) },cleanupFailed=model::message,
             videoSize={ width,height -> model.measuredQuality(playback.sessionId,width,height) },
             automaticAds=state.saved.adFilter,
             adPaths=if(state.saved.adFilter) state.saved.adRules[playback.video.source.key].orEmpty().toSet() else emptySet(),
-            filterReport={filterSummary=it},health={health=it},smoothMode=state.smoothPlayback,durationChanged={knownDuration=it})
+            filterReport={filterSummary=it},health={health=it},smoothMode=state.smoothPlayback,durationChanged={knownDuration=it},
+            playbackConfirmed={model.playbackConfirmed(playback.sessionId)})
     }
     LaunchedEffect(controller,state.smoothPlayback) { controller.setSmoothMode(state.smoothPlayback) }
     fun showAlternatives() {
@@ -214,6 +214,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
         cutout.getRight(density, androidx.compose.ui.unit.LayoutDirection.Ltr))
     val fullscreenPadding = Modifier.windowInsetsPadding(cutout.only(WindowInsetsSides.Vertical))
         .padding(horizontal=with(density) { horizontalInset.toDp() })
+    val showFullscreenHeader=full && !pip && !episodesOpen && (controlsVisible || error!=null || slowBuffering)
     MaterialTheme(colorScheme=if(full || pip) NightColors else MaterialTheme.colorScheme) {
     if(optionsOpen && !pip) {
         FrostedDialog(onDismissRequest={optionsOpen=false},placement=if(full) GlassPlacement.SIDE else GlassPlacement.BOTTOM,immersive=full,tag="playbackOptions") {
@@ -332,7 +333,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
         Row(Modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             if(!full && !pip) {
-                BackHeading("播放",if(isLive) "返回频道" else "返回选集",leavePlayback) {
+                BackHeading("播放",if(state.directPlayback) "返回列表" else if(isLive) "返回频道" else "返回选集",leavePlayback) {
                     GlassIconButton(onClick=openOptions,modifier=Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert,"更多播放选项") }
                 }
             }
@@ -357,9 +358,10 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                     // AndroidView may survive an episode change: rebind the listener to
                     // this session's Compose state, just like the seek/feedback callbacks.
                     it.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility -> controlsVisible=visibility==android.view.View.VISIBLE })
-                    controlsVisible=it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_controller).visibility==android.view.View.VISIBLE
+                    controlsVisible=it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_controller).isVisible
                     it.setControlGeometry(full && !pip, horizontalInset,
                         with(density) { when { pip || separateActions -> 0; full -> if(supportsPip) (IconTarget + ActionGap).roundToPx() else 0; else -> (PageGutter + quickWidth + ActionGap).roundToPx() } })
+                    it.setFullscreenControlShading(showFullscreenHeader,full && !pip && controlsVisible && !episodesOpen)
                     it.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener { openOptions() }
                     playerView=it;it.useController=!pip
                 },
@@ -413,32 +415,27 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
             }
             PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f))
         }
-        if(full && !pip && !episodesOpen && (controlsVisible || error!=null || slowBuffering)) {
-            val oneRow = windowSize.width >= 700.dp && density.fontScale <= 1.3f
-            Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().then(fullscreenPadding).padding(horizontal=PageGutter-IconFaceInset,vertical=4.dp)) {
-                if(!oneRow) FullscreenStatus()
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(ActionGap),verticalAlignment=Alignment.CenterVertically) {
-                    PocketBack({playerView?.cancelGestures();exitFullscreen()},Modifier.testTag("fullscreenToggle"), label = "退出全屏",overVideo=true)
-                    Text(playback.video.title,Modifier.weight(1f).padding(start=6.dp),style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    if(oneRow) FullscreenStatus(compact=true)
-                    if(oneRow && !isLive) Spacer(Modifier.weight(0.35f))
-                    val actionColors = ButtonDefaults.textButtonColors(contentColor=Color.White,disabledContentColor=Color.White.copy(alpha=.42f))
-                    if(!isLive && oneRow) {
-                        TextButton(onClick=stepPrevious,enabled=previous!=null,colors=actionColors,modifier=Modifier.semantics { contentDescription="上一集" }) { Text("上一集") }
-                        TextButton(onClick=stepNext,enabled=next!=null,colors=actionColors,modifier=Modifier.semantics { contentDescription="下一集" }) { Text("下一集") }
-                    } else if(!isLive) {
-                        PlayerIconAction(R.drawable.ic_previous,"上一集",enabled=previous!=null,onClick=stepPrevious)
-                        PlayerIconAction(R.drawable.ic_next,"下一集",enabled=next!=null,onClick=stepNext)
-                    }
-                    if(!isLive) TextButton(onClick=openEpisodes,enabled=hasEpisodes,colors=actionColors) { Text("选集") }
-                    if(playback.video.source.kind==SourceKind.VOD && error==null && !slowBuffering) {
-                        TextButton(onClick=::showAlternatives,colors=actionColors) { Text("换源") }
-                    }
-                    GlassIconButton(onClick=openOptions,colors=IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor=Color.Transparent,contentColor=Color.White)) {
-                        Icon(Icons.Default.MoreVert,"更多播放选项")
-                    }
-                }
+        if(showFullscreenHeader) {
+            val usableWidth=windowSize.width-with(density) { (horizontalInset*2).toDp() }
+            val oneRow = usableWidth >= 760.dp && density.fontScale <= 1.3f
+            FullscreenHeader(
+                title = fullscreenPlaybackTitle(playback.video.title, playback.episode.name, isLive),
+                singleRow = oneRow,
+                onExit = { playerView?.cancelGestures(); exitFullscreen() },
+                onOptions = openOptions,
+                modifier = Modifier.align(Alignment.TopCenter).then(fullscreenPadding),
+            ) {
+                if (!isLive) FullscreenEpisodeActions(
+                    compact = !oneRow,
+                    hasPrevious = previous != null,
+                    hasNext = next != null,
+                    hasEpisodes = hasEpisodes,
+                    showSources = playback.video.source.kind == SourceKind.VOD && error == null && !slowBuffering,
+                    onPrevious = stepPrevious,
+                    onNext = stepNext,
+                    onEpisodes = openEpisodes,
+                    onSources = ::showAlternatives,
+                )
             }
         }
         // Recovery must remain reachable even with hidden controls or no initialized player.
@@ -460,12 +457,6 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
 @Composable private fun PlaybackStep(label: String, enabled: Boolean, action: () -> Unit, modifier: Modifier) {
     GlassButton(onClick=action, enabled=enabled, modifier=modifier, shape=MaterialTheme.shapes.medium) {
         Text(label)
-    }
-}
-
-@Composable private fun PlayerIconAction(icon:Int,label:String,modifier:Modifier=Modifier,enabled:Boolean=true,onClick:()->Unit) {
-    IconButton(onClick=onClick,enabled=enabled,modifier=modifier.size(48.dp)) {
-        Icon(painterResource(icon),contentDescription=label,modifier=Modifier.size(24.dp))
     }
 }
 

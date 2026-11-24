@@ -87,32 +87,52 @@ object AppUpdates {
     }
     val busy=transfer.phase==UpdatePhase.DOWNLOADING || transfer.phase==UpdatePhase.VERIFYING
     val release=if(busy || transfer.phase==UpdatePhase.READY) transfer.release else state.appRelease ?: transfer.release
-    GlassAlertDialog(onDismissRequest=close,title={Text("应用更新")},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        Text("Pocket Live · ${BuildConfig.VERSION_NAME}",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-        if(state.updateChecking) { LoadingStatus("正在检查新版…",Modifier.fillMaxWidth()) }
-        state.updateError?.let { Text("检查失败：$it") }
-        release?.let {
-            Text("新版 ${it.version} · ${"%.1f".format(it.bytes/1_000_000.0)} MB",style=MaterialTheme.typography.titleMedium)
-            if(it.notes.isNotBlank()) Text(it.notes,style=MaterialTheme.typography.bodySmall)
-        }
-        when(transfer.phase) {
-            UpdatePhase.DOWNLOADING -> {
-                LinearProgressIndicator(progress={ (transfer.received.toFloat()/(transfer.release?.bytes ?: 1).coerceAtLeast(1)).coerceIn(0f,1f) },modifier=Modifier.fillMaxWidth())
-                Text("正在下载 ${(transfer.received*100/(transfer.release?.bytes ?: 1).coerceAtLeast(1))}% · ${transfer.received/1024} / ${(transfer.release?.bytes ?: 0L)/1024} KiB")
-                GlassTextButton(onClick={installWhenReady=false;updater.cancel()}) { Text("取消下载") }
+    GlassAlertDialog(
+        onDismissRequest=close,
+        title={ Text("应用更新") },
+        text={
+            Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text("Pocket Live · ${BuildConfig.VERSION_NAME}",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                release?.let {
+                    Text("新版 ${it.version} · ${"%.1f".format(it.bytes/1_000_000.0)} MB",style=MaterialTheme.typography.titleMedium)
+                    if(it.notes.isNotBlank()) Text(it.notes,style=MaterialTheme.typography.bodyMedium)
+                }
+                when(transfer.phase) {
+                    UpdatePhase.DOWNLOADING -> {
+                        val total=(transfer.release?.bytes ?: 1L).coerceAtLeast(1L)
+                        LinearProgressIndicator(progress={ (transfer.received.toFloat()/total).coerceIn(0f,1f) },modifier=Modifier.fillMaxWidth())
+                        Text("正在下载 ${transfer.received*100/total}% · ${transfer.received/1024} / ${total/1024} KiB",style=MaterialTheme.typography.bodySmall)
+                    }
+                    UpdatePhase.VERIFYING -> LoadingStatus("正在校验安装包和签名…",Modifier.fillMaxWidth())
+                    UpdatePhase.READY -> if(transfer.error==null) Text("安装包已就绪")
+                    else -> when {
+                        state.updateChecking -> LoadingStatus("正在检查新版…",Modifier.fillMaxWidth())
+                        state.updateError!=null -> Text("检查失败：${state.updateError}",color=MaterialTheme.colorScheme.error)
+                        release==null && state.updateChecked -> Text("已是最新正式版")
+                    }
+                }
+                transfer.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
             }
-            UpdatePhase.VERIFYING -> { LoadingStatus("正在校验安装包和签名…",Modifier.fillMaxWidth()) }
-            UpdatePhase.READY -> Text("下载及签名校验完成，可直接安装。")
-            else -> Unit
+        },
+        dismissButton={
+            if(!busy && release!=null) {
+                GlassTextButton(enabled=!state.updateChecking,onClick={model.checkUpdates(true)}) { Text("重新检查") }
+            }
+        },
+        confirmButton={
+            when {
+                transfer.phase==UpdatePhase.DOWNLOADING ->
+                    GlassTextButton(onClick={installWhenReady=false;updater.cancel()}) { Text("取消下载") }
+                transfer.phase==UpdatePhase.VERIFYING -> Unit
+                transfer.phase==UpdatePhase.READY ->
+                    GlassButton(onClick=::requestInstall) { Text("安装更新") }
+                release!=null -> GlassButton(onClick={installWhenReady=true;updater.download(release)}) {
+                    Text(if(transfer.phase==UpdatePhase.ERROR) "重新下载" else "下载并安装")
+                }
+                else -> GlassButton(enabled=!state.updateChecking,onClick={model.checkUpdates(true)}) {
+                    Text(if(state.updateChecked || state.updateError!=null) "重新检查" else "检查更新")
+                }
+            }
         }
-        transfer.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
-        if(release==null && state.updateChecked && !state.updateChecking && state.updateError==null) Text("已是最新正式版")
-        if(!busy) GlassTextButton(enabled=!state.updateChecking,onClick={model.checkUpdates(true)}) { Text("重新检查") }
-        Text("应用内下载，无需浏览器。安装由 Android 确认，订阅和历史保留。首次安装需允许本应用安装更新。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("关闭弹窗后下载继续；若进程被系统结束，重新打开后可重试。完成的安装包会保留，更新后自动清理。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-    }},confirmButton={
-        if(transfer.phase==UpdatePhase.READY) GlassTextButton(onClick=::requestInstall) { Text("安装更新") }
-        else if(release!=null) GlassTextButton(enabled=!busy,onClick={installWhenReady=true;updater.download(release)}) { Text(if(transfer.phase==UpdatePhase.ERROR) "重新下载" else "下载并安装") }
-        else GlassTextButton(enabled=!state.updateChecking,onClick={model.checkUpdates(true)}) { Text("检查更新") }
-    })
+    )
 }

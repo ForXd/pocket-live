@@ -20,8 +20,8 @@ class AppUpdateDeviceTest {
                     @Suppress("UNCHECKED_CAST")
                     return AppModel(ui.activity.application,updateDocument={
                         val call=calls.incrementAndGet();kotlinx.coroutines.delay(100)
-                        if(call==1) return@AppModel """{"draft":false,"prerelease":false,"tag_name":"v${BuildConfig.VERSION_NAME}"}"""
-                        if(call==3) throw java.io.IOException("fixture offline")
+                        if(call<=2) return@AppModel """{"draft":false,"prerelease":false,"tag_name":"v${BuildConfig.VERSION_NAME}"}"""
+                        if(call==4) throw java.io.IOException("fixture offline")
                         """{"draft":false,"prerelease":false,"tag_name":"v9.0.0","html_url":"https://github.com/ForXd/pocket-live/releases/tag/v9.0.0","assets":[{"name":"pocket-live-9.0.0-release.apk","state":"uploaded","size":1234,"browser_download_url":"https://github.com/ForXd/pocket-live/releases/download/v9.0.0/pocket-live-9.0.0-release.apk"}]}"""
                     }) as T
                 }
@@ -36,14 +36,19 @@ class AppUpdateDeviceTest {
             assertEquals(1,calls.get())
             ui.onNodeWithTag("nav:3").performClick()
             ui.onNodeWithTag("settingsUpdates").performClick()
+            ui.waitUntil(5000) { calls.get()==2 && !model.state.value.updateChecking }
+            ui.onNodeWithText("已是最新正式版").assertIsDisplayed()
+            ui.onAllNodesWithText("重新检查").assertCountEquals(1)
+            ui.onNodeWithText("检查更新").assertDoesNotExist()
+            ui.onNodeWithText("重新检查").performClick()
             ui.waitUntil(5000) { model.state.value.appRelease!=null }
             ui.onNodeWithText("下载并安装").assertExists()
-            assertEquals(2,calls.get())
+            assertEquals(3,calls.get())
             ui.onNodeWithText("重新检查").performClick()
             ui.waitUntil(5000) { model.state.value.updateError!=null }
             assertFalse(model.state.value.updateChecking)
             ui.onNodeWithText("重新检查").performClick()
-            ui.waitUntil(5000) { calls.get()==4 && !model.state.value.updateChecking }
+            ui.waitUntil(5000) { calls.get()==5 && !model.state.value.updateChecking }
             assertNull(model.state.value.updateError)
             ui.onNodeWithContentDescription("关闭").performClick()
             ui.onNodeWithTag("settingsList").assertExists()

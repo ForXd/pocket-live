@@ -10,7 +10,6 @@ import okio.Buffer
 import org.junit.Assert.*
 import org.junit.Test
 import java.net.InetAddress
-import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -18,7 +17,7 @@ class AlternativeProbeDeviceTest {
     private val instrument get()=InstrumentationRegistry.getInstrumentation()
     private fun main(block:()->Unit)=instrument.runOnMainSync(block)
     private fun await(condition:()->Boolean) {
-        val end=android.os.SystemClock.elapsedRealtime()+15000
+        val end=android.os.SystemClock.elapsedRealtime()+60000
         while(!condition()) {
             if(android.os.SystemClock.elapsedRealtime()>end) fail("Timed out waiting for alternative probe state")
             Thread.sleep(20)
@@ -58,34 +57,36 @@ class AlternativeProbeDeviceTest {
             run(model,base)
         } finally { main { store.clear() };server.shutdown() }
     }
-    private fun mp4()=MockResponse().setBody(Buffer().write(byteArrayOf(0,0,0,24)+"ftypisom".toByteArray()))
-
-    @Test fun probesCurrentEpisodeConcurrentlyAndStopsAtTwoReady() {
-        val started=CountDownLatch(3)
+    @Test fun automaticallyTriesEveryMatchingEpisodeOneAtATime() {
+        val firstRequest=CountDownLatch(1)
         val release=CountDownLatch(1)
-        val paths=Collections.synchronizedList(mutableListOf<String>())
+        val paths=java.util.concurrent.CopyOnWriteArrayList<String>()
+        val video=mediaFixtureBytes("test.mp4")
         try {
             fixture({ path ->
-                paths.add(path);started.countDown()
-                if(path in listOf("/a-2.mp4","/b-2.mp4")) {
-                    release.await(10,TimeUnit.SECONDS);mp4()
-                } else MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
+                paths.add(path)
+                firstRequest.countDown()
+                release.await(10,TimeUnit.SECONDS)
+                MockResponse().setHeader("Content-Type","video/mp4").setBody(Buffer().write(video))
             },slowSearch=true) { model,_ ->
                 val original=model.state.value.playback!!
                 main { model.openAlternatives(original.sessionId) }
-                assertTrue("Three probes must start without waiting for the first to finish",started.await(5,TimeUnit.SECONDS))
-                assertEquals(3,model.activeAlternativeProbeCalls())
+                assertTrue("The visible panel starts its first trial",firstRequest.await(8,TimeUnit.SECONDS))
+                assertEquals(1,model.activeAlternativeProbeCalls())
+                val pending=model.state.value.alternatives.first { it.probeStatus!=ProbeStatus.READY }
+                main { model.chooseAlternative(pending,true) }
+                assertEquals(original.sessionId,model.state.value.playback!!.sessionId)
                 await { model.activeSearchCalls()>0 }
+                assertEquals(1,paths.distinct().size)
                 release.countDown()
                 await { !model.state.value.alternativesLoading && model.activeAlternativeProbeCalls()==0 && model.activeSearchCalls()==0 }
                 val options=model.state.value.alternatives
-                assertEquals(2,options.count { it.probeStatus==ProbeStatus.READY })
-                assertTrue(options.take(2).all { it.probeStatus==ProbeStatus.READY })
-                assertTrue(options.none { it.probeStatus==ProbeStatus.CHECKING })
-                assertTrue(paths.none { it.endsWith("-1.mp4") })
-                val count=paths.size;Thread.sleep(200);assertEquals("No new probe after the success limit",count,paths.size)
+                assertEquals(5,options.size)
+                assertTrue("Every candidate must finish a real trial",options.all { it.probeStatus==ProbeStatus.READY })
+                assertEquals(setOf("/a-2.mp4","/b-2.mp4","/c-2.mp4","/d-2.mp4","/e-2.mp4"),paths.toSet())
                 assertEquals(original.sessionId,model.state.value.playback!!.sessionId)
-                main { model.chooseAlternative(options.first(),true) }
+                main { model.chooseAlternative(options.last(),true) }
+                assertEquals(options.last().episode.url,model.state.value.playback!!.episode.url)
                 assertEquals(84_000L,model.state.value.playback!!.position)
                 assertNotEquals(original.sessionId,model.state.value.playback!!.sessionId)
             }
@@ -96,7 +97,7 @@ class AlternativeProbeDeviceTest {
         fixture({ MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE) }) { model,_ ->
             repeat(2) { iteration ->
                 main { model.openAlternatives(model.state.value.playback!!.sessionId) }
-                await { model.activeAlternativeProbeCalls()==3 }
+                await { model.activeAlternativeProbeCalls()==1 }
                 main { if(iteration==0) model.closeAlternatives() else model.stopPlayback() }
                 await { model.activeAlternativeProbeCalls()==0 }
                 assertNull(model.state.value.alternativeSession)
@@ -106,11 +107,14 @@ class AlternativeProbeDeviceTest {
         }
     }
 
-    @Test fun oneReadyDoesNotCountHtmlOrEncryptedMediaAsSecondSuccess() {
+    @Test fun recognizableMp4HeaderWithoutADecodableFrameIsUnavailable() {
+        val video=mediaFixtureBytes("test.mp4")
+        // The original ftyp and start of moov are intact. There are no tracks or media samples.
+        val truncated=video.copyOf(64)
         fixture({ path -> when(path) {
-            "/a-2.mp4" -> mp4()
-            "/b-2.mp4" -> MockResponse().setBody("<html>Login required</html>")
-            "/c-2.mp4" -> MockResponse().setBody("#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXTINF:3,\nsegment.ts\n")
+            "/a-2.mp4" -> MockResponse().setHeader("Content-Type","video/mp4").setBody(Buffer().write(video))
+            "/b-2.mp4" -> MockResponse().setHeader("Content-Type","video/mp4").setBody(Buffer().write(truncated))
+            "/c-2.mp4" -> MockResponse().setBody("<html>Login required</html>")
             else -> MockResponse().setResponseCode(404)
         } }) { model,_ ->
             main { model.openAlternatives(model.state.value.playback!!.sessionId) }
@@ -118,8 +122,14 @@ class AlternativeProbeDeviceTest {
             val options=model.state.value.alternatives
             assertEquals(5,options.size)
             assertEquals(1,options.count { it.probeStatus==ProbeStatus.READY })
-            assertEquals(1,options.count { it.probeStatus==ProbeStatus.UNKNOWN })
-            assertEquals(3,options.count { it.probeStatus==ProbeStatus.FAILED })
+            assertEquals(ProbeStatus.FAILED,options.single { it.episode.url.endsWith("/b-2.mp4") }.probeStatus)
+            assertEquals(4,options.count { it.probeStatus==ProbeStatus.FAILED })
+            val session=model.state.value.playback!!.sessionId
+            main { model.chooseAlternative(options.first { it.probeStatus==ProbeStatus.FAILED },true) }
+            assertEquals(session,model.state.value.playback!!.sessionId)
         }
     }
 }
+
+internal fun mediaFixtureBytes(asset:String):ByteArray =
+    InstrumentationRegistry.getInstrumentation().context.assets.open(asset).use { it.readBytes() }

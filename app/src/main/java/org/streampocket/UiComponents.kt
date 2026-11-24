@@ -83,6 +83,29 @@ internal val ContentCardShape = RoundedCornerShape(22.dp)
         Card(onClick=onClick,modifier=modifier.pressFeedback(interactions),interactionSource=interactions,shape=ContentCardShape,elevation=elevation,colors=colors,content=content)
     }
 }
+/** Settings destinations and subscription disclosure rows share one full-width touch target. */
+@Composable internal fun PreferenceRow(
+    title: String,
+    summary: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailing: @Composable () -> Unit
+) {
+    Surface(onClick=onClick, modifier=modifier.fillMaxWidth(), color=androidx.compose.ui.graphics.Color.Transparent) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min=72.dp).padding(horizontal=16.dp,vertical=12.dp),
+            verticalAlignment=Alignment.CenterVertically,
+            horizontalArrangement=Arrangement.spacedBy(12.dp)
+        ) {
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                Text(title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(summary,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            trailing()
+        }
+    }
+}
+
 @Composable fun ContentDivider(modifier:Modifier=Modifier) {
     HorizontalDivider(modifier,color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.35f))
 }

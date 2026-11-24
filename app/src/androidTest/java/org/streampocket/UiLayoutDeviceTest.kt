@@ -209,7 +209,7 @@ class UiLayoutDeviceTest {
                 capture("design-search")
                 ui.onNodeWithText("星河漫游").performClick()
                 capture("design-search-expanded")
-                ui.onNodeWithTag("sourceChoice:${source.key}:1").performClick()
+                ui.onNodeWithTag("searchPoster:1").performClick()
                 ui.waitUntil(10000) { model.state.value.detail!=null }
                 capture("design-detail")
                 ui.onNodeWithTag("detailPlay").assertIsDisplayed()
@@ -315,7 +315,7 @@ class UiLayoutDeviceTest {
             }
             capture("01-search")
             ui.onNodeWithText("星河漫游").performClick()
-            ui.onNodeWithTag("sourceChoice:${source.key}:1").performScrollTo().performClick()
+            ui.onNodeWithTag("searchPoster:1").performScrollTo().performClick()
             ui.waitUntil(10000) { model.state.value.detail!=null }
             ui.onNodeWithTag("detailPlay").assertIsDisplayed()
             ui.onNodeWithTag("detailPlay").assertContentDescriptionContains("继续观看")

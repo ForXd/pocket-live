@@ -43,7 +43,12 @@ import androidx.compose.ui.unit.dp
         Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             SheetHeading("选集") { choosing=false }
             if(lines.size>1) LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                items(lines.size) { i -> ContentFilterChip(i==selected,{selected=i},modifier=Modifier.testTag("detailLine:$i"),label={Text(lines[i].name)}) }
+                items(lines.size) { i ->
+                    val line=lines[i]
+                    val status=state.lineTrials[detail.video.probeKey()]?.get(line.episodes.first().url)?.status
+                    ContentFilterChip(i==selected,{selected=i},modifier=Modifier.testTag("detailLine:$i"),
+                        label={Text(listOfNotNull(line.name,status?.label).joinToString(" · "))})
+                }
             }
             PlaybackEpisodeGrid(lines.getOrNull(selected)?.episodes.orEmpty(),primary?.url.orEmpty(),{ episode ->
                 choosing=false

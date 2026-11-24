@@ -193,7 +193,9 @@ import androidx.compose.ui.unit.dp
         Column(Modifier.padding(MediaCardInset),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
                 horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
-                Poster(video,model,Modifier.size(68.dp,88.dp).then(anchor.modifier),shape=MaterialTheme.shapes.small)
+                Poster(video,model,Modifier.size(68.dp,88.dp).then(anchor.modifier).testTag("searchPoster:${video.id}")
+                    .clip(MaterialTheme.shapes.small).clickable(onClickLabel="查看详情") { anchor.open(video) { model.open(video) } },
+                    shape=MaterialTheme.shapes.small)
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp)) {
                     Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                     val metadata=SearchRules.metadata(video)
@@ -205,13 +207,18 @@ import androidx.compose.ui.unit.dp
             SeasonChips(group,video,{selectedWork=VideoGroups.workKey(it);expand(null)},search=true)
             if(expanded) {
                 ContentDivider()
-                val ready=options.any { state.probes[it.probeKey()]==ProbeStatus.READY }
+                val playable=options.count { state.probes[it.probeKey()]==ProbeStatus.READY }
+                val completed=playable+options.count { state.probes[it.probeKey()]==ProbeStatus.FAILED }
+                val running=state.probeRunning && state.probeWork==selectedWork
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    Text(if(ready) "已找到可用来源 · 已停止探测" else if(state.probeRunning && state.probeWork==selectedWork) "正在检测播放来源…" else "暂未确认可用来源，可手动尝试",
+                    Text(if(running) "正在试播线路 · $playable 个来源可播放" else "$playable 个来源可播放",
                         Modifier.weight(1f).testTag("probeSummary"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    if(!state.probeRunning && !ready) GlassTextButton(onClick={model.requestSourceProbe(selectedWork,retry=true)}) { Text("重试") }
+                    if(!running && completed>playable) GlassTextButton(onClick={model.requestSourceProbe(selectedWork,retry=true)}) { Text("重新试播") }
                 }
-                SourceChoices(options.sortedBy { if(state.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 },state.detail?.video,state.probes,state.probeResolutions,{ choice -> anchor.open(choice) { model.open(choice) } },Int.MAX_VALUE,rowInset=0.dp)
+                SourceChoices(options.sortedBy { if(state.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 },state.detail?.video,state.probes,state.probeResolutions,
+                    { choice -> model.playVerifiedSource(choice) },rowInset=0.dp,verifiedOnly=true,
+                    playbackLabel={ choice -> val key=choice.probeKey()
+                        state.probeEpisodes[key]?.let { listOfNotNull(state.probeLines[key],it.name).distinct().joinToString(" · ") } })
             }
         }
     }
