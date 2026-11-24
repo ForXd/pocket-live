@@ -116,6 +116,8 @@ class SubscriptionUiDeviceTest {
             ui.onNodeWithText("2 个源 · 已启用 1 个").assertIsDisplayed()
             back.performClick()
             list.performScrollToKey("subscription:group-b")
+            // The refresh snackbar temporarily covers the last visible subscription above the dock.
+            ui.waitUntil(8000) { model.state.value.message==null }
             ui.onNodeWithTag("swipeSubscription:group-b").performTouchInput { swipeLeft() }
             ui.onNodeWithContentDescription("删除订阅").performClick()
             ui.onNodeWithText("取消").performClick()

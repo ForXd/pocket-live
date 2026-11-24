@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -178,14 +179,14 @@ import androidx.compose.ui.unit.dp
 }
 
 @Composable internal fun SwipeActionCard(tag:String,revealed:Boolean,onReveal:(Boolean)->Unit,
-    actionWidth:androidx.compose.ui.unit.Dp,actionLabel:String,actions:@Composable RowScope.()->Unit,content:@Composable ()->Unit) {
+    actionWidth:androidx.compose.ui.unit.Dp,actionLabel:String,shape:Shape=ContentCardShape,actions:@Composable RowScope.()->Unit,content:@Composable ()->Unit) {
     val width=with(LocalDensity.current) { actionWidth.toPx() }
     var offset by remember { mutableFloatStateOf(if(revealed) -width else 0f) }
     var release by remember { mutableIntStateOf(0) }
     LaunchedEffect(revealed,width,release) {
         androidx.compose.animation.core.animate(offset,if(revealed) -width else 0f) { value,_->offset=value }
     }
-    Box(Modifier.fillMaxWidth().clip(ContentCardShape).testTag(tag).semantics { customActions=listOf(CustomAccessibilityAction(actionLabel) { onReveal(true);true }) }) {
+    Box(Modifier.fillMaxWidth().clip(shape).testTag(tag).semantics { customActions=listOf(CustomAccessibilityAction(actionLabel) { onReveal(true);true }) }) {
         if(offset < -1f) Row(Modifier.matchParentSize(),horizontalArrangement=Arrangement.spacedBy(8.dp,Alignment.End),
             content=actions)
         Box(Modifier.offset { IntOffset(offset.roundToInt(),0) }.draggable(

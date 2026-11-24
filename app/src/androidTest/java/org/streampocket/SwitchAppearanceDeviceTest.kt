@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.LayoutDirection
@@ -67,9 +68,12 @@ class SwitchAppearanceDeviceTest {
         }
         row.assertIsOn()
         assertCenters(active, inactive)
-        row.performClick().assertIsOff()
+        // The row's native touch ripple uses the device clock and tints both samples.
+        // Invoke the same toggle action without pressing while checking the resting colors.
+        row.performSemanticsAction(SemanticsActions.OnClick).assertIsOff()
         ui.mainClock.advanceTimeBy(750L)
         assertCenters(outline, inactive)
+        row.performClick().assertIsOn()
     }
 
     private fun assertNeutralPixel(label: String, expected: Color, actual: Color) {
