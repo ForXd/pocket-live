@@ -167,16 +167,17 @@ import androidx.compose.ui.unit.dp
     }
 }
 
-/** Match a result's cover and text column without exposing decorative nodes or running a shimmer. */
+/** Match a result's cover and text column without exposing decorative nodes. */
 @Composable private fun SearchResultPlaceholder() {
+    val sweep = rememberLightSweep()
     val tones=MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().background(tones.surfaceContainerLow,ContentCardShape).padding(MediaCardInset).testTag("searchResultPlaceholder"),
         horizontalArrangement=Arrangement.spacedBy(14.dp)) {
-        Spacer(Modifier.size(68.dp,88.dp).background(tones.surfaceContainerHigh,MaterialTheme.shapes.small))
+        Spacer(Modifier.size(68.dp,88.dp).clip(MaterialTheme.shapes.small).background(tones.surfaceContainerHigh).lightSweep(sweep))
         Column(Modifier.weight(1f).padding(top=4.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Spacer(Modifier.fillMaxWidth(.68f).height(15.dp).background(tones.surfaceContainerHigh,MaterialTheme.shapes.small))
-            Spacer(Modifier.fillMaxWidth(.45f).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
-            Spacer(Modifier.width(46.dp).height(10.dp).background(tones.surfaceContainer,MaterialTheme.shapes.small))
+            Spacer(Modifier.fillMaxWidth(.68f).height(15.dp).clip(MaterialTheme.shapes.small).background(tones.surfaceContainerHigh).lightSweep(sweep))
+            Spacer(Modifier.fillMaxWidth(.45f).height(10.dp).clip(MaterialTheme.shapes.small).background(tones.surfaceContainer).lightSweep(sweep))
+            Spacer(Modifier.width(46.dp).height(10.dp).clip(MaterialTheme.shapes.small).background(tones.surfaceContainer).lightSweep(sweep))
         }
     }
 }

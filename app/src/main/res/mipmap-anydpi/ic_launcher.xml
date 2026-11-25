@@ -1,5 +1,5 @@
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/launcher_background" />
-    <foreground android:drawable="@drawable/pocket_logo" />
-    <monochrome android:drawable="@drawable/ic_play" />
+    <foreground android:drawable="@drawable/pocket_mark" />
+    <monochrome android:drawable="@drawable/pocket_mark" />
 </adaptive-icon>

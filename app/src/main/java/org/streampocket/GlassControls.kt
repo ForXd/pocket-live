@@ -222,7 +222,7 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
     Row(Modifier.fillMaxWidth().heightIn(min=60.dp).padding(horizontal=inset),
         verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(ActionGap)) {
         PocketBack(back,label=backLabel)
-        Text(title,Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+        Text(title,Modifier.weight(1f),style=MaterialTheme.typography.titleLarge,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         if(action!=null) Box(Modifier.offset(x=IconFaceInset)) { action() }
     }
 }

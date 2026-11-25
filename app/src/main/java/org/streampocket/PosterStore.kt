@@ -4,6 +4,7 @@ package org.streampocket
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.animation.core.animateFloatAsState
@@ -153,7 +154,13 @@ class PosterStore(private val directory: File) {
             Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) {
                 if(!frosted && opacity<1f) {
                     Box(Modifier.matchParentSize().background(glass))
-                    thumbnail?.let { Image(it.asImageBitmap(),null,Modifier.matchParentSize(),contentScale=contentScale) }
+                    val loading = bitmap == null && !finished && !video.poster.isNullOrBlank()
+                    if (thumbnail != null) {
+                        Image(thumbnail.asImageBitmap(), null, Modifier.matchParentSize().blur(12.dp), contentScale = contentScale)
+                    } else if (loading) {
+                        Image(painterResource(R.drawable.poster_mist), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop, alpha = .52f)
+                    }
+                    if (loading) Spacer(Modifier.matchParentSize().lightSweep(rememberLightSweep()))
                     if(finished && bitmap==null) Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",Modifier.fillMaxSize(),contentScale=contentScale,alpha=opacity) }
