@@ -19,7 +19,7 @@ class SubscriptionUiDeviceTest {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
         val sources=(1..40).map { Source("精选来源 $it","$base/api/$it") }
-        val a=Subscription("group-a","我的影视订阅","$base/sub",System.currentTimeMillis(),sources)
+        val a=Subscription("group-a","yifan 精选源列表 (2026-10-13 实测可用) · 影视与直播订阅合集","$base/sub",System.currentTimeMillis(),sources)
         val b=Subscription("group-b","我的直播订阅","$base/live",System.currentTimeMillis(),listOf(Source("直播来源","$base/live.m3u",SourceKind.LIVE)))
         val collections=listOf("光影经典","世界电影","城市剧场","纪录精选","亲子动画","音乐现场","自然探索","人文影像","体育频道","生活频道").mapIndexed { i,name ->
             Subscription("collection-$i",name,"$base/sub/$i",a.updated,listOf(Source(name,"$base/api/collection-$i")))
@@ -61,6 +61,9 @@ class SubscriptionUiDeviceTest {
             film.performClick()
             list.assertDoesNotExist()
             details.assertIsDisplayed()
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            ui.onNodeWithText(a.name).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue("Long subscription heading fits in two lines", layouts.single().lineCount <= 2)
             firstSwitch.assertIsOn().performClick()
             ui.waitUntil(5000) { sources[0].key in model.state.value.saved.disabled }
             firstSwitch.assertIsOff()

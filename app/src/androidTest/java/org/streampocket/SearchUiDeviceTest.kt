@@ -88,9 +88,12 @@ class SearchUiDeviceTest {
             val bar=ui.onNodeWithTag("searchProgress")
             assertTrue("Progress has its own row above the first skeleton",
                 bar.getUnclippedBoundsInRoot().bottom < ui.onAllNodesWithTag("searchResultPlaceholder").onFirst().getUnclippedBoundsInRoot().top)
+            val skeleton = ui.onAllNodesWithTag("searchResultPlaceholder").onFirst()
+            val skeletonFrame = skeleton.captureToImage().asAndroidBitmap()
             val firstFrame=bar.captureToImage().asAndroidBitmap()
             ui.mainClock.advanceTimeBy(420)
             assertFalse("Waiting indicator advances before the first response",firstFrame.sameAs(bar.captureToImage().asAndroidBitmap()))
+            assertFalse("Skeleton light sweeps while waiting", skeletonFrame.sameAs(skeleton.captureToImage().asAndroidBitmap()))
             capture("00-first-search")
             ui.mainClock.autoAdvance=true
             firstSearch.countDown()
