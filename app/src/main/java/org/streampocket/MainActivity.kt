@@ -308,11 +308,14 @@ class MainActivity : ComponentActivity() {
             }
             else Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
         },
-        bottomBar = { if(showDock) Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=PageGutter,vertical=6.dp),
+        bottomBar = { if(showDock) Box(Modifier.fillMaxWidth().background(
+            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent,
+                MaterialTheme.colorScheme.background.copy(alpha=.75f), MaterialTheme.colorScheme.background)))
+            .navigationBarsPadding().padding(horizontal=PageGutter,vertical=6.dp),
             contentAlignment=Alignment.Center) {
             Surface(modifier=Modifier.widthIn(max=280.dp).fillMaxWidth().testTag("mainNavigation"),shape=RoundedCornerShape(28.dp),
-                color=MaterialTheme.colorScheme.surfaceContainerLow,shadowElevation=1.dp) {
-                Row(Modifier.selectableGroup().padding(horizontal=4.dp,vertical=2.dp)) {
+                color=Color.Transparent,contentColor=MaterialTheme.colorScheme.onSurface,shadowElevation=5.dp) {
+                Row(Modifier.smokeGlass(RoundedCornerShape(28.dp), outlined = false).selectableGroup().padding(horizontal=4.dp,vertical=2.dp)) {
                     listOf(0,2,1,3).forEach { i ->
                         DockDestination(tab==i,destinations[i],{focusManager.clearFocus();keyboard?.hide();tab=i;model.closeDetail()},
                             Modifier.weight(1f).testTag("nav:$i"),icon={navIcon(i)})

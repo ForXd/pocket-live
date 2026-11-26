@@ -63,7 +63,8 @@ class SubscriptionUiDeviceTest {
             details.assertIsDisplayed()
             val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
             ui.onNodeWithText(a.name).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layouts) }
-            assertTrue("Long subscription heading fits in two lines", layouts.single().lineCount <= 2)
+            assertEquals(1, layouts.single().lineCount)
+            assertTrue("Long subscription heading ends with an ellipsis", layouts.single().isLineEllipsized(0))
             firstSwitch.assertIsOn().performClick()
             ui.waitUntil(5000) { sources[0].key in model.state.value.saved.disabled }
             firstSwitch.assertIsOff()

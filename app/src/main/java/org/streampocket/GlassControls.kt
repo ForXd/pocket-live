@@ -158,12 +158,13 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 
 
 /** Static tinted surfaces stay inexpensive over the video and during list scrolling. */
-@Composable internal fun Modifier.smokeGlass(shape: Shape): Modifier {
+@Composable internal fun Modifier.smokeGlass(shape: Shape, outlined: Boolean = true): Modifier {
     val dark = LocalPocketDark.current
     val top = if (dark) Color(0xE640505B) else Color(0xF7FFFFFF)
     val bottom = if (dark) Color(0xED202B32) else Color(0xE9DCE4E8)
     val tint = androidx.compose.runtime.remember(top, bottom) { Brush.linearGradient(listOf(top, bottom)) }
-    return clip(shape).background(tint, shape).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha=.34f), shape)
+    val surface = clip(shape).background(tint, shape)
+    return if (outlined) surface.border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha=.34f), shape) else surface
 }
 
 @Composable internal fun PocketBack(onClick: () -> Unit, modifier: Modifier = Modifier, label: String = "返回", overVideo: Boolean = false) {

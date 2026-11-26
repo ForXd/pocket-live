@@ -126,7 +126,9 @@ private fun groupRowShape(index: Int, lastIndex: Int): Shape = when {
     }
     var showActions by remember(sub.id) { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        BackHeading(sub.name, "返回订阅", onBack) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = PageGutter),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            PocketBack(onBack, label = "返回订阅")
             Box {
                 GlassIconButton(onClick = { showActions = true }) { Icon(Icons.Default.MoreVert, "订阅选项") }
                 GlassMenu(expanded = showActions, onDismissRequest = { showActions = false }) {
@@ -143,8 +145,13 @@ private fun groupRowShape(index: Int, lastIndex: Int): Shape = when {
             contentPadding = PaddingValues(start = PageGutter, end = PageGutter, bottom = 20.dp + LocalDockInset.current)
         ) {
             item(key = "summary") {
-                Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(sub.summary(state.saved.disabled), style = MaterialTheme.typography.titleMedium)
+                Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp)) {
+                    Text(sub.name, style = MaterialTheme.typography.titleLarge, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(8.dp))
+                    Text(sub.summary(state.saved.disabled), style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(2.dp))
                     Text(if (importing) "正在更新订阅…" else "更新于 ${historyTime(sub.updated)}",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
