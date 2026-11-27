@@ -86,6 +86,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
     var controlsVisible by remember(playback.sessionId) { mutableStateOf(false) }
     var knownDuration by remember(playback.sessionId) { mutableLongStateOf(playback.duration) }
     val scrub=remember(playback.sessionId) { mutableStateOf<ScrubPreview?>(null) }
+    var speedHint by remember(playback.sessionId) { mutableStateOf("") }
     var gestureFeedback by remember(playback.sessionId) { mutableStateOf("") }
     LaunchedEffect(gestureFeedback) { if(gestureFeedback.isNotEmpty()) { delay(1000);gestureFeedback="" } }
     var episodesOpen by remember { mutableStateOf(false) }
@@ -362,6 +363,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                     controller.attach(it)
                     it.setShowBuffering(if(full && slowBuffering) PlayerView.SHOW_BUFFERING_NEVER else PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                     it.liveSource=isLive
+                    it.onSpeedHint={ hint -> speedHint=hint }
                     it.onScrub={ preview -> scrub.value=preview }
                     it.seekRelative=controller::seekRelative
                     it.feedback={ gestureFeedback=it }
@@ -392,8 +394,8 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                 }
             }
             if(full && !pip) ScrubIndicator(scrub,Modifier.align(Alignment.Center))
-            if(gestureFeedback.isNotEmpty() && !pip && scrub.value==null) {
-                Text(gestureFeedback,color=Color.White,modifier=Modifier.align(Alignment.Center).offset(y=(-64).dp).background(Color.Black.copy(alpha=0.7f),androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal=24.dp,vertical=16.dp))
+            if((gestureFeedback.isNotEmpty() || speedHint.isNotEmpty()) && !pip && scrub.value==null) {
+                Text(gestureFeedback.ifEmpty { speedHint },color=Color.White,modifier=Modifier.align(Alignment.Center).offset(y=(-64).dp).background(Color.Black.copy(alpha=0.7f),androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal=24.dp,vertical=16.dp))
             }
             }
             if(!full && !pip && !wide) {

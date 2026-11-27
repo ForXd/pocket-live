@@ -276,13 +276,28 @@ class PlaybackGestureDeviceTest {
             }
             if(InstrumentationRegistry.getArguments().getString("controlsOnly")!="true") {
             tap(true,2)
-            instrument.runOnMainSync { stage("double-right: position=${playerView().player!!.currentPosition};duration=${playerView().player!!.duration};focus=${ui.activity.hasWindowFocus()};events="+receivedInputs.joinToString(" | ")) }
-            capture("after-double-right")
-            waitFor { playerView().player!!.currentPosition in 11500..12500 }
-            SystemClock.sleep(600)
-            instrument.runOnMainSync { assertFalse("Double tap must not show controls",playerView().isControllerFullyVisible);assertFalse(playerView().player!!.playWhenReady) }
-            tap(false,2);waitFor { playerView().player!!.currentPosition in 1500..2500 }
-            waitFor { playerView().player!!.playbackState==androidx.media3.common.Player.STATE_READY }
+            waitFor { playerView().player!!.playWhenReady }
+            SystemClock.sleep(400)
+            tap(false,2)
+            waitFor { !playerView().player!!.playWhenReady }
+            val (holdX,holdY)=point(false)
+            fun holdSpeed(lock:Boolean) {
+                val start=SystemClock.uptimeMillis()
+                inject(MotionEvent.ACTION_DOWN,holdX,holdY,start)
+                SystemClock.sleep(ViewConfiguration.getLongPressTimeout()+180L)
+                instrument.runOnMainSync { assertEquals(2f,playerView().player!!.playbackParameters.speed) }
+                val endY=if(lock) holdY-60*ui.activity.resources.displayMetrics.density else holdY
+                if(lock) inject(MotionEvent.ACTION_MOVE,holdX,endY,start)
+                inject(MotionEvent.ACTION_UP,holdX,endY,start)
+                instrument.runOnMainSync { assertEquals(if(lock) 2f else 1f,playerView().player!!.playbackParameters.speed) }
+            }
+            holdSpeed(false)
+            holdSpeed(true)
+            val unlock=SystemClock.uptimeMillis()
+            inject(MotionEvent.ACTION_DOWN,holdX,holdY,unlock)
+            SystemClock.sleep(ViewConfiguration.getLongPressTimeout()+180L)
+            inject(MotionEvent.ACTION_UP,holdX,holdY,unlock)
+            instrument.runOnMainSync { assertEquals(1f,playerView().player!!.playbackParameters.speed);playerView().player!!.seekTo(2000) }
             val seeks=java.util.concurrent.atomic.AtomicInteger()
             val seekListener=object:androidx.media3.common.Player.Listener {
                 override fun onPositionDiscontinuity(oldPosition:androidx.media3.common.Player.PositionInfo,newPosition:androidx.media3.common.Player.PositionInfo,reason:Int) {
@@ -294,8 +309,6 @@ class PlaybackGestureDeviceTest {
             val (right,_)=point(true)
             val down=SystemClock.uptimeMillis()
             inject(MotionEvent.ACTION_DOWN,x,y,down)
-            SystemClock.sleep(ViewConfiguration.getLongPressTimeout()+180L)
-            ui.onNodeWithTag("scrubPreview").assertIsDisplayed()
             inject(MotionEvent.ACTION_MOVE,right,y,down)
             val initialTime=android.text.format.DateUtils.formatElapsedTime(2)
             ui.waitUntil(3000) { ui.onAllNodes(hasText(initialTime) and hasAnyAncestor(hasTestTag("scrubPreview"))).fetchSemanticsNodes().isEmpty() }
@@ -308,7 +321,6 @@ class PlaybackGestureDeviceTest {
             assertEquals("Cancelling a drag does not seek",0,seeks.get())
             val second=SystemClock.uptimeMillis()
             inject(MotionEvent.ACTION_DOWN,x,y,second)
-            SystemClock.sleep(ViewConfiguration.getLongPressTimeout()+180L)
             inject(MotionEvent.ACTION_MOVE,right,y,second)
             val middle=(right+x)/2
             inject(MotionEvent.ACTION_MOVE,middle,y,second)
