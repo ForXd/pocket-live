@@ -252,6 +252,7 @@ class PlaybackGestureDeviceTest {
             stage("first-frame-ready")
             observingActivePlayer=true
             instrument.runOnMainSync { playerView().player!!.pause();playerView().player!!.seekTo(2000) }
+            instrument.runOnMainSync { playerView().showController() }
             ui.onNodeWithText("上一集").assertIsNotEnabled()
             ui.onNodeWithContentDescription("横屏全屏").performClick()
             waitFor { ui.activity.window.decorView.width>ui.activity.window.decorView.height && !playerView().isControllerFullyVisible }
@@ -342,6 +343,7 @@ class PlaybackGestureDeviceTest {
                 assertFalse("Seeking preserves paused intent",playerView().player!!.playWhenReady)
                 playerView().player!!.removeListener(seekListener)
             }
+            if(InstrumentationRegistry.getArguments().getString("fullscreenGesturesOnly")=="true") return
             val clicksBefore=clickStates.size
             tap(false);waitFor { clickStates.size>clicksBefore }
             assertTrue("Confirmed single tap showed controls",clickStates.last())
