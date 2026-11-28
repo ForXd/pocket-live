@@ -30,6 +30,7 @@ data class UiState(val recommendPreview:Video?=null,val recommendSynopsis:String
     val alternativesLoading: Boolean = false, val alternativesError: String? = null, val smoothPlayback: Boolean = false,
     val importing: Set<String> = emptySet(), val storageUsage: StorageUsage? = null, val message: String? = null) {
     val detailLoading: Boolean get() = detailLoadingVideo != null
+    fun readySourceCount(sources: List<Video>) = sources.count { probes[it.probeKey()] == ProbeStatus.READY }
 }
 class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.Dns = PublicNetwork.dns,
     private val recommendationUrl: (String,String,Int)->String = Recommendations::url,
@@ -154,10 +155,12 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         cancelProbes();sourceProbeWork=work
         if(retry && work!=null) {
             val current=state.value
-            val keys=VideoGroups.searchSources(work,current.results).map { it.probeKey() }
-                .filter { current.probes[it]==ProbeStatus.FAILED }.toSet()
-            probeCache.keys.removeAll { it.first in keys };completedTrials.removeAll(keys)
-            _state.update { it.copy(lineTrials=it.lineTrials-keys,probes=it.probes-keys,probeEpisodes=it.probeEpisodes-keys,probeLines=it.probeLines-keys,probeResolutions=it.probeResolutions-keys) }
+            val sources=VideoGroups.searchSources(work,current.results)
+            if(current.readySourceCount(sources) < ProbePolicy.SEARCH_READY_LIMIT) {
+                val keys=sources.map { it.probeKey() }.filter { current.probes[it]==ProbeStatus.FAILED }.toSet()
+                probeCache.keys.removeAll { it.first in keys };completedTrials.removeAll(keys)
+                _state.update { it.copy(lineTrials=it.lineTrials-keys,probes=it.probes-keys,probeEpisodes=it.probeEpisodes-keys,probeLines=it.probeLines-keys,probeResolutions=it.probeResolutions-keys) }
+            }
         }
         _state.update { it.copy(probeWork=work) }
         if(work!=null) startProbes()
@@ -176,7 +179,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         _state.update { it.copy(probeRunning=false,probes=it.probes.filterValues { status->status!=ProbeStatus.CHECKING }) }
     }
     private fun probeSorted(rows:List<Video>,statuses:Map<String,ProbeStatus>)=rows.partition { statuses[it.probeKey()]==ProbeStatus.READY }.let { (ready,remaining) -> ready+remaining }
-    private suspend fun trialSource(video:Video) {
+    /** Returns false if reaching the search limit left some lines untested. */
+    private suspend fun trialSource(video:Video, stopOnReady:Boolean):Boolean {
         val key=video.probeKey()
         val detail=withContext(Dispatchers.Default) {
             CmsParser.detail(probeNetwork.text(probeNetwork.api(video.source,"ids",video.id)),video)
@@ -185,7 +189,8 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         // Only a representative episode per line is needed while a decoder is running.
         val candidates=detail.lines.mapNotNull { line -> line.episodes.firstOrNull()?.let { line.name to it } }
             .distinctBy { it.second.url }
-        for((lineName,episode) in candidates) {
+        for((index,candidate) in candidates.withIndex()) {
+            val (lineName,episode)=candidate
             val id=key to episode.url
             val prior=state.value.lineTrials[key]?.get(episode.url)
                 ?: probeCache[id]?.takeIf { System.currentTimeMillis()-it.first in 0..300_000L }?.second
@@ -208,7 +213,9 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
                     if(probeCatalog) ready.copy(catalogVideos=probeSorted(ready.catalogVideos,ready.probes)) else ready
                 } else next
             }
+            if(stopOnReady && checked.status==ProbeStatus.READY) return index==candidates.lastIndex
         }
+        return true
     }
     private fun rememberTrial(key:String,result:ProbeResult) {
         val url=result.episode?.url ?: return
@@ -243,45 +250,60 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
             val next=old.copy(lineTrials=old.lineTrials+(key to remaining))
             if(pinned!=null && pinned !in removed) next
             else remaining.values.firstOrNull { it.status==ProbeStatus.READY }?.let { next.withTrial(key,it) }
+                // A refreshed token invalidates the stream verdict, while a surviving line remains a navigation hint.
                 ?: next.copy(probes=next.probes-key,probeEpisodes=next.probeEpisodes-key,
+                    probeLines=if(detail.lines.any { it.name==next.probeLines[key] && it.episodes.isNotEmpty() }) next.probeLines else next.probeLines-key,
                     probeResolutions=next.probeResolutions-key)
         }
     }
     private fun startProbes() {
         val catalog=probeCatalog
         val work=sourceProbeWork
-        val query=if(catalog) state.value.catalogQuery else state.value.searchQuery
+        val snapshot=state.value
+        val query=if(catalog) snapshot.catalogQuery else snapshot.searchQuery
         if(!probeActive || probeJob?.isActive==true || query.isBlank() || (!catalog && work==null)) return
+        if(!catalog && snapshot.readySourceCount(VideoGroups.searchSources(work,snapshot.results)) >= ProbePolicy.SEARCH_READY_LIMIT) return
         val owner=++probeGeneration
         probeJob=viewModelScope.launch {
             _state.update { it.copy(probeRunning=true) }
             try {
                 // Conflation naturally picks up later search pages after these bounded batches.
                 state.map { if(catalog) it.catalogVideos to it.catalogLoading else it.results to it.searching }
-                    .distinctUntilChanged().transformWhile { emit(it);it.second }.collect { (rows,_) ->
+                    .distinctUntilChanged().first { (rows,loading) ->
                         val candidates=if(catalog) rows else VideoGroups.searchSources(work,rows)
+                        var readyCount=if(catalog) 0 else state.value.readySourceCount(candidates)
                         for(video in candidates) {
+                            if(!catalog && readyCount >= ProbePolicy.SEARCH_READY_LIMIT) break
                             val key=video.probeKey()
                             if(key in completedTrials) continue
                             currentCoroutineContext().ensureActive()
-                            if(state.value.probes[key]!=ProbeStatus.READY)
+                            val wasReady=state.value.probes[key]==ProbeStatus.READY
+                            if(!wasReady)
                                 _state.update { it.copy(probes=it.probes+(key to ProbeStatus.CHECKING)) }
                             sourceTrials.incrementAndGet()
+                            var allLinesChecked=true
                             try {
                                 if(video.source.kind==SourceKind.LIVE) {
                                     val ep=Episode(video.title,video.id)
                                     val result=trialEpisode(video,ep)
                                     currentCoroutineContext().ensureActive()
                                     _state.update { it.withTrial(key,result) }
-                                } else trialSource(video)
+                                } else allLinesChecked=trialSource(video,
+                                    stopOnReady=!catalog && !wasReady && readyCount+1>=ProbePolicy.SEARCH_READY_LIMIT)
                             } catch(e:CancellationException) { throw e }
                             catch(_:Exception) { /* The source detail or its initial stream failed. */ }
                             finally { sourceTrials.decrementAndGet() }
                             currentCoroutineContext().ensureActive()
-                            completedTrials.add(key)
-                            if(state.value.probes[key]==ProbeStatus.READY) sourceHealth.record(video.source.key,QueryKind.MEDIA,true)
-                            else _state.update { it.withTrial(key,ProbeResult(ProbeStatus.FAILED)) }
+                            if(allLinesChecked) completedTrials.add(key)
+                            if(state.value.probes[key]==ProbeStatus.READY) {
+                                if(!wasReady) readyCount++
+                                sourceHealth.record(video.source.key,QueryKind.MEDIA,true)
+                            } else {
+                                if(wasReady) readyCount--
+                                _state.update { it.withTrial(key,ProbeResult(ProbeStatus.FAILED)) }
+                            }
                         }
+                        !loading || (!catalog && readyCount>=ProbePolicy.SEARCH_READY_LIMIT)
                     }
             } finally {
                 if(owner==probeGeneration) _state.update { it.copy(probeRunning=false,

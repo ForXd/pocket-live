@@ -204,7 +204,8 @@ import androidx.compose.ui.unit.dp
     LaunchedEffect(state.detail?.video) { state.detail?.video?.takeIf { VideoGroups.familyKey(it)==VideoGroups.familyKey(group.first()) }?.let { selectedWork=VideoGroups.workKey(it) } }
     val options=remember(selectedWork,group) { VideoGroups.searchSources(selectedWork,group).ifEmpty { listOf(group.first()) } }
     val expanded=expandedWork!=null && options.any { VideoGroups.workKey(it)==expandedWork }
-    val playable=options.count { state.probes[it.probeKey()]==ProbeStatus.READY }
+    val playable=state.readySourceCount(options)
+    val probeLimitReached=playable>=ProbePolicy.SEARCH_READY_LIMIT
     val running=state.probeRunning && state.probeWork==selectedWork
     val video=options.first()
     val anchor = rememberPosterAnchor(video,model)
@@ -236,12 +237,13 @@ import androidx.compose.ui.unit.dp
                 SideEffect { if(previousKeys!=orderedKeys) previousKeys=ArrayList(orderedKeys) }
                 val orderedSources = remember(orderedKeys,byKey) { orderedKeys.map { byKey.getValue(it) } }
                 SourceChoices(orderedSources,state.detail?.video,state.probes,state.probeResolutions,
-                    { choice -> model.playVerifiedSource(choice) },rowInset=0.dp,verifiedOnly=true,
+                    { choice -> if(!model.playVerifiedSource(choice)) anchor.open(choice) { model.open(choice) } },
+                    rowInset=0.dp,searchResults=true,allowUncheckedDetails=probeLimitReached,
                     playbackLabel={ choice -> val key=choice.probeKey()
                         state.probeEpisodes[key]?.let { listOfNotNull(state.probeLines[key],it.name).distinct().joinToString(" · ") } })
                 val failed = options.count { state.probes[it.probeKey()]==ProbeStatus.FAILED }
                 // The search may still be waiting for other providers after all visible trials finish.
-                if(failed>0 && (!running || playable+failed==options.size)) {
+                if(failed>0 && !probeLimitReached && (!running || playable+failed==options.size)) {
                     GlassTextButton(onClick={model.requestSourceProbe(selectedWork,retry=true)}) { Text("重新试播") }
                 }
             }

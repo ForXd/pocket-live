@@ -20,8 +20,9 @@ class SearchProbeParityDeviceTest {
         val end=android.os.SystemClock.elapsedRealtime()+60000
         while(!condition()) { if(android.os.SystemClock.elapsedRealtime()>end) fail("Timed out waiting for search probes");Thread.sleep(20) }
     }
-    @Test fun collapsedSearchWaitsThenExpandedWorkChecksEverySourceAndKeepsWorkingLine() {
+    @Test fun expandedWorkStopsAtTwoPlayableSourcesWhileCatalogKeepsScanning() {
         val started=CountDownLatch(1);val release=CountDownLatch(1)
+        val requestedMedia=java.util.concurrent.CopyOnWriteArrayList<String>()
         val server=MockWebServer().apply { start() };val base="http://search.test:${server.port}"
         val video=mediaFixtureBytes("test.mp4")
         server.dispatcher=object:Dispatcher() {
@@ -35,7 +36,7 @@ class SearchProbeParityDeviceTest {
                         else MockResponse().setBody("""{"list":[{"vod_play_from":"yun${'$'}${'$'}${'$'}m3u8${'$'}${'$'}${'$'}backup","vod_play_url":"1${'$'}$base/html${'$'}${'$'}${'$'}1${'$'}$base/media/$id${'$'}${'$'}${'$'}1${'$'}$base/backup/$id"}]}""")
                     }
                     "/html"->MockResponse().setResponseCode(404)
-                    else->{ started.countDown();release.await(10,TimeUnit.SECONDS);MockResponse().setHeader("Content-Type","video/mp4").setBody(Buffer().write(video)) }
+                    else->{ requestedMedia+=url.encodedPath;started.countDown();release.await(10,TimeUnit.SECONDS);MockResponse().setHeader("Content-Type","video/mp4").setBody(Buffer().write(video)) }
                 }
             }
         }
@@ -55,25 +56,40 @@ class SearchProbeParityDeviceTest {
             assertEquals(1,model.activeProbeCalls())
             release.countDown()
             await { !model.state.value.probeRunning && model.activeProbeCalls()==0 }
-            assertEquals(6,model.state.value.probes.values.count { it==ProbeStatus.READY })
+            assertEquals(2,model.state.value.probes.values.count { it==ProbeStatus.READY })
             val checked=model.state.value.probeEpisodes.values
-            assertEquals(6,checked.size)
+            assertEquals(2,checked.size)
             assertTrue("Must keep the successful second line",checked.all { it.url.contains("/media/") })
-            for(row in model.state.value.results) {
+            val checkedRows=model.state.value.results.filter { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }
+            for((index,row) in checkedRows.withIndex()) {
                 val trials=model.state.value.lineTrials.getValue(row.probeKey())
-                assertEquals(3,trials.size)
                 assertEquals(ProbeStatus.FAILED,trials.getValue("$base/html").status)
                 assertEquals(ProbeStatus.READY,trials.getValue("$base/media/${row.id}").status)
-                assertEquals(ProbeStatus.READY,trials.getValue("$base/backup/${row.id}").status)
+                if(index==0) assertEquals(ProbeStatus.READY,trials.getValue("$base/backup/${row.id}").status)
+                else {
+                    assertFalse("Stop on the second usable source, before starting its spare line",
+                        "/backup/${row.id}" in requestedMedia)
+                    assertFalse("$base/backup/${row.id}" in trials)
+                }
                 assertEquals("m3u8",model.state.value.probeLines[row.probeKey()])
             }
+            assertTrue(model.state.value.results.filterNot { it in checkedRows }.none { it.probeKey() in model.state.value.lineTrials })
             assertFalse(model.state.value.probes.containsValue(ProbeStatus.CHECKING))
-            val count=server.requestCount;Thread.sleep(200);assertEquals(count,server.requestCount)
+            val count=server.requestCount
+            main {
+                model.requestSourceProbe(null)
+                model.requestSourceProbe(VideoGroups.workKey(checkedRows.first()))
+            }
+            await { !model.state.value.probeRunning && model.activeProbeCalls()==0 }
+            assertEquals("Reopening a work with two verified choices leaves pending sources alone",count,server.requestCount)
             main { model.setSearchProbeActive(false);model.cancelSearch() }
             await { model.activeProbeCalls()==0 }
             main { model.browseSources(query="Film");model.setSearchProbeActive(true,catalog=true) }
             await { !model.state.value.catalogLoading && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==6 }
             assertTrue(model.state.value.catalogVideos.all { model.state.value.probes[it.probeKey()]==ProbeStatus.READY })
+            assertTrue("The catalog still validates fallback lines",model.state.value.catalogVideos.all { row ->
+                model.state.value.lineTrials[row.probeKey()]?.get("$base/backup/${row.id}")?.status==ProbeStatus.READY
+            })
             main { model.cancelCatalog();model.setSearchProbeActive(false,catalog=true) }
             await { model.activeProbeCalls()==0 }
             val historyVideo=model.state.value.catalogVideos.first()

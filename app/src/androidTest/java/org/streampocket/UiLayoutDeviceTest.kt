@@ -24,6 +24,7 @@ class UiLayoutDeviceTest {
         val base="http://fixture.test:${server.port}"
         val review=InstrumentationRegistry.getArguments().getString("designCapture")=="true"
         val portraitHero = InstrumentationRegistry.getArguments().getString("portraitHero") == "true"
+        val missingHero = InstrumentationRegistry.getArguments().getString("missingHero") == "true"
         val source=Source(if(review) "溪山源" else "示例来源","$base/api")
         val video=Video(source,"1","星河漫游", "更新至第12集",poster="$base/poster.png")
         val history=History(Playback(video,Episode("第3集","$base/video3.mp4"),72000,duration=180_000),System.currentTimeMillis())
@@ -45,7 +46,8 @@ class UiLayoutDeviceTest {
         val media=if(review && referenceVideo.isFile) referenceVideo.readBytes()
             else InstrumentationRegistry.getInstrumentation().context.assets.open("test.mp4").use { it.readBytes() }
         server.dispatcher=object:Dispatcher() {
-            override fun dispatch(request:RecordedRequest):MockResponse = if(request.path in listOf("/forest.jpg","/sea.jpg") || (review && request.path=="/poster.png")) {
+            override fun dispatch(request:RecordedRequest):MockResponse = if(missingHero && request.path=="/poster.png") MockResponse().setResponseCode(404)
+            else if(request.path in listOf("/forest.jpg","/sea.jpg") || (review && request.path=="/poster.png")) {
                 val index=listOf("/poster.png","/forest.jpg","/sea.jpg").indexOf(request.path)
                 val asset = if (portraitHero && index == 0) "editorial-poster.jpg" else "review-$index.jpg"
                 MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open(asset).use { it.readBytes() }))
@@ -138,15 +140,22 @@ class UiLayoutDeviceTest {
                 ui.onNodeWithContentDescription("豆瓣评分 8.2 分").assertExists()
                 ui.onNodeWithText("更新至第 6 集").assertExists()
                 ui.onNodeWithText("豆瓣 8.2",substring=true).assertDoesNotExist()
-                if (portraitHero) {
-                    val art = ui.onNodeWithTag("featuredPortraitArt", useUnmergedTree = true)
-                    ui.waitUntil(10_000) { ui.onAllNodesWithTag("featuredPortraitArt", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
-                    val artBounds = art.getUnclippedBoundsInRoot()
-                    val infoBounds = ui.onNodeWithTag("featuredPortraitInfo", useUnmergedTree = true).getUnclippedBoundsInRoot()
-                    val hero = ui.onNodeWithTag("recommendPoster:1", useUnmergedTree = true).getUnclippedBoundsInRoot()
-                    assertTrue("Art and title occupy separate sides", artBounds.right <= infoBounds.left || infoBounds.right <= artBounds.left)
-                    assertEquals(16f/9f, (hero.right - hero.left) / (hero.bottom - hero.top), .03f)
-                }
+                val card=ui.onNodeWithTag("recommendation:1").assertHasClickAction()
+                val coverLabel=if(missingHero) "暂无封面" else "星河漫游 封面"
+                val artwork=hasContentDescription(coverLabel) and hasAnyAncestor(hasTestTag("recommendation:1"))
+                ui.waitUntil(10_000) { ui.onAllNodes(artwork,useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty() }
+                val hero=ui.onNodeWithTag("recommendPoster:1",useUnmergedTree=true).getUnclippedBoundsInRoot()
+                val title=ui.onNodeWithTag("recommendTitle:1",useUnmergedTree=true).assertTextEquals("星河漫游").getUnclippedBoundsInRoot()
+                val badge=ui.onNodeWithTag("recommendRating:1",useUnmergedTree=true)
+                    .assertContentDescriptionEquals("豆瓣评分 8.5 分").getUnclippedBoundsInRoot()
+                val arrow=ui.onNodeWithContentDescription("查看简介",useUnmergedTree=true).getUnclippedBoundsInRoot()
+                assertEquals("Hero keeps its frame for every cover",16f/9f,(hero.right-hero.left)/(hero.bottom-hero.top),.03f)
+                assertEquals("Artwork frame fills the clickable card",card.getUnclippedBoundsInRoot(),hero)
+                if(!missingHero) assertEquals("Decoded artwork fills the frame",hero,ui.onNode(artwork,useUnmergedTree=true).getUnclippedBoundsInRoot())
+                assertEquals("Title left inset",20f,(title.left-hero.left).value,1f)
+                assertEquals("Title bottom inset",20f,(hero.bottom-title.bottom).value,1f)
+                assertEquals("Rating is aligned above the title",title.left.value,badge.left.value,1f)
+                assertTrue("Rating and details affordance stay over artwork",badge.bottom<=title.top && arrow.left>=title.right && arrow.bottom<=hero.bottom)
                 capture("design-home")
                 for(label in listOf("推荐","分类","直播")) {
                     val results=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
@@ -160,6 +169,7 @@ class UiLayoutDeviceTest {
                 assertEquals("Home actions share a row",filterTarget.top.value,searchTarget.top.value,1f)
                 ui.onNodeWithText("口袋片源").assertDoesNotExist()
                 noHomeBack()
+                if(InstrumentationRegistry.getArguments().getString("homeOnly")=="true") return
                 ui.onNodeWithTag("recommendCategoryPicker").performClick(); capture("sheet-recommend"); back()
                 ui.onNodeWithText("分类").performClick()
                 ui.waitUntil(10000) { model.state.value.catalogVideos.size==2 }

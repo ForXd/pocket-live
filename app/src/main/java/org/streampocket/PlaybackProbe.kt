@@ -17,6 +17,7 @@ data class ProbeResult(val status:ProbeStatus,val resolution:String?=null,val ep
 internal fun Video.probeKey()=source.key+":"+id
 
 internal object ProbePolicy {
+    const val SEARCH_READY_LIMIT=2
     const val CONCURRENCY=3
     const val MEDIA_TIMEOUT_MS=12_000L
 }

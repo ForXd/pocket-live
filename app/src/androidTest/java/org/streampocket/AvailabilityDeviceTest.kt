@@ -38,6 +38,12 @@ class AvailabilityDeviceTest {
                             if(id=="lifecycle") MockResponse().setBody("""{"list":[{"vod_play_from":"高清${'$'}${'$'}${'$'}备用","vod_play_url":"第1集${'$'}$base/stream/master.m3u8${'$'}${'$'}${'$'}第1集${'$'}$base/pending.m3u8"}]}""")
                             else if(id=="slow") MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
                             else MockResponse().setBody("""{"list":[{"vod_play_from":"主线路","vod_play_url":"第1集${'$'}$base/${if(id=="1") "bad-media.mp4" else "stream/master.m3u8"}"}]}""")
+                        } else if(url.queryParameter("wd")=="切换") {
+                            val ids=listOf("slow","old-backup","new-first","new-second","new-backup")
+                            MockResponse().setBody(ids.joinToString(",","{\"list\":[","]}") { candidate ->
+                                val title=if(candidate.startsWith("new-")) "切换乙" else "切换甲"
+                                """{"vod_id":"$candidate","vod_name":"$title"}"""
+                            })
                         } else if(url.queryParameter("wd")=="生命周期") MockResponse().setBody("""{"list":[{"vod_id":"lifecycle","vod_name":"生命周期"}]}""")
                         else if(url.queryParameter("wd")=="慢速") MockResponse().setBody("""{"list":[{"vod_id":"slow","vod_name":"慢速剧集"}]}""")
                         else MockResponse().setBody("""{"list":[${(1..5).joinToString(",") { """{"vod_id":"$it","vod_name":"星河剧集"}""" }}]}""")
@@ -75,7 +81,7 @@ class AvailabilityDeviceTest {
         ui.onNodeWithTag("searchVideo:$id").performScrollTo().performClick()
     }
     @After fun close() { firstMediaGate?.countDown();ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
-    @Test fun expandedWorkChecksEveryCandidateAndKeepsSourceHealthSeparate() {
+    @Test fun twoVerifiedChoicesStayInPlaceAndUntriedSourcesOpenManually() {
         firstMediaGate=java.util.concurrent.CountDownLatch(1)
         ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("星河")
@@ -85,8 +91,10 @@ class AvailabilityDeviceTest {
         val secondRow=ui.onNodeWithTag("sourceChoice:$sourceKey:2").assertIsNotEnabled()
         val initialBounds=secondRow.getUnclippedBoundsInRoot()
         firstMediaGate?.countDown()
-        ui.waitUntil(45000) { model.state.value.probes.values.count { it==ProbeStatus.READY }==4 && !model.state.value.probeRunning && !model.state.value.searching }
-        assertEquals(setOf("1","2","3","4","5"),details.toSet())
+        ui.waitUntil(45000) { model.state.value.probes.values.count { it==ProbeStatus.READY }==2 && !model.state.value.probeRunning }
+        assertEquals(setOf("1","2","3"),details.toSet())
+        assertEquals(0,model.activeProbeCalls())
+        assertFalse(model.state.value.probes.containsValue(ProbeStatus.CHECKING))
         assertEquals(1,model.state.value.probes.values.count { it==ProbeStatus.FAILED })
 
         assertEquals(5,model.state.value.results.size)
@@ -96,7 +104,7 @@ class AvailabilityDeviceTest {
         ui.onNodeWithTag("probe:$first",useUnmergedTree=true).assertTextEquals("可播放")
         assertEquals("Trial completion may enable a source without moving its target",
             initialBounds,secondRow.assertIsEnabled().getUnclippedBoundsInRoot())
-        val failedRow=ui.onNodeWithTag("sourceChoice:$sourceKey:1")
+        val failedRow=ui.onNodeWithTag("sourceChoice:$sourceKey:1").assertIsNotEnabled()
         assertTrue("Failed source stays in its original first row",failedRow.getUnclippedBoundsInRoot().top<initialBounds.top)
         ui.onNodeWithTag("probe:1",useUnmergedTree=true).assertTextEquals("不可播放")
         captureUi(ui,"search-probes")
@@ -109,11 +117,20 @@ class AvailabilityDeviceTest {
             return
         }
 
+        val untried=model.state.value.results.single { it.id=="4" }
+        assertFalse(untried.probeKey() in model.state.value.probes)
+        val manual=ui.onNodeWithTag("sourceChoice:$sourceKey:4").performScrollTo().assertIsEnabled()
+        ui.onNode(hasText("未试播") and hasAnyAncestor(hasTestTag("sourceChoice:$sourceKey:4")),useUnmergedTree=true).assertIsDisplayed()
+        manual.performClick()
+        ui.waitUntil(10000) { model.state.value.detail?.video?.id=="4" }
+        assertNull("An untested source opens its details",model.state.value.playback)
+        assertFalse("Browsing it cannot report a successful trial",untried.probeKey() in model.state.value.probeEpisodes)
+        ui.onNodeWithContentDescription("关闭详情").performClick()
         val before=playlistRequests.get()
         assertTrue(before>0)
         ui.onNodeWithContentDescription("开始搜索").performClick()
         expandWork("1")
-        ui.waitUntil(45000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==4 }
+        ui.waitUntil(45000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==2 }
         assertEquals("Successful trials reuse verified media",before,playlistRequests.get())
 
         ui.onNodeWithTag("nav:1").performClick()
@@ -136,6 +153,26 @@ class AvailabilityDeviceTest {
         assertEquals("慢速",model.state.value.searchQuery)
         assertEquals(1,model.state.value.results.size)
         assertEquals(true,model.state.value.sourceAvailability[model.state.value.results.single().source.key])
+    }
+    @Test fun expandingAnotherWorkDropsItsPredecessorsRunningAndQueuedTrials() {
+        ui.onNodeWithTag("openSearch").performClick()
+        ui.onNodeWithTag("searchInput").performTextInput("切换")
+        ui.onNodeWithTag("searchInput").performImeAction()
+        ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==5 }
+        val oldGroup=model.state.value.results.filter { it.title=="切换甲" }
+        val nextGroup=model.state.value.results.filter { it.title=="切换乙" }
+        val oldFirst=VideoGroups.searchSources(VideoGroups.workKey(oldGroup.first()),oldGroup).first()
+        val nextFirst=VideoGroups.searchSources(VideoGroups.workKey(nextGroup.first()),nextGroup).first()
+        assertEquals("The first fixture must stall until cancelled","slow",oldFirst.id)
+        expandWork(oldFirst.id)
+        ui.waitUntil(10000) { "slow" in details && model.state.value.probeRunning }
+        ui.onNodeWithTag("searchResults").performScrollToNode(hasTestTag("searchVideo:${nextFirst.id}"))
+        ui.onNodeWithTag("searchVideo:${nextFirst.id}").performClick()
+        ui.waitUntil(30000) { nextGroup.count { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }==2 &&
+            !model.state.value.probeRunning && model.activeProbeCalls()==0 }
+        assertTrue(oldGroup.none { it.probeKey() in model.state.value.probes })
+        assertFalse("Queued work from the abandoned card must stay unrequested","old-backup" in details)
+        assertEquals(2,details.distinct().count { it.startsWith("new-") })
     }
     @Test fun searchTrialsReleaseOnPauseAndPreviewThenDiscardWhenSearchCloses() {
         ui.onNodeWithTag("openSearch").performClick()
@@ -177,7 +214,7 @@ class AvailabilityDeviceTest {
         ui.onNodeWithTag("searchInput").performTextReplacement("星河")
         ui.onNodeWithTag("searchInput").performImeAction()
         expandWork("1")
-        ui.waitUntil(45000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==4 }
+        ui.waitUntil(45000) { !model.state.value.searching && !model.state.value.probeRunning && model.state.value.probes.values.count { it==ProbeStatus.READY }==2 }
         assertEquals("星河",model.state.value.searchQuery)
         assertTrue(model.state.value.probes.keys.none { it.endsWith(":slow") })
 

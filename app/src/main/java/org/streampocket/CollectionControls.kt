@@ -28,15 +28,16 @@ import androidx.compose.ui.unit.dp
 }
 
 /** Shared source rows for search/detail and player; availability never inferred from metadata. */
-@Composable fun SourceChoices(videos:List<Video>,selected:Video?,probes:Map<String,ProbeStatus>,resolutions:Map<String,String>,choose:(Video)->Unit,limit:Int=Int.MAX_VALUE,rowInset:androidx.compose.ui.unit.Dp=12.dp,verifiedOnly:Boolean=false,playbackLabel:(Video)->String?={null}) {
+@Composable fun SourceChoices(videos:List<Video>,selected:Video?,probes:Map<String,ProbeStatus>,resolutions:Map<String,String>,choose:(Video)->Unit,limit:Int=Int.MAX_VALUE,rowInset:androidx.compose.ui.unit.Dp=12.dp,searchResults:Boolean=false,allowUncheckedDetails:Boolean=false,playbackLabel:(Video)->String?={null}) {
     val rows = videos.take(limit)
     val sourceRow: @Composable (Video) -> Unit = { video ->
         val key = video.probeKey()
         val status = probes[key]
         SourceChoiceRow(video, status, resolutions[key]?.takeIf { status==ProbeStatus.READY },
-            selected?.probeKey()==key, verifiedOnly, rowInset, playbackLabel(video), choose)
+            selected?.probeKey()==key, searchResults, allowUncheckedDetails && (status==null || status==ProbeStatus.UNCHECKED),
+            rowInset, playbackLabel(video), choose)
     }
-    if(verifiedOnly || rows.size>3) {
+    if(searchResults || rows.size>3) {
         // Keep the same keyed list when a fourth provider arrives during an open search.
         androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max=280.dp)) {
             items(rows,key={it.probeKey()}) { video -> sourceRow(video) }
@@ -45,8 +46,8 @@ import androidx.compose.ui.unit.dp
 }
 
 @Composable private fun SourceChoiceRow(video:Video,status:ProbeStatus?,resolution:String?,selected:Boolean,
-    verifiedOnly:Boolean,rowInset:androidx.compose.ui.unit.Dp,playbackLabel:String?,choose:(Video)->Unit) {
-    val enabled = !verifiedOnly || status==ProbeStatus.READY
+    searchResults:Boolean,uncheckedDetails:Boolean,rowInset:androidx.compose.ui.unit.Dp,playbackLabel:String?,choose:(Video)->Unit) {
+    val enabled = !searchResults || status==ProbeStatus.READY || uncheckedDetails
     val qualityText = when {
         resolution!=null -> "实测 · $resolution"
         video.quality.evidence==QualityEvidence.MEASURED -> "最近播放 · ${video.quality.label}"
@@ -61,7 +62,7 @@ import androidx.compose.ui.unit.dp
             verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
                 Text(video.source.name,style=MaterialTheme.typography.bodyMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
-                if(verifiedOnly) {
+                if(searchResults) {
                     // Reserve one metadata line across checking, ready and failed states.
                     val info=listOfNotNull(qualityText,label.takeIf { it.isNotEmpty() }).joinToString(" · ")
                     Text(info,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,
@@ -74,7 +75,8 @@ import androidx.compose.ui.unit.dp
                         maxLines=1,overflow=TextOverflow.Ellipsis)
                 }
             }
-            MediaProbeIndicator(status,textModifier=Modifier.testTag("probe:${video.id}"))
+            if(uncheckedDetails) Text("未试播",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            else MediaProbeIndicator(status,textModifier=Modifier.testTag("probe:${video.id}"))
             if(enabled) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
