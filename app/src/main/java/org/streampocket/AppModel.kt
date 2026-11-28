@@ -153,7 +153,9 @@ class AppModel @JvmOverloads constructor(application: Application, dns: okhttp3.
         if(sourceProbeWork==work && !retry) return
         cancelProbes();sourceProbeWork=work
         if(retry && work!=null) {
-            val keys=VideoGroups.searchSources(work,state.value.results).map { it.probeKey() }.toSet()
+            val current=state.value
+            val keys=VideoGroups.searchSources(work,current.results).map { it.probeKey() }
+                .filter { current.probes[it]==ProbeStatus.FAILED }.toSet()
             probeCache.keys.removeAll { it.first in keys };completedTrials.removeAll(keys)
             _state.update { it.copy(lineTrials=it.lineTrials-keys,probes=it.probes-keys,probeEpisodes=it.probeEpisodes-keys,probeLines=it.probeLines-keys,probeResolutions=it.probeResolutions-keys) }
         }

@@ -11,6 +11,19 @@ class PlaybackGestureRulesTest {
         assertEquals(60000L,boundedSeek(20000,Long.MAX_VALUE,60000,true))
         assertEquals(0L,boundedSeek(20000,Long.MIN_VALUE,60000,true))
     }
+    @Test fun screenSwipeHasOneLocalTimeScaleAndClampsAtEdges() {
+        val twoHours=7_200_000L
+        assertEquals(3_606_000L,swipeSeekTarget(3_600_000,twoHours,50f,1000))
+        assertEquals(3_594_000L,swipeSeekTarget(3_600_000,twoHours,-100f,2000))
+        assertEquals(10_500L,swipeSeekTarget(10_000,20_000,25f,1000))
+        assertEquals(20_000L,swipeSeekTarget(19_999,20_000,25f,1000))
+        assertEquals(0L,swipeSeekTarget(5,20_000,-25f,1000))
+    }
+    @Test fun pictureInPictureUsesTheVideoDisplayAspect() {
+        assertEquals(4f/3f,videoDisplayAspect(720,576,16f/15f),.0001f)
+        assertEquals(9f/16f,videoDisplayAspect(1080,1920,1f),.0001f)
+        assertEquals(16f/9f,videoDisplayAspect(0,0,1f),.0001f)
+    }
     @Test fun episodeNavigationCannotCrossLineOrWrongDetail() {
         val video=Video(Source("a","https://example.com/api"),"1","title")
         val episodes=(1..10000).map { Episode("$it","https://example.com/$it.mp4") }

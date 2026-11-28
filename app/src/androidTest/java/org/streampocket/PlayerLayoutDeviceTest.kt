@@ -20,6 +20,17 @@ import java.net.InetAddress
 class PlayerLayoutDeviceTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     private fun view(v:View):GesturePlayerView? = if(v is GesturePlayerView) v else if(v is ViewGroup) (0 until v.childCount).firstNotNullOfOrNull { view(v.getChildAt(it)) } else null
+    @Test fun nativePictureInPictureParamsMatchVideoAndAndroidLimits() {
+        fun ratio(width:Int,height:Int,pixelRatio:Float=1f)=pictureInPictureAspect(width,height,pixelRatio).also {
+            android.app.PictureInPictureParams.Builder().setAspectRatio(it).build()
+        }
+        assertEquals(android.util.Rational(16,9),ratio(1920,1080))
+        assertEquals(android.util.Rational(4,3),ratio(720,576,16f/15f))
+        assertEquals(android.util.Rational(9,16),ratio(1080,1920))
+        assertEquals(android.util.Rational(16,9),ratio(0,0))
+        assertEquals(android.util.Rational(239,100),ratio(3000,600))
+        assertEquals(android.util.Rational(100,239),ratio(600,3000))
+    }
     @Test fun portraitAndLandscapeActionsKeepPlayerSession() {
         ui.runOnUiThread { ui.activity.viewModelStore.clear() }
         kotlinx.coroutines.runBlocking { Storage(ui.activity.application).write(Saved(allowHttp=true)) }
@@ -223,6 +234,19 @@ class PlayerLayoutDeviceTest {
             assertEquals((surface.right-surface.left).value*.5f,(panel.right-panel.left).value,2f)
             repeat(10) { iteration ->
                 val instrument=InstrumentationRegistry.getInstrumentation()
+                if(iteration<2) {
+                    // The panel can have Compose semantics before its native window receives
+                    // input focus. Send Back / outside taps only once the system targets it.
+                    ui.waitUntil(5000) {
+                        ui.runOnUiThread {
+                            val activityRoot = ui.activity.window.decorView
+                            if(android.os.Build.VERSION.SDK_INT>=29)
+                                android.view.inspector.WindowInspector.getGlobalWindowViews().any { it!==activityRoot && it.hasWindowFocus() }
+                            else !activityRoot.hasWindowFocus()
+                        }
+                    }
+                }
+                instrument.sendStatus(0,android.os.Bundle().apply { putString("stage","closing-episode-panel-$iteration") })
                 when(iteration) {
                     0 -> instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
                     1 -> {
@@ -245,6 +269,7 @@ class PlayerLayoutDeviceTest {
             assertEquals("Opening the glass panel must not recreate playback",created,PlaybackMetrics.created)
             ui.onNodeWithTag("playbackEpisodeRanges").performScrollToNode(hasTestTag("playbackRange:9"))
             ui.onNodeWithTag("playbackRange:9").performClick()
+            ui.onNodeWithTag("playbackEpisodes").assertHeightIsAtLeast(48.dp)
             ui.onNodeWithText("第451集").assertIsDisplayed()
             ui.onNodeWithTag("playbackEpisodes").performScrollToIndex(49)
             ui.onNodeWithText("第500集").assertIsDisplayed()

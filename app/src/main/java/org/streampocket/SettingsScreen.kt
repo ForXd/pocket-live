@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -22,7 +22,7 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
     val transfer by model.updater.state.collectAsStateWithLifecycle()
 
     val sources=remember(s.saved.subscriptions) { s.saved.subscriptions.flatMap { it.sources }.filter { it.kind==SourceKind.VOD }.distinctBy { it.key } }
-    LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("settingsList"),contentPadding=PaddingValues(start=PageGutter,end=PageGutter,bottom=20.dp+LocalDockInset.current),verticalArrangement=Arrangement.spacedBy(if(page==SettingsPage.RULES) 0.dp else 12.dp)) {
         if(page!=null) {
             item {
                 val motion=LocalCardReturn.current
@@ -50,8 +50,16 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
                 } }
                 SettingsPage.RULES -> {
                     if(sources.isEmpty()) item { Text("在订阅页添加点播来源后，可在这里配置规则。") }
-                    items(sources,key={"rules:${it.key}"}) { source ->
-                        SettingsEntry(source.name,"精确路径规则",{sourceRules(source)},"settingsRule:${source.key}")
+                    else item {
+                        Text("按来源配置精确路径规则", Modifier.padding(top=4.dp,bottom=12.dp),
+                            style=MaterialTheme.typography.bodyMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    itemsIndexed(sources, key = { _, source -> "rules:${source.key}" }) { index, source ->
+                        val count = s.saved.adRules[source.key].orEmpty().size
+                        GroupRow(groupRowShape(index, sources.lastIndex), index < sources.lastIndex) {
+                            SettingsEntry(source.name, if (count > 0) "已配置 ${count} 条规则" else null,
+                                { sourceRules(source) }, "settingsRule:${source.key}")
+                        }
                     }
                 }
             }
@@ -60,7 +68,7 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
         item { PageHeading("设置",inset=0.dp) }
         item { Text("应用",style=MaterialTheme.typography.titleLarge) }
         item { ContentCard(Modifier.fillMaxWidth()) {
-            SettingsEntry("外观设置",rememberThemeMode().title,appearance,"settingsAppearance",grouped=true)
+            SettingsEntry("外观设置",rememberThemeMode().title,appearance,"settingsAppearance")
             ContentDivider(Modifier.padding(horizontal=16.dp))
             SettingsEntry("应用更新",when {
             transfer.phase==UpdatePhase.DOWNLOADING -> "正在下载 · ${transfer.received/1024} KiB"
@@ -71,7 +79,7 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
             s.appRelease!=null -> "新版 ${s.appRelease.version}"
             s.updateError!=null -> "检查失败"
             else -> "当前版本 ${BuildConfig.VERSION_NAME}"
-        },updates,"settingsUpdates",grouped=true) } }
+        },updates,"settingsUpdates") } }
         item { Text("偏好与数据",style=MaterialTheme.typography.titleLarge) }
         item(key="searchHistory") {
             ContentCard(Modifier.fillMaxWidth()) {
@@ -86,17 +94,14 @@ internal enum class SettingsPage(val title:String) { NETWORK("播放与网络"),
                         SettingsPage.STORAGE -> "查看用量与清理缓存" to "settingsStorage"
                         SettingsPage.RULES -> "按来源配置精确路径" to "settingsSourceRules"
                     }
-                    SettingsEntry(destination.title,summary,{navigate(destination)},tag,grouped=true)
+                    SettingsEntry(destination.title,summary,{navigate(destination)},tag)
                 }
             }
         }
     }
 }
-@Composable private fun SettingsEntry(title:String,summary:String,action:()->Unit,tag:String,grouped:Boolean=false) {
-    val row: @Composable () -> Unit = {
-        PreferenceRow(title,summary,action,Modifier.testTag(tag).semantics { contentDescription=title }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,null,Modifier.size(20.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+@Composable private fun SettingsEntry(title: String, summary: String?, action: () -> Unit, tag: String) {
+    PreferenceRow(title, summary, action, Modifier.testTag(tag).semantics { contentDescription = title }) {
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    if(grouped) row() else ContentCard(Modifier.fillMaxWidth()) { row() }
 }

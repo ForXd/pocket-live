@@ -8,6 +8,10 @@ import androidx.core.view.updateLayoutParams
 
 import android.content.Context
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
+import android.view.Gravity
+import android.view.accessibility.AccessibilityManager
 import android.os.Handler
 import android.os.Looper
 import android.view.GestureDetector
@@ -43,11 +47,10 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         val dx=x-scrubX
         if(!draggingScrub && kotlin.math.abs(dx)<slop) return
         draggingScrub=true
-        val available=if(dx<0) scrubX else width-scrubX
-        val range=if(dx<0) start.position else start.duration-start.position
-        val fraction=(dx/available.coerceAtLeast(1f)).coerceIn(-1f,1f)
-        scrubTarget=(start.position+fraction*range.toDouble()).roundToLong().coerceIn(0,start.duration)
-        onScrub(start.copy(position=scrubTarget))
+        val returning=kotlin.math.abs(dx)<=slop
+        if(returning && scrubTarget!=start.origin) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+        scrubTarget=if(returning) start.origin else swipeSeekTarget(start.origin,start.duration,dx,width)
+        onScrub(start.copy(position=scrubTarget,atOrigin=returning))
     }
     private fun endScrub(commit:Boolean) {
         val start=scrubStart ?: return
@@ -62,6 +65,7 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         set(value) { if(field!=value) cancelGestures();field=value }
     var verticalGesturesEnabled=false
         set(value) { if(field!=value) cancelGestures();field=value }
+    internal var verticalFeedback:((Boolean,String)->Unit)?=null
     var beginVertical:(Boolean)->Unit = {}
     var adjustVertical:(Float)->String = { "" }
     private var verticalAxis=0 // 0 undecided, 1 vertical, -1 horizontal
@@ -81,18 +85,29 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
             timer.postDelayed(this,250)
         }
     }
-    internal var onSpeedHint:(String)->Unit = {}
+    internal var onSpeedHint:(String,Float?)->Unit = { _,_ -> }
     private var speedOwner:Player?=null
     private var previousSpeed=1f
     private var speedLocked=false
     private var holdY=0f
 
-    private fun restoreSpeed() {
+    private fun finishBoost(speed:Float) {
         val owner=speedOwner ?: return
         speedOwner=null
         speedLocked=false
-        if(owner===player && owner.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) owner.setPlaybackSpeed(previousSpeed)
-        onSpeedHint("")
+        if(owner===player && owner.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) owner.setPlaybackSpeed(speed)
+        onSpeedHint("",null)
+    }
+
+    internal fun unlockSpeed() {
+        if(!speedLocked) return
+        finishBoost(previousSpeed)
+        feedback("已恢复原倍速")
+    }
+
+    internal fun chooseSpeed(speed:Float) {
+        if(speedOwner!=null) finishBoost(speed)
+        else player?.takeIf { it.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH) }?.setPlaybackSpeed(speed)
     }
 
     private val detector=GestureDetector(context,object:GestureDetector.SimpleOnGestureListener() {
@@ -119,14 +134,18 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
             if(!gesturesEnabled || player!==gestureOwner) return
             if(fullscreenLayout) {
                 val p=player ?: return
-                if(speedLocked) { restoreSpeed();feedback("已恢复原倍速");return }
+                if(speedLocked) { unlockSpeed();return }
                 if(liveSource || p.isCurrentMediaItemLive || !p.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) return
                 previousSpeed=p.playbackParameters.speed
                 val boost=maxOf(2f, previousSpeed)
                 speedOwner=p
                 holdY=e.y
                 p.setPlaybackSpeed(boost)
-                onSpeedHint("${boost}× · 上滑锁定")
+                val tips=context.getSharedPreferences("playback_gestures", Context.MODE_PRIVATE)
+                val firstHold=!tips.getBoolean("boost_seen",false)
+                if(firstHold) tips.edit().putBoolean("boost_seen",true).apply()
+                val label=formatBoost(boost)
+                onSpeedHint(if(firstHold) "$label · 上滑锁定，再长按恢复" else label,null)
                 return
             }
             direction=if(e.x<width/2f) -1 else 1;held=true;timer.post(repeatSeek)
@@ -152,7 +171,10 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
                 if(verticalAxis==1 && e1.x/width !in 0f..0.25f && e1.x/width !in 0.75f..1f) verticalAxis=2
                 if(verticalAxis==1) beginVertical(e1.x<width/2f)
             }
-            if(verticalAxis==1) feedback(adjustVertical(-dy/(height*.65f).coerceAtLeast(1f)))
+            if(verticalAxis==1) {
+                val message=adjustVertical(-dy/(height*.65f).coerceAtLeast(1f))
+                verticalFeedback?.invoke(e1.x < width / 2f,message) ?: feedback(message)
+            }
             return true
         }
     })
@@ -177,11 +199,38 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         }
         setEnableComposeSurfaceSyncWorkaround(true)
         controllerAutoShow=false
-        controllerShowTimeoutMs=3000
+        refreshControlTimeout()
+        // Put a local scrim directly behind each glyph and retain Media3's original artwork.
+        for(id in listOf(androidx.media3.ui.R.id.exo_rew_with_amount,androidx.media3.ui.R.id.exo_ffwd_with_amount)) {
+            val button=findViewById<View>(id) ?: continue
+            val icon=button.background ?: continue
+            val disc=GradientDrawable().apply { shape=GradientDrawable.OVAL;setColor(0xaa121518.toInt()) }
+            val size=(36*resources.displayMetrics.density).roundToInt()
+            button.background=LayerDrawable(arrayOf(disc,icon)).apply {
+                setLayerSize(0,size,size)
+                setLayerGravity(0,Gravity.CENTER)
+            }
+        }
         setControllerAnimationEnabled(false)
         setShowNextButton(false);setShowPreviousButton(false)
         contentDescription="视频，单击显示控制，左右双击跳转10秒，长按连续跳转"
     }
+    private val touchExplorationChanged=AccessibilityManager.TouchExplorationStateChangeListener { refreshControlTimeout() }
+    private fun refreshControlTimeout() {
+        val manager=context.getSystemService(AccessibilityManager::class.java)
+        controllerShowTimeoutMs=when {
+            manager.isTouchExplorationEnabled -> 0
+            android.os.Build.VERSION.SDK_INT>=29 -> manager.getRecommendedTimeoutMillis(3000,
+                AccessibilityManager.FLAG_CONTENT_CONTROLS or AccessibilityManager.FLAG_CONTENT_ICONS or AccessibilityManager.FLAG_CONTENT_TEXT)
+            else -> 3000
+        }
+    }
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        context.getSystemService(AccessibilityManager::class.java).addTouchExplorationStateChangeListener(touchExplorationChanged)
+        refreshControlTimeout()
+    }
+
     private var fullscreenLayout=false
     // DefaultTimeBar insets the drawn track by half its largest thumb. The toolbar
     // aligns to that drawn edge. Its touch region and the video still extend past it.
@@ -201,10 +250,16 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
             footer.marginEnd = inlineActionsWidth
             bottom.layoutParams = footer
         }
+        val live=liveSource || player?.isCurrentMediaItemLive==true
+        val description=when {
+            enabled -> "全屏视频，单击显示控制。"+fullscreenGestureHelp(live)
+            live -> "直播视频，单击显示控制"
+            else -> "视频，单击显示控制，左右双击跳转10秒，长按连续跳转"
+        }
+        if(contentDescription!=description) contentDescription=description
         if(fullscreenLayout==enabled) return
         cancelGestures()
         fullscreenLayout=enabled
-        contentDescription=if(enabled) "全屏视频，单击显示控制，双击播放或暂停，左右滑动预览进度，长按加速，上滑锁定，再长按恢复，左侧上下滑动调亮度、右侧调音量" else "视频，单击显示控制，左右双击跳转10秒，长按连续跳转"
         findViewById<View>(androidx.media3.ui.R.id.exo_controls_background).setBackgroundColor(if(enabled) android.graphics.Color.TRANSPARENT else 0x80000000.toInt())
     }
     // Media3 places this full-width layer above the movie and behind its native controls.
@@ -235,14 +290,15 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
             verticalAxis=0;verticalCancelled=false
         }
         if(controlsTouch) return super.dispatchTouchEvent(event)
-        if(event.pointerCount>1) { cancelGestures();return true }
+        if(event.pointerCount>1) { cancelGestures(keepLockedSpeed=true);return true }
         if(speedOwner!=null && !speedLocked && event.actionMasked==MotionEvent.ACTION_MOVE &&
             holdY-event.y >= 48f*resources.displayMetrics.density) {
             speedLocked=true
-            onSpeedHint("${speedOwner?.playbackParameters?.speed}× 已锁定 · 长按恢复")
+            onSpeedHint("",speedOwner?.playbackParameters?.speed)
+            feedback("倍速已锁定")
             performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
         }
-        if(event.actionMasked==MotionEvent.ACTION_CANCEL || (event.actionMasked==MotionEvent.ACTION_UP && !speedLocked)) restoreSpeed()
+        if(!speedLocked && (event.actionMasked==MotionEvent.ACTION_CANCEL || event.actionMasked==MotionEvent.ACTION_UP)) finishBoost(previousSpeed)
         if(scrubStart!=null) {
             when(event.actionMasked) {
                 MotionEvent.ACTION_MOVE -> previewAt(event.x)
@@ -262,19 +318,33 @@ class GesturePlayerView @JvmOverloads constructor(context:Context, attrs:android
         if(v is TimeBar || (v !is ViewGroup && (v.isClickable || v.isLongClickable))) return true
         return v is ViewGroup && (0 until v.childCount).any { hitsControl(v.getChildAt(it),x,y) }
     }
-    fun cancelGestures() {
-        restoreSpeed()
+    fun cancelGestures(keepLockedSpeed:Boolean=false) {
+        if(!keepLockedSpeed || !speedLocked) finishBoost(previousSpeed)
         endScrub(false)
         held=false;verticalCancelled=true;timer.removeCallbacksAndMessages(null)
         val e=MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,0f,0f,0)
         detector.onTouchEvent(e);e.recycle();gestureOwner=null
     }
-    override fun onSizeChanged(w:Int,h:Int,oldw:Int,oldh:Int) { cancelGestures();super.onSizeChanged(w,h,oldw,oldh) }
-    override fun onWindowFocusChanged(hasWindowFocus:Boolean) { if(!hasWindowFocus) cancelGestures();super.onWindowFocusChanged(hasWindowFocus) }
-    override fun onDetachedFromWindow() { cancelGestures();onScrub={};seekRelative={ "" };feedback={};beginVertical={};adjustVertical={ "" };super.onDetachedFromWindow() }
+    override fun onSizeChanged(w:Int,h:Int,oldw:Int,oldh:Int) { cancelGestures(keepLockedSpeed=true);super.onSizeChanged(w,h,oldw,oldh) }
+    override fun onWindowFocusChanged(hasWindowFocus:Boolean) { if(!hasWindowFocus) cancelGestures(keepLockedSpeed=true);super.onWindowFocusChanged(hasWindowFocus) }
+    override fun onDetachedFromWindow() {
+        context.getSystemService(AccessibilityManager::class.java).removeTouchExplorationStateChangeListener(touchExplorationChanged)
+        cancelGestures();onSpeedHint={ _,_ -> };verticalFeedback=null;onScrub={};seekRelative={ "" };feedback={};beginVertical={};adjustVertical={ "" };super.onDetachedFromWindow() }
 }
 
-internal data class ScrubPreview(val position:Long,val duration:Long)
+internal fun formatBoost(speed:Float)=speed.toString().removeSuffix(".0")+"×"
+
+internal fun fullscreenGestureHelp(live:Boolean)=if(live)
+    "双击画面可暂停或播放。左侧上下滑动调亮度，右侧调音量。"
+else "双击画面可暂停或播放。横滑微调进度，回到起点松手可取消。跨段定位可拖底部时间轴。长按临时加速，上滑锁定，再长按或点倍速标记恢复。左侧上下滑动调亮度，右侧调音量。"
+
+internal data class ScrubPreview(val position:Long,val duration:Long,val origin:Long=position,val atOrigin:Boolean=false)
+
+internal fun swipeSeekTarget(origin:Long,duration:Long,dx:Float,width:Int):Long {
+    val window=duration.coerceIn(0,120_000)
+    val delta=(dx.toDouble()/width.coerceAtLeast(1)*window).roundToLong()
+    return boundedSeek(origin,delta,duration,true) ?: origin
+}
 
 internal fun boundedSeek(position:Long,delta:Long,duration:Long,seekable:Boolean):Long? {
     if(!seekable || duration<=0) return null

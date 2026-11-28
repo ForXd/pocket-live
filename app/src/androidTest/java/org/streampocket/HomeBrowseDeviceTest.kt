@@ -349,6 +349,33 @@ class HomeBrowseDeviceTest {
     }
 
 
+    @Test fun channelUnderlineTracksAndReversesBeforeFingerLifts() {
+        val pages=ui.onNodeWithTag("discoveryPages")
+        val grid=ui.onNodeWithTag("recommendationGrid")
+        val indicator=ui.onNodeWithTag("discoveryTabIndicator",useUnmergedTree=true)
+        val pagerBounds=pages.getUnclippedBoundsInRoot()
+        val pageWidth=(pagerBounds.right-pagerBounds.left).value
+        val initialRight=grid.getUnclippedBoundsInRoot().right
+        val initial=indicator.getUnclippedBoundsInRoot()
+        val tabWidth=(initial.right-initial.left).value*2f
+        fun checkPosition(range:ClosedFloatingPointRange<Float>) {
+            val pageFraction=(initialRight-grid.getUnclippedBoundsInRoot().right).value/pageWidth
+            val indicatorFraction=(indicator.getUnclippedBoundsInRoot().left-initial.left).value/tabWidth
+            assertTrue("Page must be partway through its drag ($pageFraction)",pageFraction in range)
+            assertEquals("Underline follows the visible page displacement",pageFraction,indicatorFraction,.035f)
+        }
+        pages.performTouchInput { down(percentOffset(.82f,.5f)) }
+        try {
+            pages.performTouchInput {
+                moveTo(percentOffset(.69f,.5f),delayMillis=80)
+                moveTo(percentOffset(.31f,.5f),delayMillis=180)
+            }
+            checkPosition(.35f.. .56f)
+            pages.performTouchInput { moveTo(percentOffset(.62f,.5f),delayMillis=180) }
+            checkPosition(.08f.. .24f)
+        } finally { pages.performTouchInput { up() } }
+    }
+
     @Test fun horizontalPagingAndCollapsingChannelTools() {
         val pages=ui.onNodeWithTag("discoveryPages")
         fun swipePage(left:Boolean) = pages.performTouchInput {

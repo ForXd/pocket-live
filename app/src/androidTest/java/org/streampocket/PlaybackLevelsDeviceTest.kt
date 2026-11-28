@@ -3,7 +3,9 @@ package org.streampocket
 
 import android.media.AudioManager
 import android.os.SystemClock
+import android.view.accessibility.AccessibilityManager
 import android.view.MotionEvent
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.media3.exoplayer.ExoPlayer
@@ -14,6 +16,25 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
 class PlaybackLevelsDeviceTest {
+    @Test fun playbackControlsRespectSystemInteractionTimeout() {
+        val minimum = InstrumentationRegistry.getArguments().getString("minControlTimeout")?.toInt() ?: 3000
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val manager = activity.getSystemService(AccessibilityManager::class.java)
+                val timeout = GesturePlayerView(activity).controllerShowTimeoutMs
+                if (manager.isTouchExplorationEnabled) {
+                    assertEquals(0, timeout)
+                } else {
+                    val expected = if (android.os.Build.VERSION.SDK_INT >= 29)
+                        manager.getRecommendedTimeoutMillis(3000, AccessibilityManager.FLAG_CONTENT_CONTROLS or
+                            AccessibilityManager.FLAG_CONTENT_ICONS or AccessibilityManager.FLAG_CONTENT_TEXT) else 3000
+                    assertEquals(expected, timeout)
+                    assertTrue("Expected controls to remain visible for at least $minimum ms", timeout >= minimum)
+                }
+            }
+        }
+    }
+
     @Test fun verticalControlsClampCancelAndRestore() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->

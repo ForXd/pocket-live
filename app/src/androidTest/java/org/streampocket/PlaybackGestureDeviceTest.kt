@@ -7,6 +7,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.media3.common.PlaybackException
 import androidx.test.platform.app.InstrumentationRegistry
 import okhttp3.Dns
 import okhttp3.mockwebserver.*
@@ -62,6 +63,20 @@ class PlaybackGestureDeviceTest {
     private fun tap(right:Boolean,count:Int=1) {
         val (x,y)=point(right)
         if(count==2) {
+            if(!directTouch && android.os.Build.VERSION.SDK_INT>=31) {
+                // UiAutomation waits for window animations around an injected DOWN even
+                // in async mode. Two shell input taps reach InputDispatcher at touch speed.
+                fun shellTap() {
+                    instrument.uiAutomation.executeShellCommand("cmd input tap ${x.toInt()} ${y.toInt()}").use {
+                        android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes()
+                    }
+                }
+                shellTap()
+                SystemClock.sleep(80)
+                shellTap()
+                instrument.waitForIdleSync()
+                return
+            }
             val start=SystemClock.uptimeMillis()
             // Preserve the actual intended double-tap event times even when the
             // software emulator delays acknowledgement. Events still use InputDispatcher.
@@ -101,6 +116,13 @@ class PlaybackGestureDeviceTest {
     private fun capture(name:String) {
         val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"gestures").apply { mkdirs() }
         instrument.uiAutomation.takeScreenshot()?.let { bitmap ->try { java.io.File(dir,"$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } finally { bitmap.recycle() } }
+    }
+    @Test fun decoderAndNetworkFailuresExplainTheirKnownCause() {
+        fun label(code:Int,live:Boolean)=playbackFailureText(PlaybackException("fixture",null,code),live)
+        assertEquals("播放失败 · 视频解码失败",label(PlaybackException.ERROR_CODE_DECODING_FAILED,false))
+        assertEquals("播放失败 · 暂不支持该格式",label(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,false))
+        assertEquals("播放失败 · 网络连接中断",label(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,true))
+        assertEquals("直播播放失败",label(PlaybackException.ERROR_CODE_UNSPECIFIED,true))
     }
     @Test fun realTouchControlsSeekAndEpisodePanel() {
         androidx.test.espresso.IdlingPolicies.setMasterPolicyTimeout(120,TimeUnit.SECONDS)
@@ -208,9 +230,14 @@ class PlaybackGestureDeviceTest {
                 instrument.runOnMainSync { val d=model.state.value.detail!!;model.play(d.video,Episode("失败夹具","$base/failure.mp4")) }
                 waitFor { view(ui.activity.window.decorView)?.player?.playerError!=null }
                 observingActivePlayer=true
+                instrument.runOnMainSync { playerView().showController() }
                 ui.onNodeWithContentDescription("横屏全屏").performClick()
                 waitFor { ui.activity.window.decorView.width>ui.activity.window.decorView.height && !playerView().isControllerFullyVisible }
                 ui.onNodeWithTag("playbackError").assertIsDisplayed()
+                ui.onNodeWithText("播放失败 · 播放地址已失效").assertIsDisplayed()
+                ui.onNodeWithText("错误详情").performClick()
+                val httpError=ui.runOnIdle { playerView().player!!.playerError!!.errorCode }
+                ui.onNodeWithText("错误码 $httpError").assertIsDisplayed()
                 ui.onNodeWithText("重试播放").assertIsDisplayed()
                 ui.onNodeWithContentDescription("退出全屏").assertIsDisplayed()
                 stage("actual-http404-fullscreen-recovery-visible")
@@ -244,6 +271,30 @@ class PlaybackGestureDeviceTest {
                 waitFor { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }
                 instrument.runOnMainSync { assertEquals(0,PlaybackMetrics.samplers) }
                 stage("error-exit-and-release-passed")
+                instrument.runOnMainSync {
+                    val source=Source("直播测试","$base/live",SourceKind.LIVE)
+                    model.play(Video(source,"live","直播测试"),Episode("直播","$base/failure-live.mp4"))
+                }
+                waitFor { view(ui.activity.window.decorView)?.player?.playerError!=null }
+                instrument.runOnMainSync { playerView().showController() }
+                ui.onNodeWithContentDescription("横屏全屏").performClick()
+                ui.onNodeWithText("重新连接").assertIsDisplayed()
+                ui.onNodeWithText("换源").assertDoesNotExist()
+                ui.runOnIdle {
+                    val guidance=playerView().contentDescription.toString()
+                    assertTrue(guidance.contains("双击画面可暂停或播放"))
+                    assertFalse(guidance.contains("横滑") || guidance.contains("加速"))
+                }
+                ui.onNodeWithContentDescription("更多播放选项").performClick()
+                ui.onNodeWithText("全屏手势说明").performScrollTo().performClick()
+                ui.onNodeWithText(fullscreenGestureHelp(true)).performScrollTo().assertIsDisplayed()
+                ui.onNodeWithContentDescription("关闭").performClick()
+                val liveRequests=server.requestCount
+                ui.onNodeWithText("重新连接").performClick()
+                waitFor { server.requestCount>liveRequests && playerView().player?.playerError!=null }
+                instrument.runOnMainSync { model.stopPlayback() }
+                waitFor { model.state.value.playback==null && PlaybackMetrics.created==PlaybackMetrics.released }
+                stage("live-failure-reconnect-only-passed")
                 return
             }
             val initialFrames=PlaybackMetrics.frames
@@ -278,10 +329,13 @@ class PlaybackGestureDeviceTest {
             if(InstrumentationRegistry.getArguments().getString("controlsOnly")!="true") {
             tap(true,2)
             waitFor { playerView().player!!.playWhenReady }
+            stage("right-double-tap-started-playback")
             SystemClock.sleep(400)
             tap(false,2)
             waitFor { !playerView().player!!.playWhenReady }
+            stage("left-double-tap-paused-playback")
             val (holdX,holdY)=point(false)
+            instrument.runOnMainSync { playerView().chooseSpeed(1.25f) }
             fun holdSpeed(lock:Boolean) {
                 val start=SystemClock.uptimeMillis()
                 inject(MotionEvent.ACTION_DOWN,holdX,holdY,start)
@@ -290,15 +344,30 @@ class PlaybackGestureDeviceTest {
                 val endY=if(lock) holdY-60*ui.activity.resources.displayMetrics.density else holdY
                 if(lock) inject(MotionEvent.ACTION_MOVE,holdX,endY,start)
                 inject(MotionEvent.ACTION_UP,holdX,endY,start)
-                instrument.runOnMainSync { assertEquals(if(lock) 2f else 1f,playerView().player!!.playbackParameters.speed) }
+                instrument.runOnMainSync { assertEquals(if(lock) 2f else 1.25f,playerView().player!!.playbackParameters.speed) }
             }
             holdSpeed(false)
             holdSpeed(true)
-            val unlock=SystemClock.uptimeMillis()
-            inject(MotionEvent.ACTION_DOWN,holdX,holdY,unlock)
-            SystemClock.sleep(ViewConfiguration.getLongPressTimeout()+180L)
-            inject(MotionEvent.ACTION_UP,holdX,holdY,unlock)
-            instrument.runOnMainSync { assertEquals(1f,playerView().player!!.playbackParameters.speed);playerView().player!!.seekTo(2000) }
+            ui.onNodeWithTag("lockedSpeed").assertIsDisplayed()
+            instrument.runOnMainSync { playerView().showController() }
+            ui.onNodeWithText("选集").performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
+            ui.onNodeWithTag("lockedSpeed").assertIsDisplayed().performClick()
+            instrument.runOnMainSync {
+                assertEquals(1.25f,playerView().player!!.playbackParameters.speed)
+                playerView().hideController()
+            }
+            holdSpeed(true)
+            instrument.runOnMainSync { playerView().showController() }
+            ui.onNodeWithContentDescription("更多播放选项").performClick()
+            ui.onNodeWithTag("speed:1.5").performClick()
+            ui.onNodeWithContentDescription("关闭").performClick()
+            ui.onNodeWithTag("lockedSpeed").assertDoesNotExist()
+            instrument.runOnMainSync {
+                assertEquals(1.5f,playerView().player!!.playbackParameters.speed)
+                playerView().player!!.seekTo(2000)
+                playerView().hideController()
+            }
             val seeks=java.util.concurrent.atomic.AtomicInteger()
             val seekListener=object:androidx.media3.common.Player.Listener {
                 override fun onPositionDiscontinuity(oldPosition:androidx.media3.common.Player.PositionInfo,newPosition:androidx.media3.common.Player.PositionInfo,reason:Int) {
@@ -317,7 +386,9 @@ class PlaybackGestureDeviceTest {
             instrument.waitForIdleSync()
             capture("fullscreen-scrub")
             instrument.runOnMainSync { assertEquals(0,seeks.get()) }
-            inject(MotionEvent.ACTION_CANCEL,right,y,down)
+            inject(MotionEvent.ACTION_MOVE,x,y,down)
+            ui.onNodeWithText("松手取消").assertIsDisplayed()
+            inject(MotionEvent.ACTION_UP,x,y,down)
             ui.onNodeWithTag("scrubPreview").assertDoesNotExist()
             assertEquals("Cancelling a drag does not seek",0,seeks.get())
             val second=SystemClock.uptimeMillis()
@@ -344,6 +415,9 @@ class PlaybackGestureDeviceTest {
                 playerView().player!!.removeListener(seekListener)
             }
             if(InstrumentationRegistry.getArguments().getString("fullscreenGesturesOnly")=="true") return
+            // Earlier lock / options checks deliberately show and hide the controls.
+            // Measure only the visibility interval that starts with this single tap.
+            visibilityEvents.clear()
             val clicksBefore=clickStates.size
             tap(false);waitFor { clickStates.size>clicksBefore }
             assertTrue("Confirmed single tap showed controls",clickStates.last())
@@ -444,7 +518,9 @@ class PlaybackGestureDeviceTest {
             waitFor { playing.isPlaying }
             if(directTouch) instrument.runOnMainSync { ui.activity.onBackPressedDispatcher.onBackPressed() } else instrument.uiAutomation.executeShellCommand("input keyevent 4").use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
             waitFor { ui.activity.window.decorView.width<ui.activity.window.decorView.height }
-            ui.onNodeWithContentDescription("横屏全屏").assertExists()
+            waitFor { !playerView().verticalGesturesEnabled }
+            instrument.runOnMainSync { playerView().showController() }
+            ui.onNodeWithContentDescription("横屏全屏").assertIsDisplayed()
             instrument.runOnMainSync { assertSame(beforeExit,playerView());assertSame(playing,playerView().player);assertTrue(playing.playWhenReady) };stage("back-panel-then-fullscreen-passed")
             instrument.runOnMainSync { playerView().hideController();playerView().player!!.seekTo(2000) }
             val (heldX,heldY)=point(true);val heldDown=SystemClock.uptimeMillis()
@@ -474,6 +550,7 @@ class PlaybackGestureDeviceTest {
         } finally {
             watchdog.shutdownNow()
             val dir=java.io.File(instrument.targetContext.getExternalFilesDir(null),"gestures").apply { mkdirs() }
+            instrument.runOnMainSync { receivedInputs.forEach(::trace) }
             java.io.File(dir,"touch-timeline.txt").writeText(touchTimeline.joinToString("\n"))
             ui.runOnUiThread { ui.activity.window.callback=originalCallback;model.stopPlayback() };server.shutdown()
         }

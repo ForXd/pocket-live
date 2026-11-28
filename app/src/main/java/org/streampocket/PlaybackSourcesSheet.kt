@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package org.streampocket
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
@@ -32,9 +30,7 @@ import androidx.compose.ui.unit.dp
         immersive = fullscreen, tag = "alternativePanel", sideFraction = 305f / 720f) {
         Column(Modifier.fillMaxWidth().then(if (fullscreen) Modifier.fillMaxHeight() else Modifier)
             .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
-            if (fullscreen) Box(Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.Center) {
-                Spacer(Modifier.size(36.dp, 4.dp).background(secondary.copy(alpha = .6f), CircleShape))
-            }
+            if (fullscreen) Spacer(Modifier.height(8.dp))
             SheetHeading("切换同集来源", close)
             Text("${playback.video.title} · ${playback.episode.name}", Modifier.padding(bottom = 12.dp),
                 style = MaterialTheme.typography.bodySmall, color = secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)

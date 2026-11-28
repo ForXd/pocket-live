@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -137,19 +138,15 @@ internal val LocalDockInset = androidx.compose.runtime.compositionLocalOf { 0.dp
 }
 
 /** A single underline follows the active home tab. */
-@Composable internal fun SlidingTabs(index:Int,count:Int,modifier:Modifier=Modifier,
+@Composable internal fun SlidingTabs(pagePosition:()->Float,count:Int,modifier:Modifier=Modifier,
     content:@Composable RowScope.()->Unit) {
     BoxWithConstraints(modifier) {
         val cell = maxWidth/count
-        val position by androidx.compose.animation.core.animateDpAsState(
-            targetValue=cell*index,
-            animationSpec=androidx.compose.animation.core.spring(dampingRatio=.88f,stiffness=420f),
-            label="tabPosition")
         Box(Modifier.matchParentSize()) {
             val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
             Box(Modifier.align(androidx.compose.ui.Alignment.BottomStart)
-                .offset { androidx.compose.ui.unit.IntOffset((position+cell*.25f).roundToPx(),0) }
-                .width(cell*.5f).height(3.dp).background(MaterialTheme.colorScheme.primary,shape))
+                .offset { androidx.compose.ui.unit.IntOffset((cell*(pagePosition()+.25f)).roundToPx(),0) }
+                .width(cell*.5f).height(3.dp).testTag("discoveryTabIndicator").background(MaterialTheme.colorScheme.primary,shape))
         }
         Row(Modifier.fillMaxWidth().selectableGroup(),
             verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,content=content)

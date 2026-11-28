@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -61,28 +61,53 @@ import androidx.compose.ui.unit.dp
         Column(Modifier.fillMaxSize()) {
             val motion=LocalCardReturn.current
             TitleCover(detail.video,model,coverHeight,{motion.commit(model::closeDetail)})
-            Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=6.dp).smokeGlass(MaterialTheme.shapes.large).padding(horizontal=10.dp,vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                val fraction = recent?.takeIf { it.duration > 0 }?.let { (it.position.toFloat()/it.duration).coerceIn(0f,1f) }
-                Box(Modifier.size(56.dp),contentAlignment=Alignment.Center) {
-                    if(fraction!=null) CircularProgressIndicator(progress={fraction},modifier=Modifier.fillMaxSize().testTag("detailProgress"),
-                        strokeWidth=3.dp,color=MaterialTheme.colorScheme.tertiary,trackColor=MaterialTheme.colorScheme.surfaceVariant)
-                    FilledIconButton(onClick={primary?.let { model.play(detail.video,it) }},enabled=primary!=null,shape=CircleShape,
-                        modifier=Modifier.size(48.dp).testTag("detailPlay")) {
-                        Icon(painterResource(R.drawable.ic_play),if(recent!=null) "继续观看" else "立即播放")
+            val quality = primary?.quality
+            val resolution = when {
+                quality?.evidence == QualityEvidence.MEASURED -> quality.label
+                primary != null && verified?.url == primary.url && state.probeResolutions[detail.video.probeKey()] != null ->
+                    state.probeResolutions.getValue(detail.video.probeKey())
+                quality != null && quality.evidence != QualityEvidence.UNKNOWN -> quality.label
+                else -> detail.video.quality.takeIf {
+                    it.evidence == QualityEvidence.SOURCE_LABEL || it.evidence == QualityEvidence.API_DIMENSIONS
+                }?.label
+            }
+            val resume = recent != null && !recent.watchedToEnd && recent.position > 0 && detail.video.source.kind != SourceKind.LIVE
+            val playLabel = when {
+                primary == null -> "暂无可播放剧集"
+                recent?.watchedToEnd == true -> "重播${primary.name}"
+                resume -> "继续${primary.name}"
+                else -> primary.name
+            }
+            val metadata = listOfNotNull(
+                recent?.takeIf { resume }?.let { HistoryGroups.breakpointLabel(it.position) },
+                detail.video.source.name.takeIf { it.isNotBlank() }, resolution
+            ).joinToString(" · ")
+            Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=8.dp),
+                horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+                GlassButton(
+                    onClick = { primary?.let { model.play(detail.video, it) } },
+                    enabled = primary != null,
+                    modifier = Modifier.weight(1f).testTag("detailPlay"),
+                    shape = MaterialTheme.shapes.large,
+                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.onSurface, contentColor = MaterialTheme.colorScheme.surface),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        recent?.let(::watchFraction)?.let { fraction ->
+                            CircularProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxSize().testTag("detailProgress"),
+                                strokeWidth = 2.dp, color = LocalContentColor.current, trackColor = LocalContentColor.current.copy(alpha=.25f))
+                        }
+                        if (recent?.watchedToEnd == true) Icon(Icons.Default.Refresh, "重新播放", Modifier.size(20.dp))
+                        else Icon(painterResource(R.drawable.ic_play), if (resume) "继续观看" else "立即播放", Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(playLabel, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        if (metadata.isNotBlank()) Text(metadata, style = MaterialTheme.typography.bodySmall,
+                            color = LocalContentColor.current.copy(alpha=.82f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Column(Modifier.weight(1f)) {
-                    Text(if(recent!=null && primary!=null) "继续${primary.name}" else primary?.name ?: "暂无可播放剧集",style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    val quality = primary?.quality ?: VideoQuality()
-                    val resolution = when {
-                        quality.evidence==QualityEvidence.MEASURED -> quality.label
-                        primary!=null && verified?.url==primary.url && state.probeResolutions[detail.video.probeKey()]!=null -> state.probeResolutions.getValue(detail.video.probeKey())
-                        quality.evidence!=QualityEvidence.UNKNOWN -> quality.label
-                        else -> detail.video.quality.takeUnless { it.evidence==QualityEvidence.MEASURED }?.label ?: "清晰度未知"
-                    }
-                    Text("${detail.video.source.name} · $resolution",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                GlassButton(onClick={choosing=true},enabled=lines.isNotEmpty(),modifier=Modifier.testTag("detailEpisodes")) { Text("选集") }
+                GlassButton(onClick={choosing=true}, enabled=lines.isNotEmpty(), modifier=Modifier.testTag("detailEpisodes")) { Text("选集") }
             }
 
             if(synopsis.isNotEmpty()) Column(Modifier.fillMaxWidth().weight(1f).padding(horizontal=PageGutter,vertical=8.dp)) {

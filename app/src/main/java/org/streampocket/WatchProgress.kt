@@ -12,6 +12,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 
+internal val Playback.watchedToEnd: Boolean
+    get() = video.source.kind != SourceKind.LIVE && duration > 0 && position >= duration
+
 internal fun watchFraction(p:Playback):Float? = if(p.video.source.kind==SourceKind.LIVE || p.duration<=0) null
     else (p.position.toDouble()/p.duration).coerceIn(0.0,1.0).toFloat()
 internal fun episodeProgress(video:Video,history:List<History>):Map<String,Playback> = history
@@ -20,13 +23,15 @@ internal fun episodeProgress(video:Video,history:List<History>):Map<String,Playb
 
 /** Unknown legacy durations never imply an invented percentage or a loading animation. */
 @Composable internal fun WatchProgress(playback:Playback,modifier:Modifier=Modifier) {
-    if(playback.video.source.kind==SourceKind.LIVE) return
-    val fraction=watchFraction(playback)
-    val label=if(fraction==null) "已观看 · 时长未知" else if(fraction>=1f) "已看完" else "已看 ${(fraction*100).toInt()}%"
-    Column(modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-        LinearProgressIndicator(progress={fraction ?: 0f},modifier=Modifier.fillMaxWidth().height(3.dp).semantics { stateDescription=label },
-            color=MaterialTheme.colorScheme.tertiary,trackColor=MaterialTheme.colorScheme.onSurface.copy(alpha=.12f),gapSize=0.dp,drawStopIndicator={})
-    }
+    val fraction = watchFraction(playback) ?: return
+    if (playback.watchedToEnd) return
+    LinearProgressIndicator(
+        progress = { fraction }, modifier = modifier.fillMaxWidth().height(3.dp)
+            .semantics { stateDescription = "已看 ${(fraction * 100).toInt()}%" },
+        color = MaterialTheme.colorScheme.tertiary,
+        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha=.12f),
+        gapSize = 0.dp, drawStopIndicator = {}
+    )
 }
 
 /** Keep watch progress separate from selection and the episode title. */

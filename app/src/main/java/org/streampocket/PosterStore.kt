@@ -130,10 +130,12 @@ class PosterStore(private val directory: File) {
         })
     }
 }
-@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier,shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false,frosted:Boolean=false) {
+internal data class PosterArtwork(val bitmap: Bitmap?, val thumbnail: Bitmap?, val finished: Boolean)
+
+@Composable internal fun rememberPosterArtwork(video: Video, model: AppModel, large: Boolean, frosted: Boolean = false): PosterArtwork {
     val lifecycle=androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val refresh by model.posterRefresh.collectAsStateWithLifecycle()
-    key(video.poster, large, frosted, model) {
+    return key(video.poster, large, frosted, model) {
         var bitmap by remember { mutableStateOf(if(frosted) null else model.posters.cached(video.poster,large)) }
         val thumbnail = remember { if (large && !frosted) model.posters.cached(video.poster) else null }
         var finished by remember { mutableStateOf(false) }
@@ -147,24 +149,39 @@ class PosterStore(private val directory: File) {
                 }
             }
         }
-        val opacity by animateFloatAsState(if(bitmap==null) 0f else 1f,tween(140),label="posterReveal")
-        val highlight=MaterialTheme.colorScheme.onSurface.copy(alpha=.09f)
-        val glass=remember(highlight,containerColor) { Brush.linearGradient(listOf(highlight,containerColor)) }
-        Surface(modifier,shape=shape,color=if(frosted) androidx.compose.ui.graphics.Color.Transparent else containerColor) {
-            Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) {
-                if(!frosted && opacity<1f) {
-                    Box(Modifier.matchParentSize().background(glass))
-                    val loading = bitmap == null && !finished && !video.poster.isNullOrBlank()
-                    if (thumbnail != null) {
-                        Image(thumbnail.asImageBitmap(), null, Modifier.matchParentSize().blur(12.dp), contentScale = contentScale)
-                    } else if (loading) {
-                        Image(painterResource(R.drawable.poster_mist), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop, alpha = .52f)
-                    }
-                    if (loading) Spacer(Modifier.matchParentSize().lightSweep(rememberLightSweep()))
-                    if(finished && bitmap==null) Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+        PosterArtwork(bitmap, thumbnail, finished)
+    }
+}
+
+@Composable fun Poster(video:Video,model:AppModel,modifier:Modifier=Modifier,shape:androidx.compose.ui.graphics.Shape=MaterialTheme.shapes.small,containerColor:androidx.compose.ui.graphics.Color=MaterialTheme.colorScheme.surfaceContainerHighest,contentScale:ContentScale=ContentScale.Crop,large:Boolean=false,frosted:Boolean=false) {
+    val artwork=rememberPosterArtwork(video, model, large, frosted)
+    key(video.poster, large, frosted, model) {
+        PosterImage(video, artwork, modifier, shape, containerColor, contentScale, frosted)
+    }
+}
+
+@Composable internal fun PosterImage(video: Video, artwork: PosterArtwork, modifier: Modifier,
+    shape: androidx.compose.ui.graphics.Shape, containerColor: androidx.compose.ui.graphics.Color,
+    contentScale: ContentScale, frosted: Boolean = false) {
+    val (bitmap, thumbnail, finished)=artwork
+    val opacity by animateFloatAsState(if(bitmap==null) 0f else 1f,tween(140),label="posterReveal")
+    val highlight=MaterialTheme.colorScheme.onSurface.copy(alpha=.09f)
+    val glass=remember(highlight,containerColor) { Brush.linearGradient(listOf(highlight,containerColor)) }
+    Surface(modifier,shape=shape,color=if(frosted) androidx.compose.ui.graphics.Color.Transparent else containerColor) {
+        Box(Modifier.fillMaxSize(),contentAlignment=androidx.compose.ui.Alignment.Center) {
+            if(!frosted && opacity<1f) {
+                Box(Modifier.matchParentSize().background(glass))
+                val loading = bitmap == null && !finished && !video.poster.isNullOrBlank()
+                if (thumbnail != null) {
+                    val thumbModifier = if (finished && bitmap==null) Modifier.matchParentSize() else Modifier.matchParentSize().blur(12.dp)
+                    Image(thumbnail.asImageBitmap(), null, thumbModifier, contentScale = contentScale)
+                } else if (loading || bitmap!=null) {
+                    Image(painterResource(R.drawable.poster_mist), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop, alpha = .52f)
                 }
-                bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",Modifier.fillMaxSize(),contentScale=contentScale,alpha=opacity) }
+                if (loading) Spacer(Modifier.matchParentSize().lightSweep(rememberLightSweep()))
+                if(finished && bitmap==null && thumbnail==null) Icon(painterResource(R.drawable.ic_poster),"暂无封面",Modifier.size(32.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            bitmap?.let { Image(it.asImageBitmap(),if(frosted) null else "${video.title} 封面",Modifier.fillMaxSize(),contentScale=contentScale,alpha=opacity) }
         }
     }
 }

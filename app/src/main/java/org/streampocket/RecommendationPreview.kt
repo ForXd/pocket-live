@@ -8,7 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
@@ -37,29 +36,33 @@ internal fun recommendationMetadata(json:String):String? {
     val motion=LocalCardReturn.current
     val back=close ?: { motion.commit(model::closeRecommendation) }
     val wide=close==null && windowSizeDp().width.value>=700
-    val largeFont=androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f
+    val metadata = listOfNotNull(video.source.name.takeIf { it.isNotBlank() }, s.recommendMetadata?.takeIf { it.isNotBlank() }).joinToString(" · ")
     Surface(Modifier.fillMaxSize().testTag("recommendationPreview")) {
         Column(if(close==null) Modifier.safeDrawingPadding() else Modifier.fillMaxSize()) {
             if(wide) BackHeading("影片介绍","返回推荐",back)
             if(!wide) TitleCover(video,model,if(close==null) minOf(windowSizeDp().height*.32f,290.dp) else minOf(windowSizeDp().height*.26f,210.dp),back, label = "返回推荐")
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal=PageGutter,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
-                if(wide) FlowRow(maxItemsInEachRow=if(largeFont && !wide) 1 else 2,horizontalArrangement=Arrangement.spacedBy(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                if(wide) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(20.dp)) {
                     Box {
-                        Poster(video,model,Modifier.width(220.dp).aspectRatio(.7f).posterDestination(),shape=MaterialTheme.shapes.large,contentScale=ContentScale.Crop,large=true)
+                        Poster(video,model,Modifier.width(180.dp).aspectRatio(.7f).posterDestination(),shape=MaterialTheme.shapes.large,contentScale=ContentScale.Crop,large=true)
                         RecommendationRating(video,Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(8.dp))
                     }
-                    Column(if(largeFont && !wide) Modifier.fillMaxWidth() else Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text(video.title,style=MaterialTheme.typography.headlineMedium)
                         if(video.subtitle.isNotBlank()) Text(video.subtitle,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("豆瓣推荐",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        if(metadata.isNotBlank()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else if (metadata.isNotBlank()) {
+                    Text(metadata, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("剧情简介", style = MaterialTheme.typography.titleMedium)
+                    if (s.recommendPreviewLoading) LoadingStatus("正在获取简介…", Modifier.fillMaxWidth())
+                    else Text(s.recommendSynopsis ?: "暂未获取到简介。你可以重试，或继续搜索片源。", style = MaterialTheme.typography.bodyLarge)
+                    if (!s.recommendPreviewLoading && s.recommendSynopsis == null) {
+                        GlassTextButton(onClick = { model.openRecommendation(video) }) { Text("重试简介") }
                     }
                 }
-                if(!wide) { Text("影片介绍",style=MaterialTheme.typography.titleLarge); Text(video.source.name,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                s.recommendMetadata?.let { Text(it,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                Text("剧情简介",style=MaterialTheme.typography.titleLarge)
-                if(s.recommendPreviewLoading) { LoadingStatus("正在获取简介…",Modifier.fillMaxWidth()) }
-                else Text(s.recommendSynopsis ?: "暂未获取到简介。你可以重试，或继续搜索片源。",style=MaterialTheme.typography.bodyLarge)
-                if(!s.recommendPreviewLoading && s.recommendSynopsis==null) GlassTextButton(onClick={model.openRecommendation(video)}) { Text("重试简介") }
             }
             GlassButton(colors=ButtonDefaults.filledTonalButtonColors(containerColor=MaterialTheme.colorScheme.onSurface,contentColor=MaterialTheme.colorScheme.surface),onClick={search(video.title)},modifier=Modifier.fillMaxWidth().padding(horizontal=PageGutter,vertical=16.dp).testTag("searchRecommendationSources")) { Text("搜索片源") }
         }

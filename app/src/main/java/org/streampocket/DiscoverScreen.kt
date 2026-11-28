@@ -183,7 +183,7 @@ import androidx.compose.ui.text.style.TextOverflow
                 if(showHeader) Row(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("recommendToolbar"),
                     horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) {
-                        SlidingTabs(selectedTab,3,Modifier.widthIn(max=if(LocalDensity.current.fontScale>1.3f) 236.dp else 198.dp)) {
+                        SlidingTabs({ pager.currentPage + pager.currentPageOffsetFraction },3,Modifier.widthIn(max=if(LocalDensity.current.fontScale>1.3f) 236.dp else 198.dp)) {
                             listOf("推荐","分类","直播").forEachIndexed { index,label ->
                                 DiscoveryTab(label,selectedTab==index,if(index==2) Modifier.testTag("liveTab") else Modifier) {
                                     scope.launch { pager.animateScrollToPage(index) }
@@ -507,23 +507,50 @@ import androidx.compose.ui.text.style.TextOverflow
     }
 }
 
-/** Artwork-backed glass information plate; text is never part of the blurred layer. */
+/** A portrait cover keeps its original aspect ratio inside the same 16:9 feature slot. */
 @Composable private fun FeaturedRecommendation(video:Video,model:AppModel,onClick:()->Unit) {
     val anchor = rememberPosterAnchor(video, model, large=true)
-    DiscoveryCard(modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}"),onClick={ anchor.open(video, onClick) }) {
-        Box(anchor.modifier) {
-        Poster(video,model,Modifier.fillMaxWidth().aspectRatio(16f / 9f).testTag("recommendPoster:${video.id}"),shape=RectangleShape,contentScale=ContentScale.Crop,large=true)
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.12f),Color.Black.copy(alpha=.8f)))))
-        Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(20.dp),verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                RecommendationRating(video)
-                Text(video.title,Modifier.testTag("recommendTitle:${video.id}"),style=MaterialTheme.typography.headlineLarge,color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
-
-            }
-            Surface(shape=androidx.compose.foundation.shape.CircleShape,color=Color.Black.copy(alpha=.42f),contentColor=Color.White) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,"查看简介",Modifier.size(48.dp).padding(12.dp))
-            }
+    val artwork = rememberPosterArtwork(video,model,large=true)
+    val image = artwork.bitmap ?: artwork.thumbnail
+    val portrait = image != null && image.width < image.height
+    val tint = remember(image) {
+        if (image == null || !portrait) Color(0xff22282c) else {
+            // Blend two samples into charcoal so even a white poster supports white type.
+            val first = Color(image.getPixel(image.width / 4, image.height / 3))
+            val second = Color(image.getPixel(image.width * 3 / 4, image.height * 2 / 3))
+            val sampled = androidx.compose.ui.graphics.lerp(first, second, .5f)
+            androidx.compose.ui.graphics.lerp(Color(0xff171c20), sampled.copy(alpha=1f), .22f)
         }
+    }
+    DiscoveryCard(modifier=Modifier.fillMaxWidth().testTag("recommendation:${video.id}"),onClick={ anchor.open(video, onClick) }) {
+        BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+            .testTag("recommendPoster:${video.id}").background(tint)) {
+            val portraitRatio = image?.takeIf { portrait }?.let { it.width.toFloat()/it.height }
+            val imageWidth = portraitRatio?.let { minOf(maxHeight*it, maxWidth*.45f) }
+            val imageModifier = if(portraitRatio!=null && imageWidth!=null) {
+                Modifier.align(Alignment.CenterStart).width(imageWidth).aspectRatio(portraitRatio).testTag("featuredPortraitArt")
+            } else Modifier.matchParentSize()
+            key(video.poster) {
+                PosterImage(video,artwork,imageModifier.then(anchor.modifier),RectangleShape,tint,
+                    if(portrait) ContentScale.Fit else ContentScale.Crop)
+            }
+            if (!portrait) Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent,
+                Color.Black.copy(alpha=.12f),Color.Black.copy(alpha=.8f)))))
+            val textArea = if(imageWidth!=null) {
+                Modifier.align(Alignment.CenterEnd).width(maxWidth-imageWidth).testTag("featuredPortraitInfo")
+            } else Modifier.align(Alignment.BottomStart).fillMaxWidth()
+            Row(textArea.padding(if(portrait) 12.dp else 20.dp),verticalAlignment=Alignment.Bottom,
+                horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    RecommendationRating(video)
+                    Text(video.title,Modifier.testTag("recommendTitle:${video.id}"),
+                        style=if(portrait) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineLarge,
+                        color=Color.White,maxLines=2,overflow=TextOverflow.Ellipsis)
+                }
+                Surface(shape=androidx.compose.foundation.shape.CircleShape,color=Color.Black.copy(alpha=.42f),contentColor=Color.White) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,"查看简介",Modifier.size(if(portrait) 32.dp else 48.dp).padding(if(portrait) 6.dp else 12.dp))
+                }
+            }
         }
     }
 }

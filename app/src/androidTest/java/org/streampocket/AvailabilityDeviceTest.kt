@@ -20,6 +20,7 @@ class AvailabilityDeviceTest {
     private val details=CopyOnWriteArrayList<String>()
     private val playlistRequests=java.util.concurrent.atomic.AtomicInteger()
     private val pendingRequests=java.util.concurrent.atomic.AtomicInteger()
+    @Volatile private var firstMediaGate:java.util.concurrent.CountDownLatch?=null
     @Before fun setup() {
         server=MockWebServer().apply { start() }
         val base="http://probe.test:${server.port}"
@@ -41,7 +42,10 @@ class AvailabilityDeviceTest {
                         else if(url.queryParameter("wd")=="慢速") MockResponse().setBody("""{"list":[{"vod_id":"slow","vod_name":"慢速剧集"}]}""")
                         else MockResponse().setBody("""{"list":[${(1..5).joinToString(",") { """{"vod_id":"$it","vod_name":"星河剧集"}""" }}]}""")
                     }
-                    "/bad-media.mp4" -> MockResponse().setBody("<html>error</html>")
+                    "/bad-media.mp4" -> {
+                        firstMediaGate?.await(10,java.util.concurrent.TimeUnit.SECONDS)
+                        MockResponse().setBody("<html>error</html>")
+                    }
                     "/pending.m3u8" -> { pendingRequests.incrementAndGet();MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE) }
                     "/stream/master.m3u8" -> { playlistRequests.incrementAndGet();MockResponse().setHeader("Content-Type","application/vnd.apple.mpegurl")
                         .setBody("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=500000\nchild.m3u8\n") }
@@ -70,12 +74,17 @@ class AvailabilityDeviceTest {
         ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.any { it.id==id } }
         ui.onNodeWithTag("searchVideo:$id").performScrollTo().performClick()
     }
-    @After fun close() { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
+    @After fun close() { firstMediaGate?.countDown();ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     @Test fun expandedWorkChecksEveryCandidateAndKeepsSourceHealthSeparate() {
+        firstMediaGate=java.util.concurrent.CountDownLatch(1)
         ui.onNodeWithTag("openSearch").performClick()
         ui.onNodeWithTag("searchInput").performTextInput("星河")
         ui.onNodeWithTag("searchInput").performImeAction()
         expandWork("1")
+        val sourceKey=model.state.value.results.first().source.key
+        val secondRow=ui.onNodeWithTag("sourceChoice:$sourceKey:2").assertIsNotEnabled()
+        val initialBounds=secondRow.getUnclippedBoundsInRoot()
+        firstMediaGate?.countDown()
         ui.waitUntil(45000) { model.state.value.probes.values.count { it==ProbeStatus.READY }==4 && !model.state.value.probeRunning && !model.state.value.searching }
         assertEquals(setOf("1","2","3","4","5"),details.toSet())
         assertEquals(1,model.state.value.probes.values.count { it==ProbeStatus.FAILED })
@@ -85,9 +94,10 @@ class AvailabilityDeviceTest {
         assertEquals(2,model.state.value.failures)
         val first=model.state.value.results.first { model.state.value.probes[it.probeKey()]==ProbeStatus.READY }.id
         ui.onNodeWithTag("probe:$first",useUnmergedTree=true).assertTextEquals("可播放")
-        val family=VideoGroups.familyKey(model.state.value.results.first())
-        val sourceList=hasScrollAction() and hasAnyAncestor(hasTestTag("searchGroup:$family"))
-        ui.onNode(sourceList).performScrollToIndex(4)
+        assertEquals("Trial completion may enable a source without moving its target",
+            initialBounds,secondRow.assertIsEnabled().getUnclippedBoundsInRoot())
+        val failedRow=ui.onNodeWithTag("sourceChoice:$sourceKey:1")
+        assertTrue("Failed source stays in its original first row",failedRow.getUnclippedBoundsInRoot().top<initialBounds.top)
         ui.onNodeWithTag("probe:1",useUnmergedTree=true).assertTextEquals("不可播放")
         captureUi(ui,"search-probes")
         if(androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("uxReview")=="true") {
@@ -108,9 +118,9 @@ class AvailabilityDeviceTest {
 
         ui.onNodeWithTag("nav:1").performClick()
         ui.onNodeWithText("资源测试").performClick()
-        ui.onNodeWithText("● 最近搜索成功",useUnmergedTree=true).assertIsDisplayed()
-        ui.onNodeWithText("● 最近搜索失败",useUnmergedTree=true).assertIsDisplayed()
-        ui.onNodeWithText("暂无搜索记录",useUnmergedTree=true).assertIsDisplayed()
+        ui.onNodeWithText("最近搜索成功",substring=true,useUnmergedTree=true).assertIsDisplayed()
+        ui.onNodeWithText("最近搜索失败",substring=true,useUnmergedTree=true).assertIsDisplayed()
+        ui.onNodeWithText("暂无搜索记录",substring=true,useUnmergedTree=true).assertIsDisplayed()
         assertTrue(ui.onNodeWithText("星河片库",useUnmergedTree=true).getUnclippedBoundsInRoot().top<ui.onNodeWithText("失败片库",useUnmergedTree=true).getUnclippedBoundsInRoot().top)
         captureUi(ui,"source-health")
     }

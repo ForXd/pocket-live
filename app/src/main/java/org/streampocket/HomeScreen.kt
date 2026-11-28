@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
     val presentation by androidx.compose.runtime.produceState(remember(query) { SearchPresentation(emptyList(),query,false) },s.results,query,showOthers) {
         value=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SearchPresentation(s.results,query,showOthers) }
     }
+    val waitingForResults = (s.searching && s.results.isEmpty()) || (s.results.isNotEmpty() && presentation.rows.isEmpty())
     val counts=presentation.counts
     val candidateGroups=presentation.groups
     val groups=remember(presentation,category) { presentation.groupsFor(category) }
@@ -86,13 +87,13 @@ import androidx.compose.ui.unit.dp
     val largeTypeLayout = windowSizeDp().width < 300.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale
     val dockInset = LocalDockInset.current
     Column(Modifier.fillMaxSize().padding(bottom=if(largeTypeLayout) dockInset else 0.dp)) {
-        if(s.results.isNotEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("searchToolbar")) {
+        if(s.searching || s.results.isNotEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal=PageGutter).testTag("searchToolbar")) {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 LazyRow(Modifier.weight(1f).testTag("searchCategories"),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     items(Genre.entries.filter { it != Genre.UNKNOWN || it == category || (counts[it] ?: 0) > 0 }) { option ->
                         ContentFilterChip(selected=category==option,onClick={category=option;model.requestSourceProbe(null)},
                             modifier=Modifier.testTag("searchCategory:${option.name}"),
-                            label={Text("${option.label} ${if(option==Genre.ALL) candidateGroups.size else counts[option] ?: 0}")})
+                            label={Text(if(waitingForResults) option.label else "${option.label} ${if(option==Genre.ALL) candidateGroups.size else counts[option] ?: 0}")})
                     }
                 }
                 Box {
@@ -105,8 +106,16 @@ import androidx.compose.ui.unit.dp
                     }
                 }
             }
-            if(presentation.matchCount < presentation.rows.size) GlassTextButton(onClick={showOthers=!showOthers;model.requestSourceProbe(null)},modifier=Modifier.testTag("showOtherResults")) {
-                Text(if(showOthers) "仅看匹配片名" else "展开其他源站结果 · ${presentation.rows.size-presentation.matchCount}")
+            Row(Modifier.fillMaxWidth().heightIn(min=48.dp), verticalAlignment=Alignment.CenterVertically,
+                horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) {
+                    SearchProgress(s.completed,s.total,s.searching,largeTypeLayout)
+                }
+                if(presentation.matchCount < presentation.rows.size) {
+                    GlassTextButton(onClick={showOthers=!showOthers;model.requestSourceProbe(null)},modifier=Modifier.testTag("showOtherResults")) {
+                        Text(if(showOthers) "仅看匹配" else "其他结果 · ${presentation.rows.size-presentation.matchCount}")
+                    }
+                }
             }
         }
         Box(Modifier.weight(1f)) {
@@ -114,19 +123,15 @@ import androidx.compose.ui.unit.dp
         verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().testTag("searchResults").pointerInput(model) {
             awaitPointerEventScope { while(true) { if(awaitPointerEvent().type==PointerEventType.Press) model.pinSearchOrder() } }
         }) {
-        if(s.searching) item(key="search-progress",span={GridItemSpan(maxLineSpan)}) {
-            SearchProgress(s.completed,s.total)
-        }
-        if(s.searching && s.results.isEmpty()) items(3,contentType={"searchPlaceholder"}) {
+        if(waitingForResults) items(3,contentType={"searchPlaceholder"}) {
             SearchResultPlaceholder()
-        }
-        if (s.results.size == QualityRules.RESULT_LIMIT) item(span={GridItemSpan(maxLineSpan)}) {
-            Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)
         }
         if(groups.isEmpty() && !s.searching && presentation.rows === s.results) item(span={GridItemSpan(maxLineSpan)}) {
             Column {
                 val unavailable=s.results.isEmpty() && s.failures>0
+                val stopped=s.results.isEmpty() && s.completed<s.total
                 val title=when {
+                    stopped -> "搜索已停止"
                     s.total==0 -> "还没有可搜索的来源"
                     s.results.isNotEmpty() -> "没有匹配的影片"
                     unavailable && s.failures==s.total -> "片源暂时无法响应"
@@ -134,19 +139,23 @@ import androidx.compose.ui.unit.dp
                     else -> "暂未找到结果"
                 }
                 val hint=when {
+                    stopped -> "已查找 ${s.completed}/${s.total} 个片源，可重新搜索。"
                     s.total==0 -> "添加订阅或启用来源后，再搜索这部影片。"
                     s.results.isNotEmpty() -> "当前已加载结果没有该题材，可切换题材或查看其他源站结果。"
                     unavailable && s.nonPublicDnsFailures>0 -> "${s.nonPublicDnsFailures} 个片源域名解析到非公网地址，请检查片源地址或代理的 DNS 设置。"
                     unavailable -> "${s.failures} 个片源请求失败，可重新搜索。"
                     else -> "试试其他关键词，或检查已启用的订阅来源。"
                 }
-                if(compact) { Text(title);if(unavailable) Text(hint,style=MaterialTheme.typography.bodySmall) } else EmptyPanel(title,hint,R.drawable.ic_search)
-                if(unavailable) GlassTextButton(onClick={model.search(query)}) { Text("重新搜索") }
+                if(compact) { Text(title);if(unavailable || stopped) Text(hint,style=MaterialTheme.typography.bodySmall) } else EmptyPanel(title,hint,R.drawable.ic_search)
+                if(unavailable || stopped) GlassTextButton(onClick={model.search(query)}) { Text("重新搜索") }
                 GlassButton(shape=MaterialTheme.shapes.medium,onClick=subscriptions) { Text("管理订阅") }
             }
         }
-        items(groups,key={VideoGroups.familyKey(it.first())}) { group ->
+        if(!waitingForResults) items(groups,key={VideoGroups.familyKey(it.first())}) { group ->
             SearchWorkCard(group,s,model,s.probeWork,{model.requestSourceProbe(it)},Modifier.animateItem(fadeInSpec=tween(140),placementSpec=null,fadeOutSpec=null))
+        }
+        if (s.results.size == QualityRules.RESULT_LIMIT) item(span={GridItemSpan(maxLineSpan)}) {
+            Text("已显示前 1000 条，可细化关键词", style = MaterialTheme.typography.bodySmall)
         }
     }
     val showTop by remember { derivedStateOf { grid.firstVisibleItemIndex>3 } }
@@ -155,14 +164,22 @@ import androidx.compose.ui.unit.dp
     }
 }
 
-@Composable private fun SearchProgress(completed:Int,total:Int) {
+@Composable private fun SearchProgress(completed:Int,total:Int,searching:Boolean,largeType:Boolean) {
     val tones = MaterialTheme.colorScheme
+    val label = when {
+        searching && completed==0 -> "正在查找片源…"
+        searching -> "已查找 $completed/$total 个片源"
+        completed<total -> "已停止 · 已查找 $completed/$total 个片源"
+        else -> "已查找 $completed 个片源"
+    }
     Column(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-        Text(if(completed==0) "正在查找片源…" else "已查找 $completed/$total 个片源",
-            style=MaterialTheme.typography.labelMedium,color=tones.onSurfaceVariant)
-        val bar=Modifier.fillMaxWidth().height(3.dp).testTag("searchProgress")
-        if(completed==0) LinearProgressIndicator(modifier=bar,color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
-        else LinearProgressIndicator(progress={completed.toFloat()/total.coerceAtLeast(1)},modifier=bar,
+        val lines = if(largeType) 2 else 1
+        Text(label,style=MaterialTheme.typography.labelMedium,color=tones.onSurfaceVariant,
+            minLines=lines,maxLines=lines,overflow=TextOverflow.Ellipsis)
+        val track=Modifier.fillMaxWidth().height(3.dp)
+        if(!searching) Spacer(track)
+        else if(completed==0) LinearProgressIndicator(modifier=track.testTag("searchProgress"),color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
+        else LinearProgressIndicator(progress={completed.toFloat()/total.coerceAtLeast(1)},modifier=track.testTag("searchProgress"),
             color=tones.onSurfaceVariant,trackColor=tones.outlineVariant)
     }
 }
@@ -185,13 +202,15 @@ import androidx.compose.ui.unit.dp
 @Composable private fun SearchWorkCard(group:List<Video>,state:UiState,model:AppModel,expandedWork:String?,expand:(String?)->Unit,modifier:Modifier) {
     var selectedWork by rememberSaveable(VideoGroups.familyKey(group.first())) { mutableStateOf(state.probeWork?.takeIf { key -> group.any { VideoGroups.workKey(it)==key } } ?: VideoGroups.workKey(group.first())) }
     LaunchedEffect(state.detail?.video) { state.detail?.video?.takeIf { VideoGroups.familyKey(it)==VideoGroups.familyKey(group.first()) }?.let { selectedWork=VideoGroups.workKey(it) } }
-    val options=VideoGroups.searchSources(selectedWork,group).ifEmpty { listOf(group.first()) }
+    val options=remember(selectedWork,group) { VideoGroups.searchSources(selectedWork,group).ifEmpty { listOf(group.first()) } }
     val expanded=expandedWork!=null && options.any { VideoGroups.workKey(it)==expandedWork }
+    val playable=options.count { state.probes[it.probeKey()]==ProbeStatus.READY }
+    val running=state.probeRunning && state.probeWork==selectedWork
     val video=options.first()
     val anchor = rememberPosterAnchor(video,model)
     ContentCard(modifier.fillMaxWidth().testTag("searchGroup:${VideoGroups.familyKey(video)}"), containerColor=MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(MediaCardInset),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
+            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { model.pinSearchOrder(); expand(if(expanded) null else selectedWork) }.testTag("searchVideo:${video.id}"),
                 horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
                 Poster(video,model,Modifier.size(68.dp,88.dp).then(anchor.modifier).testTag("searchPoster:${video.id}")
                     .clip(MaterialTheme.shapes.small).clickable(onClickLabel="查看详情") { anchor.open(video) { model.open(video) } },
@@ -200,25 +219,31 @@ import androidx.compose.ui.unit.dp
                     Text(video.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
                     val metadata=SearchRules.metadata(video)
                     if(metadata.isNotEmpty()) Text(metadata,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
-                    Text("${options.size} 个来源",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    val summary=if(expanded && options.size>1) "${options.size} 个来源 · $playable 个可播放" else "${options.size} 个来源"
+                    Text(summary,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Icon(if(expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,if(expanded) "收起来源" else "查看来源",Modifier.align(Alignment.CenterVertically))
             }
             SeasonChips(group,video,{selectedWork=VideoGroups.workKey(it);expand(null)},search=true)
             if(expanded) {
                 ContentDivider()
-                val playable=options.count { state.probes[it.probeKey()]==ProbeStatus.READY }
-                val completed=playable+options.count { state.probes[it.probeKey()]==ProbeStatus.FAILED }
-                val running=state.probeRunning && state.probeWork==selectedWork
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    Text(if(running) "正在试播线路 · $playable 个来源可播放" else "$playable 个来源可播放",
-                        Modifier.weight(1f).testTag("probeSummary"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    if(!running && completed>playable) GlassTextButton(onClick={model.requestSourceProbe(selectedWork,retry=true)}) { Text("重新试播") }
+                // Search can append better-ranked providers or enrich missing metadata while a row is focused.
+                var previousKeys by rememberSaveable(selectedWork) { mutableStateOf(arrayListOf<String>()) }
+                val byKey = remember(options) { options.associateBy { it.probeKey() } }
+                val orderedKeys = remember(previousKeys,byKey) {
+                    (previousKeys.filter { it in byKey } + byKey.keys).distinct()
                 }
-                SourceChoices(options.sortedBy { if(state.probes[it.probeKey()]==ProbeStatus.READY) 0 else 1 },state.detail?.video,state.probes,state.probeResolutions,
+                SideEffect { if(previousKeys!=orderedKeys) previousKeys=ArrayList(orderedKeys) }
+                val orderedSources = remember(orderedKeys,byKey) { orderedKeys.map { byKey.getValue(it) } }
+                SourceChoices(orderedSources,state.detail?.video,state.probes,state.probeResolutions,
                     { choice -> model.playVerifiedSource(choice) },rowInset=0.dp,verifiedOnly=true,
                     playbackLabel={ choice -> val key=choice.probeKey()
                         state.probeEpisodes[key]?.let { listOfNotNull(state.probeLines[key],it.name).distinct().joinToString(" · ") } })
+                val failed = options.count { state.probes[it.probeKey()]==ProbeStatus.FAILED }
+                // The search may still be waiting for other providers after all visible trials finish.
+                if(failed>0 && (!running || playable+failed==options.size)) {
+                    GlassTextButton(onClick={model.requestSourceProbe(selectedWork,retry=true)}) { Text("重新试播") }
+                }
             }
         }
     }

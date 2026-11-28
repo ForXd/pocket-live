@@ -25,6 +25,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 
 private val Subscription.updateLabel: String get() = if (isLocalJson) "重新选择 JSON 文件" else "更新订阅"
 private fun Subscription.summary(disabled: Set<String>): String {
@@ -36,14 +39,14 @@ private fun Subscription.summary(disabled: Set<String>): String {
 private val groupStartShape = ContentCardShape.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp))
 private val groupEndShape = ContentCardShape.copy(topStart = CornerSize(0.dp), topEnd = CornerSize(0.dp))
 
-private fun groupRowShape(index: Int, lastIndex: Int): Shape = when {
+internal fun groupRowShape(index: Int, lastIndex: Int): Shape = when {
     lastIndex == 0 -> ContentCardShape
     index == 0 -> groupStartShape
     index == lastIndex -> groupEndShape
     else -> RectangleShape
 }
 
-@Composable private fun GroupRow(shape: Shape, showDivider: Boolean, content: @Composable () -> Unit) {
+@Composable internal fun GroupRow(shape: Shape, showDivider: Boolean, content: @Composable () -> Unit) {
     Surface(modifier = Modifier.fillMaxWidth(), shape = shape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column {
             content()
@@ -174,16 +177,25 @@ private fun groupRowShape(index: Int, lastIndex: Int): Shape = when {
         .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(source.name, style = MaterialTheme.typography.titleMedium)
-            Text(if (source.kind == SourceKind.LIVE) "直播 M3U" else "点播 API",
-                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-            Text(when (availability) { true -> "● 最近搜索成功"; false -> "● 最近搜索失败"; null -> "暂无搜索记录" },
-                style = MaterialTheme.typography.labelMedium,
-                color = when (availability) {
-                    true -> Color(if (colors.background.luminance() < 0.5f) 0xff79d69b else 0xff26864b)
-                    false -> colors.error
-                    null -> colors.onSurfaceVariant
-                })
+            Text(source.name, style = MaterialTheme.typography.titleMedium, maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            val summary = buildAnnotatedString {
+                append(if (source.kind == SourceKind.LIVE) "直播 M3U" else "点播 API")
+                append("  ")
+                when (availability) {
+                    true -> {
+                        val dot = if (colors.background.luminance() < .5f) Color(0xff79d69b) else Color(0xff26864b)
+                        withStyle(SpanStyle(color = dot)) { append("●") }
+                        append(" 最近搜索成功")
+                    }
+                    false -> {
+                        withStyle(SpanStyle(color = colors.error)) { append("●") }
+                        append(" 最近搜索失败")
+                    }
+                    null -> append("·  暂无搜索记录")
+                }
+            }
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
         PocketSwitch(enabled)
     }

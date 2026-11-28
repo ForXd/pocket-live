@@ -1,8 +1,16 @@
 package org.streampocket
 
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.platform.app.InstrumentationRegistry
@@ -57,7 +65,8 @@ class DetailLayoutDeviceTest {
     @Test fun oneScreenResumeAndEpisodeSheet() {
         ui.onNodeWithTag("detailPlay").assertIsDisplayed().assertContentDescriptionContains("继续观看")
         ui.onNodeWithText("继续第17集").assertIsDisplayed()
-        ui.onNodeWithTag("detailProgress").assertRangeInfoEquals(androidx.compose.ui.semantics.ProgressBarRangeInfo(.5f,0f..1f))
+        ui.onNodeWithTag("detailPlay").assert(hasText("已看到 00:05 · 星河片库"))
+        ui.onNodeWithTag("detailProgress", useUnmergedTree=true).assertRangeInfoEquals(androidx.compose.ui.semantics.ProgressBarRangeInfo(.5f,0f..1f))
         ui.onNodeWithText("展开简介").performClick()
         ui.onNodeWithText("收起简介").performClick()
         ui.onNodeWithTag("detailPlay").performClick()
@@ -75,14 +84,51 @@ class DetailLayoutDeviceTest {
         val fresh = Detail(video.copy(id="new"),"",listOf(Line("主线路",listOf(Episode("第1集","$base/main/1.mp4")))))
         ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(fresh,model) } } }
         ui.onNodeWithText("第1集").assertIsDisplayed()
-        ui.onNodeWithText("星河片库 · 清晰度未知").assertIsDisplayed()
-        ui.onNodeWithTag("detailProgress").assertDoesNotExist()
+        ui.onNodeWithText("星河片库").assertIsDisplayed()
+        ui.onNodeWithText("清晰度未知", substring = true).assertDoesNotExist()
+        ui.onNodeWithTag("detailProgress", useUnmergedTree=true).assertDoesNotExist()
         ui.onNodeWithTag("detailPlay").assertContentDescriptionContains("立即播放")
     }
     @Test fun emptyDetailDisablesPlayback() {
         ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(Detail(video,"",emptyList()),model) } } }
         ui.onNodeWithTag("detailPlay").assertIsNotEnabled()
         ui.onNodeWithTag("detailEpisodes").assertIsNotEnabled()
+    }
+    @Test fun longEpisodeAndSourceKeepSeparateTouchTargetsAtDoubleFontSize() {
+        val source = video.source.copy(name = "星河影视资料馆长片与纪录片精选来源".repeat(5))
+        val episode = Episode("第1集：星际航线之外的长夜与归途".repeat(4), "$base/main/1.mp4")
+        val fresh = Detail(video.copy(id="long", source=source), "遥远的观测站", listOf(Line("主线路", listOf(episode))))
+        ui.runOnUiThread { ui.activity.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 2f)) {
+                PocketTheme { Box(Modifier.width(320.dp).fillMaxHeight()) { DetailScreen(fresh, model) } }
+            }
+        } }
+        val play = ui.onNodeWithTag("detailPlay").assertHeightIsAtLeast(48.dp)
+        val chooser = ui.onNodeWithTag("detailEpisodes").assertHeightIsAtLeast(48.dp)
+        assertTrue(play.getUnclippedBoundsInRoot().right < chooser.getUnclippedBoundsInRoot().left)
+        for (text in listOf(episode.name, source.name)) {
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            ui.onNodeWithText(text, useUnmergedTree=true)
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertEquals(2, layouts.single().lineCount)
+            assertTrue(layouts.single().isLineEllipsized(1))
+        }
+        chooser.performTouchInput { click() }
+        ui.onNode(hasText(episode.name) and hasAnyAncestor(hasTestTag("playbackEpisodes"))).performClick()
+        ui.waitUntil(5000) { model.state.value.playback?.episode?.url == episode.url }
+    }
+    @Test fun finishedEpisodeRestartsWithoutShowingAnOldBreakpoint() {
+        val record = model.state.value.saved.history.single().playback
+        val detail = requireNotNull(model.state.value.detail)
+        ui.runOnUiThread { ui.activity.setContent { PocketTheme { DetailScreen(detail,model) } } }
+        ui.runOnIdle { model.checkpoint(record, record.duration, duration=record.duration) }
+        ui.waitUntil(10000) { model.state.value.saved.history.single().playback.watchedToEnd }
+        val replay = ui.onNodeWithTag("detailPlay").assertContentDescriptionContains("重新播放")
+        replay.assert(hasText("重播第17集"))
+        ui.onNodeWithText("已看到", substring=true).assertDoesNotExist()
+        replay.performTouchInput { click() }
+        ui.waitUntil(5000) { model.state.value.playback?.episode?.url == record.episode.url }
+        assertEquals(0L, model.state.value.playback!!.position)
     }
     @Test fun interactiveReviewSession() {
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("reviewSession")=="true")

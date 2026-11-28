@@ -145,7 +145,7 @@ class PlaybackController(
                             recovery=null
                             if(player===p && !closed) recoverDecoder(shouldPlay)
                         }
-                    } else failed("播放失败（${error.errorCode}），可重试或快速换源")
+                    } else failed(playbackFailureText(error,liveMedia))
                 }
                 override fun onIsPlayingChanged(value: Boolean) { if(player===p && !closed) playing(value) }
                 override fun onPlaybackStateChanged(state: Int) {
@@ -173,10 +173,10 @@ class PlaybackController(
             prefetch.setActive(p.playWhenReady)
             p.prepare()
             } catch(e:CancellationException) { throw e }
-            catch(_:Exception) { if(player===p && !closed) { stop(false);failed("播放器初始化失败，可重试或快速换源") } }
+            catch(_:Exception) { if(player===p && !closed) { stop(false);failed("播放器初始化失败") } }
             }
             startSampling(p)
-        } catch(e: Exception) { stop(false); failed("播放器初始化失败，可重试或快速换源") }
+        } catch(e: Exception) { stop(false); failed("播放器初始化失败") }
     }
     private fun startSampling(p: ExoPlayer) {
         sample=scope.launch {
@@ -427,7 +427,24 @@ internal class DiagnosticAudioSink(sink:androidx.media3.exoplayer.audio.AudioSin
     }
 }
 
-/** Bounded technical fields only: no exception objects, URLs, headers or arbitrary messages. */
+@androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
+internal fun playbackFailureText(error:PlaybackException,live:Boolean):String {
+    val response=generateSequence(error.cause) { it.cause }.take(8)
+        .filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>()
+        .firstOrNull()?.responseCode
+    return when {
+        response==404 || response==410 -> "播放失败 · 播放地址已失效"
+        response==401 || response==403 -> "播放失败 · 来源拒绝访问"
+        error.errorCode==PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "播放失败 · 连接超时"
+        error.errorCode==PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "播放失败 · 网络连接中断"
+        error.errorCode==PlaybackException.ERROR_CODE_DECODING_FAILED -> "播放失败 · 视频解码失败"
+        error.errorCode==PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
+            error.errorCode==PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED -> "播放失败 · 暂不支持该格式"
+        live -> "直播播放失败"
+        else -> "播放失败"
+    }
+}
+
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
 internal fun PlaybackException.failedDecoderName():String? =
     if(errorCode==PlaybackException.ERROR_CODE_DECODING_FAILED)
@@ -436,6 +453,7 @@ internal fun PlaybackException.failedDecoderName():String? =
             .firstOrNull()?.codecInfo?.name
     else null
 
+/** Bounded technical fields only: no exception objects, URLs, headers or arbitrary messages. */
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 internal fun playbackErrorDiagnostic(error: PlaybackException): String {
     val format=(error as? ExoPlaybackException)?.rendererFormat

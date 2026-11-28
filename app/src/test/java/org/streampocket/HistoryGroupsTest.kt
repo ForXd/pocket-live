@@ -29,7 +29,16 @@ class HistoryGroupsTest {
     @Test fun liveResumeAndLabelNeverPromiseVodProgress() {
         val live=h("channel",1,1,source.copy(kind=SourceKind.LIVE))
         assertEquals(0L,HistoryGroups.resume(live).position)
-        assertEquals("直播 · 打开当前直播",HistoryGroups.progress(live))
+        assertEquals("打开当前直播",HistoryGroups.progress(live))
+    }
+    @Test fun progressDescribesOnlyTheUsefulResumeState() {
+        val item = h("series", 1, 0)
+        val unknown = item.copy(playback = item.playback.copy(position = 72000))
+        assertEquals("已看到 01:12", HistoryGroups.progress(unknown))
+        assertEquals("已看到 01:12", HistoryGroups.progress(unknown.copy(playback = unknown.playback.copy(duration = 120000))))
+        val complete = unknown.copy(playback = unknown.playback.copy(duration = 72000))
+        assertEquals("已看完", HistoryGroups.progress(complete))
+        assertEquals(0L, HistoryGroups.resume(complete).position)
     }
     @Test fun removingOneGroupRemovesAllSourcesAndPreservesOtherSeries() {
         val a=h("a",1,1);val a2=h("a",2,2);val b=h("b",1,3);val other=h("a",1,4,source.copy(url="https://two.example/api"))

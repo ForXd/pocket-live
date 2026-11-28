@@ -23,6 +23,7 @@ class UiLayoutDeviceTest {
         val server=MockWebServer();server.start()
         val base="http://fixture.test:${server.port}"
         val review=InstrumentationRegistry.getArguments().getString("designCapture")=="true"
+        val portraitHero = InstrumentationRegistry.getArguments().getString("portraitHero") == "true"
         val source=Source(if(review) "溪山源" else "示例来源","$base/api")
         val video=Video(source,"1","星河漫游", "更新至第12集",poster="$base/poster.png")
         val history=History(Playback(video,Episode("第3集","$base/video3.mp4"),72000,duration=180_000),System.currentTimeMillis())
@@ -46,7 +47,8 @@ class UiLayoutDeviceTest {
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse = if(request.path in listOf("/forest.jpg","/sea.jpg") || (review && request.path=="/poster.png")) {
                 val index=listOf("/poster.png","/forest.jpg","/sea.jpg").indexOf(request.path)
-                MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("review-$index.jpg").use { it.readBytes() }))
+                val asset = if (portraitHero && index == 0) "editorial-poster.jpg" else "review-$index.jpg"
+                MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open(asset).use { it.readBytes() }))
             } else if(request.path=="/live") MockResponse().setBody("#EXTM3U\n#EXTINF:-1 group-title=\"综合\",山海综合\n$base/video.mp4\n#EXTINF:-1 group-title=\"纪录\",人文纪实\n$base/video2.mp4\n#EXTINF:-1 group-title=\"影视\",城市影院\n$base/video3.mp4")
             else if(request.path=="/poster.png") MockResponse().setHeader("Content-Type","image/jpeg").setBody(okio.Buffer().write(InstrumentationRegistry.getInstrumentation().context.assets.open("editorial-poster.jpg").use { it.readBytes() }))
             else if(request.requestUrl?.encodedPath?.endsWith(".mp4")==true) MockResponse().setHeader("Content-Type","video/mp4").setBody(okio.Buffer().write(media))
@@ -136,6 +138,15 @@ class UiLayoutDeviceTest {
                 ui.onNodeWithContentDescription("豆瓣评分 8.2 分").assertExists()
                 ui.onNodeWithText("更新至第 6 集").assertExists()
                 ui.onNodeWithText("豆瓣 8.2",substring=true).assertDoesNotExist()
+                if (portraitHero) {
+                    val art = ui.onNodeWithTag("featuredPortraitArt", useUnmergedTree = true)
+                    ui.waitUntil(10_000) { ui.onAllNodesWithTag("featuredPortraitArt", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+                    val artBounds = art.getUnclippedBoundsInRoot()
+                    val infoBounds = ui.onNodeWithTag("featuredPortraitInfo", useUnmergedTree = true).getUnclippedBoundsInRoot()
+                    val hero = ui.onNodeWithTag("recommendPoster:1", useUnmergedTree = true).getUnclippedBoundsInRoot()
+                    assertTrue("Art and title occupy separate sides", artBounds.right <= infoBounds.left || infoBounds.right <= artBounds.left)
+                    assertEquals(16f/9f, (hero.right - hero.left) / (hero.bottom - hero.top), .03f)
+                }
                 capture("design-home")
                 for(label in listOf("推荐","分类","直播")) {
                     val results=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()

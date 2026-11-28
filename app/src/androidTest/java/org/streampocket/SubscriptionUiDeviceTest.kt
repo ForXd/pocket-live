@@ -3,6 +3,7 @@ package org.streampocket
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModel
 import androidx.test.platform.app.InstrumentationRegistry
@@ -25,7 +26,9 @@ class SubscriptionUiDeviceTest {
             Subscription("collection-$i",name,"$base/sub/$i",a.updated,listOf(Source(name,"$base/api/collection-$i")))
         }
         val subscriptions=listOf(a)+collections+listOf(b)
-        runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=subscriptions,allowHttp=true)) }
+        val lastRuleSource=collections.last().sources.single()
+        val lastPaths=listOf("/ads/first.ts","/ads/second.ts")
+        runBlocking { Storage(ui.activity.application).write(Saved(subscriptions=subscriptions,allowHttp=true,adRules=mapOf(lastRuleSource.key to lastPaths))) }
         val subscriptionResponse=MockResponse().setBody("""{"name":"我的影视订阅","sources":[{"name":"精选来源 1","url":"$base/api/1"},{"name":"新增来源","url":"$base/new"}]}""")
         server.dispatcher=object:Dispatcher() { override fun dispatch(request:RecordedRequest)=if(request.path=="/sub") subscriptionResponse else MockResponse().setBody("{\"list\":[],\"subjects\":[]}") }
         val restoration=StateRestorationTester(ui)
@@ -91,9 +94,11 @@ class SubscriptionUiDeviceTest {
             ui.onNodeWithTag("nav:3").performClick()
             ui.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsSourceRules"))
             ui.onNodeWithTag("settingsSourceRules").performClick()
-            ui.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsRule:${sources[0].key}"))
-            ui.onNodeWithTag("settingsRule:${sources[0].key}").performClick()
+            ui.onNodeWithTag("settingsList").performScrollToKey("rules:${lastRuleSource.key}")
+            ui.onNodeWithTag("settingsRule:${lastRuleSource.key}").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
+                .assert(hasText("已配置 2 条规则")).performTouchInput { click() }
             ui.onNodeWithText("当前源的广告精确路径").assertIsDisplayed()
+            ui.onNodeWithText(lastPaths.joinToString("\n")).assertIsDisplayed()
             ui.onNodeWithText("取消").performClick()
             ui.onNodeWithTag("nav:1").performClick()
             list.performScrollToKey("subscription:group-a")

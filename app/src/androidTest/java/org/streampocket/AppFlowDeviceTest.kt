@@ -377,6 +377,13 @@ class AppFlowDeviceTest {
             val v=findPlayerView(ui.activity.window.decorView)!!
             portraitWidth=v.width;portraitHeight=v.height
         }
+        fun revealControls() {
+            ui.runOnIdle {
+                val video = findPlayerView(ui.activity.window.decorView)!!
+                if (!video.isControllerFullyVisible) video.performClick()
+            }
+        }
+        revealControls()
         capture("portrait")
         ui.onNodeWithContentDescription("横屏全屏").performClick()
         ui.waitUntil(90000) { ui.activity.window.decorView.width>ui.activity.window.decorView.height }
@@ -403,8 +410,7 @@ class AppFlowDeviceTest {
         capture("landscape")
         val testPip=InstrumentationRegistry.getArguments().getString("fullscreenBackOnly")!="true"
         if(testPip) {
-            // Fullscreen code6 starts hidden; explicitly reveal the normal control layer.
-            ui.runOnIdle { findPlayerView(ui.activity.window.decorView)!!.performClick() }
+            revealControls()
             ui.onNodeWithContentDescription("进入画中画").performClick()
             ui.waitUntil(90000) { ui.activity.isInPictureInPictureMode }
             capture("pip")
@@ -418,6 +424,7 @@ class AppFlowDeviceTest {
             ui.activity.onBackPressedDispatcher.onBackPressed()
         }
         ui.waitUntil(90000) { ui.activity.window.decorView.width<ui.activity.window.decorView.height }
+        revealControls()
         ui.onNodeWithContentDescription("横屏全屏").assertIsDisplayed()
         ui.runOnIdle { assertSame(original,findPlayer(ui.activity.window.decorView));assertFalse(original.playWhenReady) }
         capture("restored")

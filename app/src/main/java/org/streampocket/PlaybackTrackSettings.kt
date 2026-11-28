@@ -13,7 +13,7 @@ import androidx.media3.common.TrackSelectionOverride
 
 /** Replaces Media3's opaque popup while retaining speed, audio and subtitle selection. */
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
-@Composable internal fun PlaybackTrackSettings(player:Player?) {
+@Composable internal fun PlaybackTrackSettings(player:Player?,chooseSpeed:(Float)->Unit) {
     if(player==null) return
     var revision by remember(player) { mutableIntStateOf(0) }
     DisposableEffect(player) {
@@ -25,7 +25,7 @@ import androidx.media3.common.TrackSelectionOverride
     Text("播放速度",style=MaterialTheme.typography.titleSmall)
     FlowRow(maxItemsInEachRow=3,horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         listOf(.5f,.75f,1f,1.25f,1.5f,2f).forEach { value ->
-            ContentFilterChip(selected=speed==value,onClick={player.setPlaybackSpeed(value)},modifier=Modifier.weight(1f).testTag("speed:$value")) { Text("${value}×") }
+            ContentFilterChip(selected=speed==value,onClick={chooseSpeed(value)},modifier=Modifier.weight(1f).testTag("speed:$value")) { Text("${value}×") }
         }
     }
     val tracks=remember(player,revision) { player.currentTracks.groups }

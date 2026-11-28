@@ -28,7 +28,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.*
+import kotlin.math.abs
 import androidx.compose.ui.platform.testTag
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.activity.compose.BackHandler
@@ -87,8 +88,11 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
     var knownDuration by remember(playback.sessionId) { mutableLongStateOf(playback.duration) }
     val scrub=remember(playback.sessionId) { mutableStateOf<ScrubPreview?>(null) }
     var speedHint by remember(playback.sessionId) { mutableStateOf("") }
+    var lockedSpeed by remember(playback.sessionId) { mutableStateOf<Float?>(null) }
+    var feedbackPosition by remember(playback.sessionId) { mutableStateOf<Alignment>(Alignment.Center) }
+    val accessibility=androidx.compose.ui.platform.LocalAccessibilityManager.current
     var gestureFeedback by remember(playback.sessionId) { mutableStateOf("") }
-    LaunchedEffect(gestureFeedback) { if(gestureFeedback.isNotEmpty()) { delay(1000);gestureFeedback="" } }
+    LaunchedEffect(gestureFeedback) { if(gestureFeedback.isNotEmpty()) { delay(accessibility?.calculateRecommendedTimeoutMillis(1000,containsText=true) ?: 1000);gestureFeedback="" } }
     var episodesOpen by remember { mutableStateOf(false) }
     var optionsOpen by remember { mutableStateOf(false) }
     var filterSummary by remember(playback.sessionId) { mutableStateOf("") }
@@ -145,7 +149,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
         episodesOpen=false
         optionsOpen=false
         gestureFeedback=""
-        playerView?.cancelGestures()
+        playerView?.cancelGestures(keepLockedSpeed=true)
         controller.checkpointNow()
         model.openAlternatives(playback.sessionId)
     }
@@ -160,7 +164,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
     val returningFromPlayer = !full && !pip && state.alternativeSession==null && !episodesOpen && !optionsOpen
     val motion=LocalCardReturn.current
     CardBackHandler(enabled=returningFromPlayer) { playerView?.cancelGestures();model.stopPlayback() }
-    BackHandler(enabled=!returningFromPlayer) { playerView?.cancelGestures(); if(state.alternativeSession!=null) model.closeAlternatives(playback.sessionId) else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) exitFullscreen() else model.stopPlayback() }
+    BackHandler(enabled=!returningFromPlayer) { playerView?.cancelGestures(keepLockedSpeed=state.alternativeSession!=null || episodesOpen || optionsOpen); if(state.alternativeSession!=null) model.closeAlternatives(playback.sessionId) else if(episodesOpen) episodesOpen=false else if(optionsOpen) optionsOpen=false else if(full) exitFullscreen() else model.stopPlayback() }
     val darkTheme=LocalPocketDark.current
     LaunchedEffect(full, pip,darkTheme) {
         val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
@@ -198,8 +202,8 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
     val previous=remember(state.detail,playback.sessionId,playback.episode) { adjacentEpisode(state.detail,playback,-1) }
     val next=remember(state.detail,playback.sessionId,playback.episode) { adjacentEpisode(state.detail,playback,1) }
     val slowBuffering by remember(playback.sessionId) { derivedStateOf { health.slow } }
-    val openEpisodes={ controller.checkpointNow();playerView?.cancelGestures();playerView?.hideController();episodesOpen=true }
-    val openOptions={ playerView?.cancelGestures();playerView?.hideController();optionsOpen=true }
+    val openEpisodes={ controller.checkpointNow();playerView?.cancelGestures(keepLockedSpeed=true);playerView?.hideController();episodesOpen=true }
+    val openOptions={ playerView?.cancelGestures(keepLockedSpeed=true);playerView?.hideController();optionsOpen=true }
     val leavePlayback={ playerView?.cancelGestures();motion.commit(model::stopPlayback) }
     val stepPrevious={ playerView?.cancelGestures();previous?.let { model.play(playback.video,it) };Unit }
     val stepNext={ playerView?.cancelGestures();next?.let { model.play(playback.video,it) };Unit }
@@ -210,9 +214,11 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
         if(!supportsPip) { error="设备不支持画中画";return }
         try {
             if(!activity.enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().apply {
-                setAspectRatio(android.util.Rational(16,9))
-                val bounds = android.graphics.Rect()
-                if (playerView?.getGlobalVisibleRect(bounds) == true) setSourceRectHint(bounds)
+                val view=playerView
+                val size=view?.player?.videoSize
+                setAspectRatio(pictureInPictureAspect(size?.width ?: 0,size?.height ?: 0,size?.pixelWidthHeightRatio ?: 1f))
+                val bounds=android.graphics.Rect()
+                if(view?.videoSurfaceView?.getGlobalVisibleRect(bounds)==true) setSourceRectHint(bounds)
                 // Home backgrounds playback. PiP is explicitly requested by the player button.
                 if (android.os.Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(false)
             }.build())) error="设备当前不允许画中画"
@@ -237,7 +243,11 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                         PocketClose({optionsOpen=false})
                     }
                     Column(Modifier.weight(1f,false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                        PlaybackTrackSettings(playerView?.player)
+                        PlaybackTrackSettings(playerView?.player) { speed -> playerView?.chooseSpeed(speed) }
+                        var showGestures by remember { mutableStateOf(false) }
+                        GlassTextButton(onClick={showGestures=!showGestures}) { Text(if(showGestures) "收起手势说明" else "全屏手势说明") }
+                        if(showGestures) Text(fullscreenGestureHelp(isLive || playerView?.player?.isCurrentMediaItemLive==true),
+                            style=MaterialTheme.typography.bodyMedium)
                         SettingSwitch("流畅优先","多清晰度优先 720p；单清晰度可通过换源改善",state.smoothPlayback,model::smoothPlayback)
                         BufferingLabel { health }
                         if(state.saved.adFilter) Text(filterSummary.ifBlank { "广告过滤已启用" }+" · 可在设置页关闭",style=MaterialTheme.typography.bodySmall)
@@ -260,7 +270,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
             }, ::showAlternatives, { model.closeAlternatives(playback.sessionId) })
     }
     if(episodesOpen && !pip && !full) {
-        LaunchedEffect(episodesOpen) { playerView?.cancelGestures() }
+        LaunchedEffect(episodesOpen) { playerView?.cancelGestures(keepLockedSpeed=true) }
         FrostedDialog(onDismissRequest={episodesOpen=false}) {
             BackHandler { episodesOpen=false }
             Surface(modifier=Modifier.widthIn(max=600.dp).fillMaxWidth(.94f),shape=MaterialTheme.shapes.extraLarge,color=Color.Transparent) {
@@ -272,7 +282,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                         }
                         PocketClose({episodesOpen=false})
                     }
-                    PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f,false))
+                    PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures(keepLockedSpeed=true);episodesOpen=false},Modifier.weight(1f,false))
                 }
             }
         }
@@ -329,7 +339,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                     }
                     (error ?: if(slowBuffering) "缓冲较慢" else null)?.let { problem ->
                         PlaybackNotice(problem,error==null,playback.video.source.name,isLive,
-                            retry={error=null;controller.retry()},alternatives=::showAlternatives)
+                            code=playerView?.player?.playerError?.errorCode,retry={error=null;controller.retry()},alternatives=::showAlternatives)
                     }
                 }
     }
@@ -363,10 +373,14 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                     controller.attach(it)
                     it.setShowBuffering(if(full && slowBuffering) PlayerView.SHOW_BUFFERING_NEVER else PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                     it.liveSource=isLive
-                    it.onSpeedHint={ hint -> speedHint=hint }
+                    it.onSpeedHint={ hint, locked -> speedHint=hint;lockedSpeed=locked }
+                    it.verticalFeedback={ left,message ->
+                        feedbackPosition=if(left) androidx.compose.ui.AbsoluteAlignment.CenterLeft else androidx.compose.ui.AbsoluteAlignment.CenterRight
+                        gestureFeedback=message
+                    }
                     it.onScrub={ preview -> scrub.value=preview }
                     it.seekRelative=controller::seekRelative
-                    it.feedback={ gestureFeedback=it }
+                    it.feedback={ feedbackPosition=Alignment.Center;gestureFeedback=it }
                     // AndroidView may survive an episode change: rebind the listener to
                     // this session's Compose state, just like the seek/feedback callbacks.
                     it.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility -> controlsVisible=visibility==android.view.View.VISIBLE })
@@ -394,8 +408,25 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                 }
             }
             if(full && !pip) ScrubIndicator(scrub,Modifier.align(Alignment.Center))
-            if((gestureFeedback.isNotEmpty() || speedHint.isNotEmpty()) && !pip && scrub.value==null) {
-                Text(gestureFeedback.ifEmpty { speedHint },color=Color.White,modifier=Modifier.align(Alignment.Center).offset(y=(-64).dp).background(Color.Black.copy(alpha=0.7f),androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal=24.dp,vertical=16.dp))
+            if(full && !pip && lockedSpeed!=null && !episodesOpen && !optionsOpen && state.alternativeSession==null) {
+                val top=if(showFullscreenHeader && (windowSize.width<760.dp || density.fontScale>1.3f) && !isLive) 110.dp else if(showFullscreenHeader) 58.dp else 8.dp
+                val label=formatBoost(lockedSpeed!!)
+                Box(Modifier.align(Alignment.TopEnd).then(fullscreenPadding).padding(top=top,end=PageGutter)
+                    .sizeIn(minWidth=48.dp,minHeight=48.dp).clickable(role=Role.Button) { playerView?.unlockSpeed() }
+                    .semantics { contentDescription="已锁定 $label，恢复原倍速" }.testTag("lockedSpeed"),
+                    contentAlignment=Alignment.Center) {
+                    Text(label,Modifier.background(Color.Black.copy(alpha=.72f),MaterialTheme.shapes.large).padding(horizontal=12.dp,vertical=5.dp),
+                        color=Color.White,style=MaterialTheme.typography.labelLarge)
+                }
+            }
+            if((gestureFeedback.isNotEmpty() || speedHint.isNotEmpty()) && !pip && scrub.value==null && !episodesOpen && !optionsOpen) {
+                val msg=speedHint.ifEmpty { gestureFeedback }
+                val position=if(speedHint.isNotEmpty()) Alignment.TopCenter else feedbackPosition
+                val inset=if(position==Alignment.TopCenter) Modifier.padding(top=60.dp)
+                    else if(position==Alignment.Center) Modifier.offset(y=(-64).dp) else Modifier.padding(horizontal=PageGutter)
+                val announce=if(msg=="倍速已锁定" || msg=="已恢复原倍速") Modifier.semantics { liveRegion=LiveRegionMode.Polite } else Modifier
+                Text(msg,color=Color.White,modifier=Modifier.align(position).then(fullscreenPadding).then(inset).then(announce)
+                    .background(Color.Black.copy(alpha=.72f),MaterialTheme.shapes.large).padding(horizontal=16.dp,vertical=8.dp))
             }
             }
             if(!full && !pip && !wide) {
@@ -409,7 +440,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                     if(!isLive) HorizontalDivider(Modifier.padding(horizontal=PageGutter),color=MaterialTheme.colorScheme.outlineVariant)
                     if(!isLive) Column(Modifier.weight(1f).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         Text("本线路选集",style=MaterialTheme.typography.titleMedium)
-                        PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f))
+                        PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures(keepLockedSpeed=true);episodesOpen=false},Modifier.weight(1f))
                     }
                 }
             }
@@ -425,7 +456,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                 }
                 PocketClose({episodesOpen=false})
             }
-            PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures();episodesOpen=false},Modifier.weight(1f))
+            PlayerCollectionBrowser(playback,matchingDetail,state,model,{playerView?.cancelGestures(keepLockedSpeed=true);episodesOpen=false},Modifier.weight(1f))
         }
         if(showFullscreenHeader) {
             val usableWidth=windowSize.width-with(density) { (horizontalInset*2).toDp() }
@@ -454,7 +485,7 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
         if(full && !pip) {
             (error ?: if(slowBuffering) "缓冲较慢" else null)?.let { problem ->
                 PlaybackNotice(problem, error==null, playback.video.source.name, isLive,
-                    retry={error=null;controller.retry()}, alternatives=::showAlternatives,
+                    code=playerView?.player?.playerError?.errorCode,retry={error=null;controller.retry()}, alternatives=::showAlternatives,
                     modifier=Modifier.align(Alignment.BottomCenter).then(fullscreenPadding)
                         .padding(start=PageGutter,end=PageGutter,bottom=76.dp).heightIn(max=windowSize.height*.55f))
             }
@@ -464,6 +495,22 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
 }
 }
 
+}
+
+internal fun videoDisplayAspect(width:Int,height:Int,pixelRatio:Float):Float {
+    if(width<=0 || height<=0 || !pixelRatio.isFinite() || pixelRatio<=0f) return 16f/9f
+    return width.toFloat()/height*pixelRatio
+}
+
+internal fun pictureInPictureAspect(width:Int,height:Int,pixelRatio:Float):android.util.Rational {
+    val aspect=videoDisplayAspect(width,height,pixelRatio)
+    // Android accepts ratios from 1:2.39 through 2.39:1. The common 4:3, 16:9
+    // and 9:16 formats can all be represented exactly with this denominator.
+    return when {
+        aspect<=100f/239f -> android.util.Rational(100,239)
+        aspect>=2.39f -> android.util.Rational(239,100)
+        else -> android.util.Rational(kotlin.math.round(aspect*90_000).toInt(),90_000)
+    }
 }
 
 @Composable private fun PlaybackStep(label: String, enabled: Boolean, action: () -> Unit, modifier: Modifier) {
@@ -488,35 +535,37 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
         if(visible.isNotEmpty()) grid.scrollToItem(if(range==currentRange) selected-start else 0)
         if(episodes.size>pageSize) rangeList.scrollToItem(range)
     }
-    val shortPanel = windowSizeDp().height < 360.dp && LocalDensity.current.fontScale > 1.3f
-    Column(modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        if(episodes.size>pageSize) {
-            val locate = {
-                if(range!=currentRange) range=currentRange else scope.launch { grid.scrollToItem(selected-start) }
-                Unit
-            }
-            val currentLabel = if(playingIndex>=0) "定位当前集 · ${episodes[selected].name}" else "回到开头"
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(ActionGap),verticalAlignment=Alignment.CenterVertically) {
-                LazyRow(state=rangeList,horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.weight(1f).testTag("playbackEpisodeRanges")) {
-                    items((episodes.size+pageSize-1)/pageSize) { index ->
-                        ContentFilterChip(selected=index==range,onClick={range=index},modifier=Modifier.testTag("playbackRange:$index"),
-                            label={Text("${index*pageSize+1}–${minOf((index+1)*pageSize,episodes.size)}")})
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val shortPanel=maxHeight<384.dp && LocalDensity.current.fontScale>1.3f
+        Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            if(episodes.size>pageSize) {
+                val locate = {
+                    if(range!=currentRange) range=currentRange else scope.launch { grid.scrollToItem(selected-start) }
+                    Unit
+                }
+                val currentLabel = if(playingIndex>=0) "定位当前集 · ${episodes[selected].name}" else "回到开头"
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(ActionGap),verticalAlignment=Alignment.CenterVertically) {
+                    LazyRow(state=rangeList,horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.weight(1f).testTag("playbackEpisodeRanges")) {
+                        items((episodes.size+pageSize-1)/pageSize) { index ->
+                            ContentFilterChip(selected=index==range,onClick={range=index},modifier=Modifier.testTag("playbackRange:$index"),
+                                label={Text("${index*pageSize+1}–${minOf((index+1)*pageSize,episodes.size)}")})
+                        }
+                    }
+                    if(shortPanel) GlassIconButton(onClick=locate,modifier=Modifier.testTag("playbackCurrent")) {
+                        Icon(painterResource(R.drawable.ic_locate),currentLabel)
                     }
                 }
-                if(shortPanel) GlassIconButton(onClick=locate,modifier=Modifier.testTag("playbackCurrent")) {
-                    Icon(painterResource(R.drawable.ic_locate),currentLabel)
+                if(!shortPanel) GlassTextButton(onClick=locate,modifier=Modifier.testTag("playbackCurrent")) { Text(currentLabel) }
+            }
+            LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 144.dp else 100.dp),state=grid,
+                modifier=Modifier.weight(1f,false).fillMaxWidth().testTag("playbackEpisodes"),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(visible,key={index,episode->"$index:${episode.url}"}) { _,episode ->
+                    val playing=episode.url==currentUrl
+                    EpisodeProgressButton(episode,history[episode.url],playing,{select(episode)},Modifier.fillMaxWidth().heightIn(min=52.dp))
                 }
             }
-            if(!shortPanel) GlassTextButton(onClick=locate,modifier=Modifier.testTag("playbackCurrent")) { Text(currentLabel) }
-        }
-    LazyVerticalGrid(columns=GridCells.Adaptive(if(LocalDensity.current.fontScale>1.3f) 144.dp else 100.dp),state=grid,
-        modifier=Modifier.weight(1f,false).fillMaxWidth().testTag("playbackEpisodes"),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        itemsIndexed(visible,key={index,episode->"$index:${episode.url}"}) { _,episode ->
-            val playing=episode.url==currentUrl
-            EpisodeProgressButton(episode,history[episode.url],playing,{select(episode)},Modifier.fillMaxWidth().heightIn(min=52.dp))
         }
     }
-}
 }
 
 /** Browsing another season/source is isolated from the active Media3 session until an episode is chosen. */
@@ -540,27 +589,29 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
             finally { loading=false }
         }
     }
-    val shortPanel = windowSizeDp().height < 360.dp && LocalDensity.current.fontScale > 1.3f
     val shown=browsing
     val selectedLine=shown?.lines?.getOrNull(lineIndex)
     val entries=selectedLine?.episodes.orEmpty()
     val progress=remember(chosen,state.saved.history,current) { episodeProgress(chosen,state.saved.history).toMutableMap().apply { if(chosen.probeKey()==current.video.probeKey() && current.duration>0) put(current.episode.url,current) } }
-    Column(modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        // Limit the source/season header's height so the episode grid always retains room.
-        val browseLabel = "正在浏览 · ${chosen.title}" + (if(loading || problem!=null) "" else " · ${entries.size} 集")
-        Column(Modifier.heightIn(max=if(shortPanel) 56.dp else if(LocalDensity.current.fontScale>1.3f) 104.dp else 160.dp).verticalScroll(rememberScrollState())) {
-            CollectionControls(chosen,state,model,{chosen=it})
-            if((shown?.lines?.size ?: 0)>1) LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                items(shown!!.lines.size) { index -> ContentFilterChip(selected=index==lineIndex,onClick={lineIndex=index},label={Text(shown.lines[index].name)}) }
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val shortPanel=maxHeight<384.dp && LocalDensity.current.fontScale>1.3f
+        Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            // Limit the source/season header's height so the episode grid always retains room.
+            val browseLabel = "正在浏览 · ${chosen.title}" + (if(loading || problem!=null) "" else " · ${entries.size} 集")
+            Column(Modifier.heightIn(max=if(shortPanel) 56.dp else if(LocalDensity.current.fontScale>1.3f) 104.dp else 160.dp).verticalScroll(rememberScrollState())) {
+                CollectionControls(chosen,state,model,{chosen=it})
+                if((shown?.lines?.size ?: 0)>1) LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    items(shown!!.lines.size) { index -> ContentFilterChip(selected=index==lineIndex,onClick={lineIndex=index},label={Text(shown.lines[index].name)}) }
+                }
+                if(shortPanel) Text(browseLabel,style=MaterialTheme.typography.labelMedium)
             }
-            if(shortPanel) Text(browseLabel,style=MaterialTheme.typography.labelMedium)
-        }
-        if(!shortPanel) Text(browseLabel,style=MaterialTheme.typography.labelMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-        when {
-            loading -> Text("正在加载 ${chosen.title}…",style=MaterialTheme.typography.bodySmall)
-            problem!=null -> { Text(problem!!,style=MaterialTheme.typography.bodySmall);TextButton(onClick={attempt++}) { Text("重试") } }
-            entries.isEmpty() -> Text("当前来源暂无剧集，可选择其他来源",style=MaterialTheme.typography.bodySmall)
-            else -> PlaybackEpisodeGrid(entries,current.episode.url,{episode -> shown?.let { if(it.video.probeKey()!=current.video.probeKey() || episode.url!=current.episode.url) model.playDetail(it,episode);close() }},progress,Modifier.weight(1f))
+            if(!shortPanel) Text(browseLabel,style=MaterialTheme.typography.labelMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+            when {
+                loading -> Text("正在加载 ${chosen.title}…",style=MaterialTheme.typography.bodySmall)
+                problem!=null -> { Text(problem!!,style=MaterialTheme.typography.bodySmall);TextButton(onClick={attempt++}) { Text("重试") } }
+                entries.isEmpty() -> Text("当前来源暂无剧集，可选择其他来源",style=MaterialTheme.typography.bodySmall)
+                else -> PlaybackEpisodeGrid(entries,current.episode.url,{episode -> shown?.let { if(it.video.probeKey()!=current.video.probeKey() || episode.url!=current.episode.url) model.playDetail(it,episode);close() }},progress,Modifier.weight(1f))
+            }
         }
     }
 }
@@ -583,13 +634,17 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                 Text(time(preview.position),style=MaterialTheme.typography.titleMedium)
                 Text(time(preview.duration),style=MaterialTheme.typography.labelMedium,color=Color.LightGray)
             }
+            Text(if(preview.atOrigin) "松手取消" else {
+                val delta=preview.position-preview.origin
+                (if(delta<0) "−" else "+")+time(abs(delta))
+            },style=MaterialTheme.typography.labelLarge,color=Color.White)
             LinearProgressIndicator(progress={preview.position.toFloat()/preview.duration},modifier=Modifier.fillMaxWidth(),
                 color=Color.White,trackColor=Color.DarkGray)
         }
     }
 }
 
-@Composable private fun PlaybackNotice(problem:String,buffering:Boolean,source:String,live:Boolean,
+@Composable private fun PlaybackNotice(problem:String,buffering:Boolean,source:String,live:Boolean,code:Int?,
     retry:()->Unit,alternatives:()->Unit,modifier:Modifier=Modifier) {
     Surface(modifier.widthIn(max=480.dp).fillMaxWidth().heightIn(max=240.dp).testTag("playbackError"),
         shape=MaterialTheme.shapes.large,color=Color(0xF21C2227),contentColor=Color.White) {
@@ -598,14 +653,20 @@ internal fun UiState.playerUiState()=PlayerUiState(detail,detailLoading,detailEr
                 Row(area,verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     if(buffering) CircularProgressIndicator(Modifier.size(16.dp),color=Color.White,strokeWidth=2.dp)
                     Column {
-                        Text(problem,style=MaterialTheme.typography.titleSmall)
+                        Text(problem,Modifier.semantics { liveRegion=LiveRegionMode.Polite },style=MaterialTheme.typography.titleSmall)
                         Text(source,style=MaterialTheme.typography.bodySmall,color=Color(0xFFD6DADE),maxLines=1,overflow=TextOverflow.Ellipsis)
+                        if(code!=null && !buffering) {
+                            var expanded by remember(problem,code) { mutableStateOf(false) }
+                            TextButton(onClick={expanded=!expanded}) {
+                                Text(if(expanded) "错误码 $code" else "错误详情",color=Color.White)
+                            }
+                        }
                     }
                 }
             }
             val actions:@Composable ()->Unit={
                 TextButton(onClick=retry,colors=ButtonDefaults.textButtonColors(contentColor=Color.White)) {
-                    Text(if(buffering) "重新连接" else "重试播放")
+                    Text(if(buffering || live) "重新连接" else "重试播放")
                 }
                 if(!live) FilledTonalButton(onClick=alternatives,colors=ButtonDefaults.filledTonalButtonColors(
                     containerColor=Color(0xFFE2E8EB),contentColor=Color(0xFF172126))) { Text("换源") }

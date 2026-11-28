@@ -1,7 +1,6 @@
 package org.streampocket
 
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModel
@@ -24,6 +23,7 @@ class QualityUiDeviceTest {
             override fun dispatch(request:RecordedRequest):MockResponse {
                 val path=request.requestUrl!!.encodedPath
                 return when(path) {
+                    "/recommend" -> MockResponse().setBody("""{"subjects":[]}""")
                     "/sub" -> MockResponse().setBody("""{"name":"公开演示片源","sources":[{"name":"山野纪录","url":"$base/720"},{"name":"城市光影","url":"$base/1080"},{"name":"开放影像","url":"$base/unknown"}]}""")
                     "/720" -> MockResponse().setBody("""{"list":[{"vod_id":"720","vod_name":"山野之间","vod_remarks":"720p"}]}""")
                     "/1080" -> MockResponse().setBody("""{"list":[{"vod_id":"1080","vod_name":"城市的清晨","vod_width":1920,"vod_height":1080}]}""")
@@ -39,13 +39,14 @@ class QualityUiDeviceTest {
             model=ViewModelProvider(ui.activity,object:ViewModelProvider.Factory {
                 override fun <T:ViewModel> create(modelClass:Class<T>):T {
                     @Suppress("UNCHECKED_CAST")
-                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) }) as T
+                    return AppModel(ui.activity.application,object:Dns { override fun lookup(hostname:String)=listOf(InetAddress.getByName("127.0.0.1")) },{_,_,_->"$base/recommend"}) as T
                 }
             })[AppModel::class.java]
             ui.activity.setContent { PocketTheme { Pocket(model) } }
         }
         try {
             ui.waitUntil(60000) { !model.state.value.loading }
+            ui.onNodeWithTag("openSearch").performClick()
             ui.onNodeWithTag("searchInput").performTextReplacement("演示")
             ui.onNodeWithContentDescription("开始搜索").performClick()
             ui.onNodeWithText("还没有可搜索的来源").assertIsDisplayed()
@@ -56,7 +57,7 @@ class QualityUiDeviceTest {
             capture("subscriptions-empty")
             ui.onNodeWithContentDescription("添加订阅").performClick()
             ui.onNodeWithTag("subscriptionInput").performTextReplacement("$base/sub")
-            ui.onNodeWithText("添加订阅").performScrollTo().performClick()
+            ui.onNode(hasText("添加订阅") and hasClickAction()).performScrollTo().performClick()
             ui.waitUntil(60000) { model.state.value.saved.subscriptions.size==1 }
             capture("subscriptions")
             ui.onNodeWithTag("nav:0").performClick()
@@ -65,15 +66,30 @@ class QualityUiDeviceTest {
             ui.waitUntil(60000) { !model.state.value.searching && model.state.value.results.size==3 }
             assertEquals(listOf("1080","720","unknown"),model.state.value.results.map { it.id })
             ui.onNodeWithTag("showOtherResults").performClick()
-            ui.onNodeWithText("1920×1080 · 接口自报").assertIsDisplayed()
-            ui.onNodeWithText("720p · 源站自报").assertIsDisplayed()
+            fun openSource(id:String):SemanticsMatcher {
+                val target=hasTestTag("searchVideo:$id")
+                ui.onNodeWithTag("searchResults").performScrollToNode(target)
+                ui.onNode(target).performClick()
+                val sourceKey=model.state.value.results.first { it.id==id }.source.key
+                val row=hasTestTag("sourceChoice:$sourceKey:$id")
+                ui.onNode(row).performScrollTo().assertIsDisplayed()
+                return hasAnyAncestor(row)
+            }
+            val api=openSource("1080")
+            ui.onNode(api and hasText("1920×1080 · 接口自报"),useUnmergedTree=true).assertIsDisplayed()
+            ui.waitUntil(10_000) { model.state.value.probes.values.contains(ProbeStatus.FAILED) }
+            ui.onNodeWithText("重新试播").performScrollTo().assertIsDisplayed()
+            val site=openSource("720")
+            ui.onNode(site and hasText("720p · 源站自报"),useUnmergedTree=true).assertIsDisplayed()
             capture("quality-results")
-            ui.onNodeWithTag("searchResults").performScrollToNode(hasText("清晰度未知"))
-            ui.onNodeWithText("清晰度未知").assertIsDisplayed()
+            val unknown=openSource("unknown")
+            ui.onNode(unknown and hasText("更新至第3集"),useUnmergedTree=true).assertIsDisplayed()
+            assertEquals(QualityEvidence.UNKNOWN,model.state.value.results.first { it.id=="unknown" }.quality.evidence)
+            ui.onAllNodes(unknown and hasText("自报",substring=true),useUnmergedTree=true).assertCountEquals(0)
             capture("quality-unknown")
             ui.onNodeWithTag("nav:2").performClick()
             capture("history-empty")
-        } finally { server.shutdown() }
+        } finally { ui.runOnUiThread { ui.activity.viewModelStore.clear() };server.shutdown() }
     }
     private fun capture(name:String) {
         val instrument=InstrumentationRegistry.getInstrumentation()

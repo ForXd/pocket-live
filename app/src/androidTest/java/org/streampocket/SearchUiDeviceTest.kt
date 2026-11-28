@@ -89,6 +89,7 @@ class SearchUiDeviceTest {
             assertTrue("Progress has its own row above the first skeleton",
                 bar.getUnclippedBoundsInRoot().bottom < ui.onAllNodesWithTag("searchResultPlaceholder").onFirst().getUnclippedBoundsInRoot().top)
             val skeleton = ui.onAllNodesWithTag("searchResultPlaceholder").onFirst()
+            val placeholderTop = skeleton.getUnclippedBoundsInRoot().top
             val skeletonFrame = skeleton.captureToImage().asAndroidBitmap()
             val firstFrame=bar.captureToImage().asAndroidBitmap()
             ui.mainClock.advanceTimeBy(420)
@@ -100,13 +101,19 @@ class SearchUiDeviceTest {
             ui.waitUntil(10000) { model.state.value.searching && model.state.value.completed==1 && model.state.value.results.size==4 }
             ui.onAllNodesWithTag("searchResultPlaceholder").assertCountEquals(0)
             ui.onNodeWithText("已查找 1/2 个片源").assertIsDisplayed()
-            ui.onNodeWithTag("searchVideo:exact").performClick()
-            ui.onNodeWithTag("sourceChoice:${source.key}:exact").assertExists()
+            val firstResult = ui.onNodeWithTag("searchVideo:exact")
+            assertEquals("First result replaces its placeholder in place",placeholderTop.value,
+                firstResult.getUnclippedBoundsInRoot().top.value,1f)
+            firstResult.performClick()
+            val sourceRow = ui.onNodeWithTag("sourceChoice:${source.key}:exact")
+            val partialRow = sourceRow.getUnclippedBoundsInRoot()
             capture("00-partial-search")
             slowSearch.countDown()
             ui.waitUntil(10000) { !model.state.value.searching && model.state.value.results.size==4 }
             ui.onAllNodesWithTag("searchResultPlaceholder").assertCountEquals(0)
             ui.onNodeWithTag("searchProgress").assertDoesNotExist()
+            ui.onNodeWithText("已查找 2 个片源").assertIsDisplayed()
+            assertEquals("Completing search leaves the selected source in place",partialRow,sourceRow.getUnclippedBoundsInRoot())
             ui.waitUntil(10000) { model.state.value.saved.recentSearches == listOf("星河") }
             assertEquals(listOf("星河"), kotlinx.coroutines.runBlocking { Storage(ui.activity.application).read() }.recentSearches)
             ui.onNodeWithTag("searchInput").performTextReplacement("")

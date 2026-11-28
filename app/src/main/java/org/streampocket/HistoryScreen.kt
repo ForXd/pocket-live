@@ -25,6 +25,7 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.ui.res.painterResource
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.*
@@ -128,20 +129,27 @@ import androidx.compose.ui.unit.dp
         items(entries,key={it.key.stableKey}) { group ->
             val shown = group.latest
             val id = group.key.stableKey
-                SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{pendingRemoval=group}) {
+            val playback = shown.playback
+            val title = VideoGroups.familyTitle(playback.video)
+            val live = playback.video.source.kind == SourceKind.LIVE
+            val finished = playback.watchedToEnd
+            SwipeHistoryCard(id,revealed==id,{revealed=if(it) id else null},{pendingRemoval=group}) {
                 Column(Modifier.fillMaxWidth().clip(ContentCardShape).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable { if(revealed==id) revealed=null else resume(shown) }.testTag("historyGroup:$id").padding(MediaCardInset)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         if(model!=null) Poster(shown.playback.video,model,Modifier.size(68.dp,88.dp),shape=MaterialTheme.shapes.small,contentScale=ContentScale.Crop)
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                            Text(VideoGroups.familyTitle(shown.playback.video),style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            Text(title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             val season=VideoGroups.identity(shown.playback.video).season
-                            Text(listOfNotNull(season?.let { "第 $it 季" },shown.playback.episode.name,shown.playback.video.source.name).joinToString(" · "),
+                            val description = listOfNotNull(season?.let { "第 $it 季" }, playback.episode.name.takeUnless { live && it == title }, playback.video.source.name)
+                                .filter { it.isNotBlank() }.joinToString(" · ")
+                            Text(description,
                                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             Text(HistoryGroups.progress(shown),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             WatchProgress(shown.playback)
                         }
                         GlassIconButton(onClick={resume(shown)},modifier=Modifier.align(Alignment.CenterVertically).testTag("continue:$id")) {
-                            Icon(painterResource(R.drawable.ic_play),"继续观看")
+                            if (finished) Icon(Icons.Default.Refresh, "重新播放")
+                            else Icon(painterResource(R.drawable.ic_play), if (live) "打开直播" else "继续观看")
                         }
                     }
                 }
